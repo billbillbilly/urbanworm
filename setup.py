@@ -7,8 +7,8 @@ setup(
     version=__version__,
 
     url='https://github.com/billbillbilly/urbanworm.git',
-    author='Michael Kim',
-    author_email='mkim0407@gmail.com',
+    author='Xiaohao Yang',
+    author_email='xiaohaoy111@gmail.com',
 
     py_modules=['urbanworm'],
 )
