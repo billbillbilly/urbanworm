@@ -1,0 +1,7 @@
+ollama
+pandas
+geopandas
+rasterio
+segment-geospatial
+numpy
+pydantic
