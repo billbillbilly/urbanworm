@@ -1,7 +1,9 @@
 ollama
+gdal
 pandas
 geopandas
 rasterio
-segment-geospatial
 numpy
 pydantic
+pillow
+opencv-python

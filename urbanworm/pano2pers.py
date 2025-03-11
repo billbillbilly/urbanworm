@@ -1,5 +1,5 @@
 '''
-The source code is adapted from https://github.com/fuenwang/Equirec2Perspec.git. Credit to the author fuenwang.
+The source code is adapted from https://github.com/fuenwang/Equirec2Perspec.git. Credit to the author @fuenwang.
 '''
 
 import cv2

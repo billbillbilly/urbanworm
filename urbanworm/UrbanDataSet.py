@@ -4,7 +4,7 @@ import ollama
 from pydantic import BaseModel
 import rasterio
 from rasterio.mask import mask
-from samgeo import tms_to_geotiff
+from utils import tms_to_geotiff
 import tempfile
 import os
 from typing import List
