@@ -4,12 +4,14 @@ import ollama
 from pydantic import BaseModel
 import rasterio
 from rasterio.mask import mask
-from utils import tms_to_geotiff
 import tempfile
 import os
 from typing import List
 from utils import loadSHP
+from utils import meters_to_degrees
 from utils import getSV
+from utils import tms_to_geotiff
+from utils import getOSMbuildings
 
 class QnA(BaseModel):
     question: str
@@ -21,7 +23,7 @@ class Response(BaseModel):
 
 class UrbanDataSet:
     '''
-    Dataset class for urban imagery inference using LLM.
+    Dataset class for urban imagery inference using MLLM.
 
     Args:
         image (str): The path to the image.
@@ -35,16 +37,34 @@ class UrbanDataSet:
         self.img = image
         self.imgs = images
         if random_sample != None and units != None:
-            self.parcels = loadSHP(units).sample(random_sample)
+            self.units = loadSHP(units).sample(random_sample)
         elif random_sample == None and units != None:
-            self.parcels = loadSHP(units)
+            self.units = loadSHP(units)
         else:
-            self.parcels = units
+            self.units = units
         if format == None:
             self.format = Response()
         else:
             self.format = format
         self.mapillary_key = mapillary_key
+
+    def bbox2osmBuildings(self, bbox, min_area=0, max_area=None, random_sample=None):
+        '''
+        This function is used to extract buildings from OpenStreetMap using the bbox.
+
+        Args:
+            bbox (list): The bounding box.
+            min_area (int): The minimum area.
+            max_area (int): The maximum area.
+            random_sample (int): The number of random samples.
+        '''
+        buildings = getOSMbuildings(bbox, min_area, max_area)
+        if buildings is None or buildings.empty:
+            return "No buildings found in the bounding box. Please check https://overpass-turbo.eu/ for areas with buildings."
+        if random_sample != None:
+            buildings = buildings.sample(random_sample)
+        self.units = buildings
+        return f"{len(buildings)} buildings found in the bounding box."
     
     def oneImgChat(self, system=None, prompt=None, 
                    temp=0.0, top_k=0.8, top_p=0.8):
@@ -70,34 +90,41 @@ class UrbanDataSet:
         Args:
             type (str): The type of image to process.
             epsg (int): The EPSG code.
-            multi (bool): The multi flag.
+            multi (bool): The multi flag for multiple street view images for one unit.
         '''
         dic = {
             "lon": [],
             "lat": [],
         }
-        for i in range(len(self.parcels)):
-            # Get the extent of one polygon from the filtered GeoDataFrame
-            polygon = self.parcels.geometry.iloc[i]
-            centroid = polygon.centroid
-            minx, miny, maxx, maxy = polygon.bounds
-            bbox = [minx, miny, maxx, maxy]
 
-            dic['lon'].append(self.parcels.centroid.x.iloc[i])
-            dic['lat'].append(self.parcels.centroid.y.iloc[i])
+        for i in range(len(self.units)):
+            # Get the extent of one polygon from the filtered GeoDataFrame
+            polygon = self.units.geometry.iloc[i]
+            centroid = polygon.centroid
+            
+            dic['lon'].append(centroid.x)
+            dic['lat'].append(centroid.y)
 
             if type == 'top' or type == 'both':
-                # Download data using tms_to_geotiff
+                # Convert meters to degrees dynamically based on latitude
+                # Approximate adjustment (5 meters)
+                degree_offset = meters_to_degrees(5, centroid.y)  # Convert 5m to degrees
+                polygon = polygon.buffer(degree_offset)
+                # Compute bounding box
+                minx, miny, maxx, maxy = polygon.bounds
+                bbox = [minx, miny, maxx, maxy]
+
                 # Create a temporary file
                 with tempfile.NamedTemporaryFile(suffix=".tif", delete=False) as temp_file:
-                    image = temp_file.name  # Get the temp file path
+                    image = temp_file.name
+                # Download data using tms_to_geotiff
                 tms_to_geotiff(output=image, bbox=bbox, zoom=22, 
-                            source="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}", 
-                            overwrite=True)
+                               source="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}", 
+                               overwrite=True)
                 # Clip the image with the polygon
                 with rasterio.open(image) as src:
                     # Reproject the polygon back to match raster CRS
-                    polygon = self.parcels.to_crs(src.crs).geometry.iloc[i]
+                    polygon = self.units.to_crs(src.crs).geometry.iloc[i]
                     out_image, out_transform = mask(src, [polygon], crop=True)
                     out_meta = src.meta.copy()
 
@@ -123,13 +150,16 @@ class UrbanDataSet:
                                     temp=temp, 
                                     top_k=top_k, 
                                     top_p=top_p)
-                dic['roof_condition'].append(top_res)
+                # initialize the list
+                if i == 0:
+                    dic['top_view'] = []
+                dic['top_view'].append(top_res.responses)
                 # clean up temp file
                 os.remove(clipped_image)
 
             # process street view image
             if  (type == 'street' or type == 'both') and epsg != None and self.mapillary_key != None:
-                input_svis = [getSV(centroid, epsg, self.mapillary_key, multi=multi)]
+                input_svis = getSV(centroid, epsg, self.mapillary_key, multi=multi)
                 if None not in input_svis:
                     res = self.LLM_chat(system=system, 
                                         prompt=prompt, 
@@ -137,7 +167,10 @@ class UrbanDataSet:
                                         temp=temp, 
                                         top_k=top_k, 
                                         top_p=top_p)
-                    dic['streetview_conditions'].append(res)
+                    # initialize the list
+                    if i == 0:
+                        dic['street_view'] = []
+                    dic['street_view'].append(res.responses)
         return dic
     
     def LLM_chat(self, system=None, prompt=None, img=None, temp=None, top_k=None, top_p=None):

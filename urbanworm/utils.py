@@ -7,6 +7,7 @@ from shapely.geometry import Polygon
 import math
 import requests
 import sys
+import os
 from pano2pers import Equirectangular
 
 # Load shapefile
@@ -21,6 +22,13 @@ def loadSHP(file):
     except Exception as e:
         print(f"Error reading or displaying Shapefile: {e}")
         return None
+
+# offset polygon by distance
+def meters_to_degrees(meters, latitude):
+    """Convert meters to degrees dynamically based on latitude."""
+    # Approximate adjustment
+    meters_per_degree = 111320 * (1 - 0.000022 * abs(latitude))
+    return meters / meters_per_degree
 
 # Get street view images from Mapillary
 def getSV(centroid, epsg, key, multi=False):
@@ -51,8 +59,8 @@ def getSV(centroid, epsg, key, multi=False):
         return None
 
 # Reproject the point to the desired EPSG
-def projection(self, centroid, epsg):
-        x, y = self.degree2dis(centroid, epsg)
+def projection(centroid, epsg):
+        x, y = degree2dis(centroid, epsg)
         # Get unit name (meters, degrees, etc.)
         crs = CRS.from_epsg(epsg)
         unit_name = crs.axis_info[0].unit_name
@@ -69,8 +77,8 @@ def projection(self, centroid, epsg):
         x_max = x + r
         y_max = y + r
         # Convert to EPSG:4326 (Lat/Lon) 
-        x_min, y_min = self.dis2degree(x_min, y_min, epsg)
-        x_max, y_max = self.dis2degree(x_max, y_max, epsg)
+        x_min, y_min = dis2degree(x_min, y_min, epsg)
+        x_max, y_max = dis2degree(x_max, y_max, epsg)
         return f'{x_min},{y_min},{x_max},{y_max}'
 
 # Convert distance to degree
@@ -116,44 +124,43 @@ def calculate_bearing(lat1, lon1, lat2, lon2):
     return (bearing + 360) % 360  # Normalize to 0-360
 
 # get building footprints from OSM uing bbox
-def getOSMbuildings(bbox):
+def getOSMbuildings(bbox, min_area=0, max_area=None):
+    # Extract bounding box coordinates
     min_lon, min_lat, max_lon, max_lat = bbox
 
     url = "https://overpass-api.de/api/interpreter"
     query = f"""
+    [bbox:{max_lat},{max_lon},{min_lat},{min_lon}]
     [out:json]
     [timeout:900];
     (
-        node["building"]({min_lat},{min_lon},{max_lat},{max_lon});
         way["building"]({min_lat},{min_lon},{max_lat},{max_lon});
         relation["building"]({min_lat},{min_lon},{max_lat},{max_lon});
     );
     out geom;
     """
 
-    # payload = "data=" + requests.utils.quote(query)
-    # response = requests.post(url, data=payload)
-    response = requests.get(url, params={"data": query})
-
-    
+    payload = "data=" + requests.utils.quote(query)
+    response = requests.post(url, data=payload)
     data = response.json()
 
-    # Extract building polygons
     buildings = []
-    for element in data.get('elements', []):
-        if 'tags' in element and 'building' in element['tags']:
-            buildings.append(element.get('geometry'))
-    # Extract building polygons
-    # buildings = []
-    # for element in data.get("elements", []):
-    #     if "geometry" in element:
-    #         coords = [(node["lon"], node["lat"]) for node in element["geometry"]]
-    #         if len(coords) > 2:  # Ensure at least 3 points for a polygon
-    #             buildings.append(Polygon(coords))
+    for element in data.get("elements", []):
+        if "geometry" in element:
+            coords = [(node["lon"], node["lat"]) for node in element["geometry"]]
+            if len(coords) > 2:  
+                polygon = Polygon(coords)
+                # Approx. conversion to square meters
+                area_m2 = polygon.area * (111320 ** 2)  
+                # Filter buildings by area
+                if area_m2 >= min_area and (max_area is None or area_m2 <= max_area):
+                    buildings.append(polygon)
 
+    if len(buildings) == 0:
+        return None
     # Convert to GeoDataFrame
-    # gdf = gpd.GeoDataFrame(geometry=buildings, crs="EPSG:4326")
-    return data
+    gdf = gpd.GeoDataFrame(geometry=buildings, crs="EPSG:4326")
+    return gdf
 
 # The adapted function is from geosam and originally from https://github.com/gumblex/tms2geotiff. 
 # Credits to Dr.Qiusheng Wu and the GitHub user @gumblex.
@@ -167,7 +174,7 @@ def tms_to_geotiff(
     to_cog=False,
     return_image=False,
     overwrite=False,
-    quiet=False,
+    quiet=True,
     **kwargs,
 ):
     """Download TMS tiles and convert them to a GeoTIFF. The source is adapted from https://github.com/gumblex/tms2geotiff.
@@ -452,3 +459,238 @@ def tms_to_geotiff(
             image_to_cog(output, output)
     except Exception as e:
         raise Exception(e)
+
+# The function is from geosam. Credits to Dr.Qiusheng Wu.
+def get_basemaps(free_only=True):
+    """Returns a dictionary of xyz basemaps.
+
+    Args:
+        free_only (bool, optional): Whether to return only free xyz tile services that do not require an access token. Defaults to True.
+
+    Returns:
+        dict: A dictionary of xyz basemaps.
+    """
+
+    basemaps = {}
+    xyz_dict = get_xyz_dict(free_only=free_only)
+    for item in xyz_dict:
+        name = xyz_dict[item].name
+        url = xyz_dict[item].build_url()
+        basemaps[name] = url
+
+    return basemaps
+
+# The function is from geosam. Credits to Dr.Qiusheng Wu.
+def get_xyz_dict(free_only=True):
+    """Returns a dictionary of xyz services.
+
+    Args:
+        free_only (bool, optional): Whether to return only free xyz tile services that do not require an access token. Defaults to True.
+
+    Returns:
+        dict: A dictionary of xyz services.
+    """
+    import collections
+    import xyzservices.providers as xyz
+
+    def _unpack_sub_parameters(var, param):
+        temp = var
+        for sub_param in param.split("."):
+            temp = getattr(temp, sub_param)
+        return temp
+
+    xyz_dict = {}
+    for item in xyz.values():
+        try:
+            name = item["name"]
+            tile = _unpack_sub_parameters(xyz, name)
+            if _unpack_sub_parameters(xyz, name).requires_token():
+                if free_only:
+                    pass
+                else:
+                    xyz_dict[name] = tile
+            else:
+                xyz_dict[name] = tile
+
+        except Exception:
+            for sub_item in item:
+                name = item[sub_item]["name"]
+                tile = _unpack_sub_parameters(xyz, name)
+                if _unpack_sub_parameters(xyz, name).requires_token():
+                    if free_only:
+                        pass
+                    else:
+                        xyz_dict[name] = tile
+                else:
+                    xyz_dict[name] = tile
+
+    xyz_dict = collections.OrderedDict(sorted(xyz_dict.items()))
+    return xyz_dict
+
+# The function is from geosam. Credits to Dr.Qiusheng Wu.
+def reproject(
+    image, output, dst_crs="EPSG:4326", resampling="nearest", to_cog=True, **kwargs
+):
+    """Reprojects an image.
+
+    Args:
+        image (str): The input image filepath.
+        output (str): The output image filepath.
+        dst_crs (str, optional): The destination CRS. Defaults to "EPSG:4326".
+        resampling (Resampling, optional): The resampling method. Defaults to "nearest".
+        to_cog (bool, optional): Whether to convert the output image to a Cloud Optimized GeoTIFF. Defaults to True.
+        **kwargs: Additional keyword arguments to pass to rasterio.open.
+
+    """
+    import rasterio as rio
+    from rasterio.warp import calculate_default_transform, reproject, Resampling
+
+    if isinstance(resampling, str):
+        resampling = getattr(Resampling, resampling)
+
+    image = os.path.abspath(image)
+    output = os.path.abspath(output)
+
+    if not os.path.exists(os.path.dirname(output)):
+        os.makedirs(os.path.dirname(output))
+
+    with rio.open(image, **kwargs) as src:
+        transform, width, height = calculate_default_transform(
+            src.crs, dst_crs, src.width, src.height, *src.bounds
+        )
+        kwargs = src.meta.copy()
+        kwargs.update(
+            {
+                "crs": dst_crs,
+                "transform": transform,
+                "width": width,
+                "height": height,
+            }
+        )
+
+        with rio.open(output, "w", **kwargs) as dst:
+            for i in range(1, src.count + 1):
+                reproject(
+                    source=rio.band(src, i),
+                    destination=rio.band(dst, i),
+                    src_transform=src.transform,
+                    src_crs=src.crs,
+                    dst_transform=transform,
+                    dst_crs=dst_crs,
+                    resampling=resampling,
+                    **kwargs,
+                )
+
+    if to_cog:
+        image_to_cog(output, output)
+
+# The function is from geosam. Credits to Dr.Qiusheng Wu.
+def image_to_cog(source, dst_path=None, profile="deflate", **kwargs):
+    """Converts an image to a COG file.
+
+    Args:
+        source (str): A dataset path, URL or rasterio.io.DatasetReader object.
+        dst_path (str, optional): An output dataset path or or PathLike object. Defaults to None.
+        profile (str, optional): COG profile. More at https://cogeotiff.github.io/rio-cogeo/profile. Defaults to "deflate".
+
+    Raises:
+        ImportError: If rio-cogeo is not installed.
+        FileNotFoundError: If the source file could not be found.
+    """
+    try:
+        from rio_cogeo.cogeo import cog_translate
+        from rio_cogeo.profiles import cog_profiles
+
+    except ImportError:
+        raise ImportError(
+            "The rio-cogeo package is not installed. Please install it with `pip install rio-cogeo` or `conda install rio-cogeo -c conda-forge`."
+        )
+
+    if not source.startswith("http"):
+        source = check_file_path(source)
+
+        if not os.path.exists(source):
+            raise FileNotFoundError("The provided input file could not be found.")
+
+    if dst_path is None:
+        if not source.startswith("http"):
+            dst_path = os.path.splitext(source)[0] + "_cog.tif"
+        else:
+            dst_path = temp_file_path(extension=".tif")
+
+    dst_path = check_file_path(dst_path)
+
+    dst_profile = cog_profiles.get(profile)
+    cog_translate(source, dst_path, dst_profile, **kwargs)
+
+# The function is from geosam. Credits to Dr.Qiusheng Wu.
+def check_file_path(file_path, make_dirs=True):
+    """Gets the absolute file path.
+
+    Args:
+        file_path (str): The path to the file.
+        make_dirs (bool, optional): Whether to create the directory if it does not exist. Defaults to True.
+
+    Raises:
+        FileNotFoundError: If the directory could not be found.
+        TypeError: If the input directory path is not a string.
+
+    Returns:
+        str: The absolute path to the file.
+    """
+    if isinstance(file_path, str):
+        if file_path.startswith("~"):
+            file_path = os.path.expanduser(file_path)
+        else:
+            file_path = os.path.abspath(file_path)
+
+        file_dir = os.path.dirname(file_path)
+        if not os.path.exists(file_dir) and make_dirs:
+            os.makedirs(file_dir)
+
+        return file_path
+
+    else:
+        raise TypeError("The provided file path must be a string.")
+    
+# The function is from geosam. Credits to Dr.Qiusheng Wu.
+def temp_file_path(extension):
+    """Returns a temporary file path.
+
+    Args:
+        extension (str): The file extension.
+
+    Returns:
+        str: The temporary file path.
+    """
+
+    import tempfile
+    import uuid
+
+    if not extension.startswith("."):
+        extension = "." + extension
+    file_id = str(uuid.uuid4())
+    file_path = os.path.join(tempfile.gettempdir(), f"{file_id}{extension}")
+
+    return file_path
+
+def response2gdf(dict, to_geojson=False):
+    """Convert dict including MLLM responses to a gdf."""
+    from shapely.geometry import Point
+
+    # Convert QnA objects to individual columns
+    def extract_qna(qna_list):
+        """Extracts filds from QnA objects as a single dictionary."""
+        if qna_list:
+            qna = qna_list[0]  # Assuming one QnA per row
+            return vars(qna)  # Dynamically extract all attributes
+
+    # Create a GeoDataFrame
+    gdf = gpd.GeoDataFrame(
+        {
+            "geometry": [Point(lon, lat) for lon, lat in zip(dict["lon"], dict["lat"])],
+            "qna": [extract_qna(qna) for qna in dict["top_view"]]
+        },
+        crs="EPSG:4326"
+    )
+    return gdf
