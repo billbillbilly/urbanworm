@@ -674,23 +674,26 @@ def temp_file_path(extension):
 
     return file_path
 
-def response2gdf(dict, to_geojson=False):
+def response2gdf(data_dict, to_geojson=False):
     """Convert dict including MLLM responses to a gdf."""
     from shapely.geometry import Point
 
     # Convert QnA objects to individual columns
     def extract_qna(qna_list):
         """Extracts filds from QnA objects as a single dictionary."""
-        if qna_list:
-            qna = qna_list[0]  # Assuming one QnA per row
-            return vars(qna)  # Dynamically extract all attributes
+        return [vars(qna) for qna in qna_list] if qna_list else []
 
-    # Create a GeoDataFrame
-    gdf = gpd.GeoDataFrame(
-        {
-            "geometry": [Point(lon, lat) for lon, lat in zip(dict["lon"], dict["lat"])],
-            "qna": [extract_qna(qna) for qna in dict["top_view"]]
-        },
-        crs="EPSG:4326"
-    )
+    # Create dictionary for GeoDataFrame
+    gdf_data = {
+        "geometry": [Point(lon, lat) for lon, lat in zip(data_dict["lon"], data_dict["lat"])]
+    }
+
+    # Add 'top_view' and 'street_view' columns if present
+    if "top_view" in data_dict:
+        gdf_data["top_view"] = [extract_qna(qna) for qna in data_dict["top_view"]]
+    if "street_view" in data_dict:
+        gdf_data["street_view"] = [extract_qna(qna) for qna in data_dict["street_view"]]
+
+    # Create GeoDataFrame
+    gdf = gpd.GeoDataFrame(gdf_data, crs="EPSG:4326")
     return gdf

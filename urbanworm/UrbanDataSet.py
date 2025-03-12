@@ -81,17 +81,37 @@ class UrbanDataSet:
             res += [r.responses[0]]
         return res
             
-    def loopUnitChat(self, system=None, prompt=None, 
-                     temp=0.0, top_k=0.8, top_p=0.8, 
-                     type='top', epsg=None, multi=False):
+    def loopUnitChat(self, system=None, prompt:dict=None, 
+                     temp:float=0.0, top_k:float=0.8, top_p:float=0.8, 
+                     type:str='top', epsg:int=None, multi:bool=False):
         '''
-        chat with LLM model for each unit in the shapefile.
+        chat with MLLM model for each unit in the shapefile.
+        example prompt:
+        prompt = {
+            'top': ''
+                Is there any damage on the roof?
+            '',
+            'street': ''
+                Is the wall missing or damaged?
+                Is the yard maintained well?
+            ''
+        }
 
         Args:
+            system (optinal): The system message.
+            prompt (dict): The prompt message for either top or street view or both.
             type (str): The type of image to process.
-            epsg (int): The EPSG code.
+            epsg (int): The EPSG code (required when type='street' or type='both').
             multi (bool): The multi flag for multiple street view images for one unit.
         '''
+
+        if type == 'top' and 'top' not in prompt:
+            return "Please provide prompt for top view images when type='top'"
+        if type == 'street' and 'street' not in prompt:
+            return "Please provide prompt for street view images when type='street'"
+        if type == 'both' and 'top' not in prompt and 'street' not in prompt:
+            return "Please provide prompt for both top and street view images when type='both'"
+
         dic = {
             "lon": [],
             "lat": [],
@@ -143,9 +163,9 @@ class UrbanDataSet:
                     dest.write(out_image)
                 # clean up temp file
                 os.remove(image)
-                # process areal image
+                # process aerial image
                 top_res = self.LLM_chat(system=system, 
-                                    prompt=prompt, 
+                                    prompt=f'Please note that you should answer questions for the aerial image. {prompt["top"]}', 
                                     img=[clipped_image], 
                                     temp=temp, 
                                     top_k=top_k, 
@@ -162,7 +182,7 @@ class UrbanDataSet:
                 input_svis = getSV(centroid, epsg, self.mapillary_key, multi=multi)
                 if None not in input_svis:
                     res = self.LLM_chat(system=system, 
-                                        prompt=prompt, 
+                                        prompt=f'Please note that you should answer questions for the street view image. {prompt["street"]}', 
                                         img=input_svis, 
                                         temp=temp, 
                                         top_k=top_k, 
@@ -225,90 +245,4 @@ class UrbanDataSet:
             }
         )
         return self.format.model_validate_json(res.message.content)
-    
-    # def getSV(self, centroid, epsg, key, multi=False):
-    #     bbox = self.projection(centroid, epsg)
-    #     url = f"https://graph.mapillary.com/images?access_token={key}&fields=id,compass_angle,thumb_2048_url,geometry&bbox={bbox}&is_pano=true"
-    #     # while not response or 'data' not in response:
-    #     try:
-    #         response = requests.get(url).json()
-    #         # find the closest image
-    #         response = self.closest(centroid, response, multi)
 
-    #         svis = []
-    #         for i in range(len(response)):
-    #             # Extract Image ID, Compass Angle, image url, and coordinates
-    #             img_heading = float(response.iloc[i,1])
-    #             img_url = response.iloc[i,2]
-    #             image_lon, image_lat = response.iloc[i,5]
-    #             # calculate bearing to the house
-    #             bearing_to_house = self.calculate_bearing(image_lat, image_lon, centroid.y, centroid.x)
-    #             relative_heading = (bearing_to_house - img_heading) % 360
-    #             # reframe image
-    #             svi = Equirectangular(img_url=img_url)
-    #             sv = svi.GetPerspective(80, relative_heading, 10, 300, 400, 128)
-    #             svis.append(sv)
-    #         return svis
-    #     except:
-    #         print("no street view image found")
-    #         return None
-    
-    # def projection(self, centroid, epsg):
-    #     x, y = self.degree2dis(centroid, epsg)
-    #     # Get unit name (meters, degrees, etc.)
-    #     crs = CRS.from_epsg(epsg)
-    #     unit_name = crs.axis_info[0].unit_name
-    #     # set search distance to 25 meters
-    #     r = 50
-    #     if unit_name == 'foot':
-    #         r = 164.042
-    #     elif unit_name == 'degree':
-    #         print("Error: epsg must be projected system.")
-    #         sys.exit(1)
-    #     # set bbox
-    #     x_min = x - r
-    #     y_min = y - r
-    #     x_max = x + r
-    #     y_max = y + r
-    #     # Convert to EPSG:4326 (Lat/Lon) 
-    #     x_min, y_min = self.dis2degree(x_min, y_min, epsg)
-    #     x_max, y_max = self.dis2degree(x_max, y_max, epsg)
-    #     return f'{x_min},{y_min},{x_max},{y_max}'
-
-    # def dis2degree(self, ptx, pty, epsg):
-    #     transformer = Transformer.from_crs(f"EPSG:{epsg}", "EPSG:4326", always_xy=True)
-    #     x, y = transformer.transform(ptx, pty)
-    #     return x, y
-    
-    # def degree2dis(self, pt, epsg):
-    #     transformer = Transformer.from_crs("EPSG:4326", f"EPSG:{epsg}", always_xy=True)
-    #     x, y = transformer.transform(pt.x, pt.y)
-    #     return x, y
-    
-    # def closest(self, centroid, response, multi=False):
-    #     c = [centroid.x, centroid.y]
-    #     res_df = pd.DataFrame(response['data'])
-    #     res_df[['point','coordinates']] = pd.DataFrame(res_df.geometry.tolist(), index= res_df.index)
-    #     res_df[['lon','lat']] = pd.DataFrame(res_df.coordinates.tolist(), index= res_df.index)
-    #     id_array = np.array(res_df['id'])
-    #     lon_array = np.array(res_df['lon'])
-    #     lat_array = np.array(res_df['lat'])
-    #     dis_array = (lon_array-c[0])*(lon_array-c[0]) + (lat_array-c[1])*(lat_array-c[1])
-    #     if multi == True and len(dis_array) > 3:
-    #         smallest_indices = np.argsort(dis_array)[:3]
-    #         return res_df.loc[res_df['id'].isin(id_array[smallest_indices])]
-    #     ind = np.where(dis_array == np.min(dis_array))[0]
-    #     id = id_array[ind][0]
-    #     return res_df.loc[res_df['id'] == id]
-    
-    # # filter images by time and seasons
-    
-    # def calculate_bearing(self, lat1, lon1, lat2, lon2):
-    #     lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
-    #     delta_lon = lon2 - lon1
-
-    #     x = math.sin(delta_lon) * math.cos(lat2)
-    #     y = math.cos(lat1) * math.sin(lat2) - (math.sin(lat1) * math.cos(lat2) * math.cos(delta_lon))
-
-    #     bearing = math.degrees(math.atan2(x, y))
-    #     return (bearing + 360) % 360  # Normalize to 0-360
