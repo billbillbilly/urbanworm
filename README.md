@@ -10,6 +10,10 @@ Urban-Worm is a Python library that integrates remote sensing imagery, street vi
 
 ## Installation
 Please make sure [Ollama](https://ollama.com/) is installed before installing urban-worm
+For Linux, users can install ollama:
+```sh
+curl -fsSL https://ollama.com/install.sh | sh
+```
 
 #### MacOS
 For mac users, it may be nacessary to install gdal:
@@ -21,10 +25,8 @@ If the installation method above does not work, try to install with conda if you
  conda install -c conda-forge gdal
 ```
 
-Other users can install the package with `pip`
+The package urabnworm can be installed with `pip`:
 ```sh
-conda create -n urbanworm python==3.10
-conda activate urbanworm
 pip install urbanworm 
 ```
 

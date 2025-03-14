@@ -48,6 +48,29 @@ class UrbanDataSet:
             self.format = format
         self.mapillary_key = mapillary_key
 
+    def preload_model(self):
+        """
+        Ensures that the required Ollama model is available.
+        If not, it automatically pulls the model.
+        """
+        model_name = "llama3.2-vision"
+        try:
+            # Get list of models currently installed
+            installed_models = ollama.list()
+            model_names = [m["name"] for m in installed_models["models"]]
+
+            if model_name not in model_names:
+                print(f"Model {model_name} not found. Pulling now...")
+                ollama.pull(model_name)
+                print(f"Model {model_name} successfully pulled!")
+            else:
+                print(f"Model {model_name} is already available.")
+
+        except Exception as e:
+            print(f"Warning: Ollama is not installed or failed to check models: {e}")
+            print("Please install Ollama client: https://github.com/ollama/ollama/tree/main")
+            raise RuntimeError("Ollama not available. Install it before running.")
+
     def bbox2osmBuildings(self, bbox, min_area=0, max_area=None, random_sample=None):
         '''
         This function is used to extract buildings from OpenStreetMap using the bbox.
