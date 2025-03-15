@@ -162,6 +162,118 @@ def getOSMbuildings(bbox, min_area=0, max_area=None):
     gdf = gpd.GeoDataFrame(geometry=buildings, crs="EPSG:4326")
     return gdf
 
+# get building footprints from open building footprints released by Bing Maps using a bbox
+# Adopted code is originally from https://github.com/microsoft/GlobalMLBuildingFootprints.git
+# Credits to contributors @GlobalMLBuildingFootprints.
+def getGlobalMLBuilding(bbox, min_area:float=0.0, max_area:float=None):
+    """
+    Fetches Global ML Building footprints within a bounding box and filters them by area.
+
+    Parameters:
+    - bbox (tuple/list): (min_lon, min_lat, max_lon, max_lat)
+    - min_area (float): Minimum building area in square meters (default=0)
+    - max_area (float): Maximum building area in square meters (default=None, no limit)
+
+    Returns:
+    - gpd.GeoDataFrame: Filtered building footprints.
+    """
+    import mercantile
+    from tqdm import tqdm
+    import tempfile
+    from shapely import geometry
+
+    min_lon, min_lat, max_lon, max_lat = bbox
+    aoi_geom = {
+        "coordinates": [
+            [
+                [min_lon, min_lat],
+                [min_lon, max_lat],
+                [max_lon, max_lat],
+                [max_lon, min_lat],
+                [min_lon, min_lat]
+            ]
+        ],
+        "type": "Polygon"
+    }
+    aoi_shape = geometry.shape(aoi_geom)
+    # Extract bounding box coordinates
+    minx, miny, maxx, maxy = aoi_shape.bounds
+    # get tiles intersect bbox
+    quad_keys = set()
+    for tile in list(mercantile.tiles(minx, miny, maxx, maxy, zooms=9)):
+        quad_keys.add(mercantile.quadkey(tile))
+    quad_keys = list(quad_keys)
+    # Download the building footprints for each tile and crop with bbox
+    df = pd.read_csv(
+        "https://minedbuildings.z5.web.core.windows.net/global-buildings/dataset-links.csv", dtype=str
+    )
+    
+    idx = 0
+    combined_gdf = gpd.GeoDataFrame()
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Download the GeoJSON files for each tile that intersects the input geometry
+        tmp_fns = []
+        for quad_key in tqdm(quad_keys):
+            rows = df[df["QuadKey"] == quad_key]
+            if rows.shape[0] == 1:
+                url = rows.iloc[0]["Url"]
+
+                df2 = pd.read_json(url, lines=True)
+                df2["geometry"] = df2["geometry"].apply(geometry.shape)
+
+                gdf = gpd.GeoDataFrame(df2, crs=4326)
+                fn = os.path.join(tmpdir, f"{quad_key}.geojson")
+                tmp_fns.append(fn)
+                if not os.path.exists(fn): # Skip if file already exists
+                    gdf.to_file(fn, driver="GeoJSON")
+            elif rows.shape[0] > 1:
+                raise ValueError(f"Multiple rows found for QuadKey: {quad_key}")
+            else:
+                raise ValueError(f"QuadKey not found in dataset: {quad_key}")
+        # Merge the GeoJSON files into a single file
+        for fn in tmp_fns:
+            gdf = gpd.read_file(fn)  # Read each file into a GeoDataFrame
+            gdf = gdf[gdf.geometry.within(aoi_shape)]  # Filter geometries within the AOI
+            gdf['id'] = range(idx, idx + len(gdf))  # Update 'id' based on idx
+            idx += len(gdf)
+            combined_gdf = pd.concat([combined_gdf,gdf],ignore_index=True)
+    
+    # Reproject to a UTM CRS for accurate area measurement
+    utm_crs = gdf.estimate_utm_crs()  
+    # Compute area and filter buildings by area
+    gdf = gdf.to_crs(utm_crs)
+    gdf["area_m2"] = gdf.geometry.area
+    gdf = gdf[gdf["area_m2"] >= min_area]  # Filter min area
+    if max_area:
+        gdf = gdf[gdf["area_m2"] <= max_area]  # Filter max area
+    # Reproject back to WGS84
+    combined_gdf.to_crs('EPSG:4326')
+    return combined_gdf
+
+def response2gdf(data_dict, to_geojson=False):
+    """Convert dict including MLLM responses to a gdf."""
+    from shapely.geometry import Point
+
+    # Convert QnA objects to individual columns
+    def extract_qna(qna_list):
+        """Extracts filds from QnA objects as a single dictionary."""
+        return [vars(qna) for qna in qna_list] if qna_list else []
+
+    # Create dictionary for GeoDataFrame
+    gdf_data = {
+        "geometry": [Point(lon, lat) for lon, lat in zip(data_dict["lon"], data_dict["lat"])]
+    }
+
+    # Add 'top_view' and 'street_view' columns if present
+    if "top_view" in data_dict:
+        gdf_data["top_view"] = [extract_qna(qna) for qna in data_dict["top_view"]]
+    if "street_view" in data_dict:
+        gdf_data["street_view"] = [extract_qna(qna) for qna in data_dict["street_view"]]
+
+    # Create GeoDataFrame
+    gdf = gpd.GeoDataFrame(gdf_data, crs="EPSG:4326")
+    return gdf
+
 # The adapted function is from geosam and originally from https://github.com/gumblex/tms2geotiff. 
 # Credits to Dr.Qiusheng Wu and the GitHub user @gumblex.
 def tms_to_geotiff(
@@ -673,27 +785,3 @@ def temp_file_path(extension):
     file_path = os.path.join(tempfile.gettempdir(), f"{file_id}{extension}")
 
     return file_path
-
-def response2gdf(data_dict, to_geojson=False):
-    """Convert dict including MLLM responses to a gdf."""
-    from shapely.geometry import Point
-
-    # Convert QnA objects to individual columns
-    def extract_qna(qna_list):
-        """Extracts filds from QnA objects as a single dictionary."""
-        return [vars(qna) for qna in qna_list] if qna_list else []
-
-    # Create dictionary for GeoDataFrame
-    gdf_data = {
-        "geometry": [Point(lon, lat) for lon, lat in zip(data_dict["lon"], data_dict["lat"])]
-    }
-
-    # Add 'top_view' and 'street_view' columns if present
-    if "top_view" in data_dict:
-        gdf_data["top_view"] = [extract_qna(qna) for qna in data_dict["top_view"]]
-    if "street_view" in data_dict:
-        gdf_data["street_view"] = [extract_qna(qna) for qna in data_dict["street_view"]]
-
-    # Create GeoDataFrame
-    gdf = gpd.GeoDataFrame(gdf_data, crs="EPSG:4326")
-    return gdf

@@ -12,6 +12,7 @@ from utils import meters_to_degrees
 from utils import getSV
 from utils import tms_to_geotiff
 from utils import getOSMbuildings
+from utils import getGlobalMLBuilding
 
 class QnA(BaseModel):
     question: str
@@ -71,19 +72,26 @@ class UrbanDataSet:
             print("Please install Ollama client: https://github.com/ollama/ollama/tree/main")
             raise RuntimeError("Ollama not available. Install it before running.")
 
-    def bbox2osmBuildings(self, bbox, min_area=0, max_area=None, random_sample=None):
+    def bbox2Buildings(self, bbox, source='osm', min_area=0, max_area=None, random_sample=None):
         '''
         This function is used to extract buildings from OpenStreetMap using the bbox.
 
         Args:
             bbox (list): The bounding box.
+            source (str): The source of the buildings. ['osm', 'being']
             min_area (int): The minimum area.
             max_area (int): The maximum area.
             random_sample (int): The number of random samples.
         '''
-        buildings = getOSMbuildings(bbox, min_area, max_area)
+        if source == 'osm':
+            buildings = getOSMbuildings(bbox, min_area, max_area)
+        elif source == 'being':
+            buildings = getGlobalMLBuilding(bbox, min_area, max_area)
         if buildings is None or buildings.empty:
-            return "No buildings found in the bounding box. Please check https://overpass-turbo.eu/ for areas with buildings."
+            if source == 'osm':
+                return "No buildings found in the bounding box. Please check https://overpass-turbo.eu/ for areas with buildings."
+            if source == 'being':
+                return "No buildings found in the bounding box. Please check https://github.com/microsoft/GlobalMLBuildingFootprints for areas with buildings."
         if random_sample != None:
             buildings = buildings.sample(random_sample)
         self.units = buildings
@@ -162,7 +170,7 @@ class UrbanDataSet:
                     image = temp_file.name
                 # Download data using tms_to_geotiff
                 tms_to_geotiff(output=image, bbox=bbox, zoom=22, 
-                               source="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}", 
+                               source="SATELLITE", 
                                overwrite=True)
                 # Clip the image with the polygon
                 with rasterio.open(image) as src:
