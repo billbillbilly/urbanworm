@@ -221,7 +221,10 @@ class UrbanDataSet:
                     # initialize the list
                     if i == 0:
                         dic['street_view'] = []
-                    dic['street_view'].append(res.responses)
+                    if multi:
+                        dic['street_view'] += [res]
+                    else:
+                        dic['street_view'] += res.responses
         return dic
     
     def LLM_chat(self, system=None, prompt=None, img=None, temp=None, top_k=None, top_p=None):

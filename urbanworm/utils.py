@@ -9,6 +9,9 @@ import requests
 import sys
 import os
 from pano2pers import Equirectangular
+import base64
+import cv2
+import matplotlib.pyplot as plt
 
 # Load shapefile
 def loadSHP(file):
@@ -250,29 +253,98 @@ def getGlobalMLBuilding(bbox, min_area:float=0.0, max_area:float=None):
     combined_gdf.to_crs('EPSG:4326')
     return combined_gdf
 
-def response2gdf(data_dict, to_geojson=False):
-    """Convert dict including MLLM responses to a gdf."""
+def response2gdf(qna_dict):
+    """Extracts filds from QnA objects as a single dictionary."""
+    import pandas as pd
+    import numpy as np
+    import geopandas as gpd
     from shapely.geometry import Point
+    import math
 
-    # Convert QnA objects to individual columns
-    def extract_qna(qna_list):
-        """Extracts filds from QnA objects as a single dictionary."""
-        return [vars(qna) for qna in qna_list] if qna_list else []
+    def findQgroup(num, groupSzie, totalSize):
+        if groupSzie == 1:
+            return 1
+        else:
+            return math.ceil((num/totalSize)/(groupSzie/totalSize))
+        
+    def renameKey(qna_list, t):
+        return [{f'{t}_{key}{i+1}': qna_list[i][key] for key in qna_list[i]} for i in range(len(qna_list))]
 
+    def extract_qna(qna, tag, fs):
+        question_num = len(qna[0])
+        fs_ = [fs for i in range(question_num)]
+        fs_ = list(np.concatenate(fs_))
+        size = len(fs_)
+        dic = {}
+        fields = []
+        for i in range(len(qna)):
+            qna_ = [dict(q) for q in qna[i]]
+            qna_ = renameKey(qna_, tag)
+            qna_ = {k: v for d_ in qna_ for k, v in d_.items()}
+            if i == 0:
+                dic = {f'{tag}_{fs_[idx]}{findQgroup(idx+1,question_num,size)}': [] for idx in range(size)}
+                fields = list(dic.keys())
+            for field in fields:
+                # n = findQgroup(fs_.index(field)+1, question_num, size)
+                # dic[f'{tag}_{field}{n}'] += [q_[f'{tag}_{field}{n}'] for q_ in qna_]
+                dic[field] += [qna_[field]]
+        return dic
+    
+    fields, qna_top, qna_street = None, None, None
+
+    if "top_view" not in qna_dict or "street_view" not in qna_dict:
+        raise ValueError("no response in the input data.")
+    
+    if "top_view" in qna_dict:
+        qna_top = qna_dict['top_view']
+    if "street_view" in qna_dict:
+        qna_street = qna_dict['street_view']
+    if "top_view" in qna_dict and "street_view" in qna_dict:
+        qna_top = qna_dict['top_view']
+        qna_street = qna_dict['street_view']
+    
     # Create dictionary for GeoDataFrame
-    gdf_data = {
-        "geometry": [Point(lon, lat) for lon, lat in zip(data_dict["lon"], data_dict["lat"])]
+    geo_data = {
+        "geometry": [Point(lon, lat) for lon, lat in zip(qna_dict["lon"], qna_dict["lat"])]
     }
 
-    # Add 'top_view' and 'street_view' columns if present
-    if "top_view" in data_dict:
-        gdf_data["top_view"] = [extract_qna(qna) for qna in data_dict["top_view"]]
-    if "street_view" in data_dict:
-        gdf_data["street_view"] = [extract_qna(qna) for qna in data_dict["street_view"]]
+    if qna_top:
+        fields = list(vars(qna_dict["top_view"][0][0]).keys())
+        dict_top = extract_qna(qna_top, 'top_view', fields)
+        # return df_top
+    if qna_street:
+        fields = list(vars(qna_dict["street_view"][0][0]).keys())
+        dict_street = extract_qna(qna_street, 'street_view', fields)
+    
+    if dict_top is not None and dict_street is not None:
+        out = merged_dict = {**geo_data, **dict_top, **dict_street}
+        # df = pd.concat([dict_top, df_street], axis=1)
+    elif dict_top is not None:
+        out = merged_dict = {**geo_data, **dict_top}
+    elif dict_street is not None:
+        out = merged_dict = {**geo_data, **dict_street}
+    return gpd.GeoDataFrame(out, crs="EPSG:4326")
 
-    # Create GeoDataFrame
-    gdf = gpd.GeoDataFrame(gdf_data, crs="EPSG:4326")
-    return gdf
+def plot_base64_image(img_base64):
+    """Decodes a Base64 image and plots it using Matplotlib."""
+    
+    # Decode Base64 to bytes
+    img_data = base64.b64decode(img_base64)
+    
+    # Convert to NumPy array
+    np_arr = np.frombuffer(img_data, np.uint8)
+    
+    # Decode image from memory
+    img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+    
+    # Convert BGR to RGB (Matplotlib expects RGB format)
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+    # Plot the image
+    plt.figure(figsize=(6,6))
+    plt.imshow(img)
+    plt.axis("off")  # Hide axes
+    plt.show()
 
 # The adapted function is from geosam and originally from https://github.com/gumblex/tms2geotiff. 
 # Credits to Dr.Qiusheng Wu and the GitHub user @gumblex.
