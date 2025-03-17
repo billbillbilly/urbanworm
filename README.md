@@ -1,3 +1,7 @@
+<picture>
+  <img alt="logo" src="docs/images/urabn_worm_logo.jpg" width="100%">
+</picture>
+
 # Urban-Worm
 
 ## Introduction
