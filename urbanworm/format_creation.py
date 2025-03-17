@@ -10,17 +10,20 @@ def schema(fields: dict):
     Parameters:
     - fields (dict): customized fields to add dynamically.
     example:
-    schema = {
+    fields = {
         "question": (str, ...),
         "answer": (str, ...),
         "explanation": (str, ...),
     }
+    schema(fields)
 
     Returns:
     - Pydantic model: Customized QnA class.
     """
 
-    CustomQnA = create_model("QnA", **fields)
+    base_field = {'base64_image': (str, ...)}
+
+    CustomQnA = create_model("QnA", {**fields, **base_field})
     return CustomQnA
 
 class Response(BaseModel, Generic[T]):
