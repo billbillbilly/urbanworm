@@ -3,6 +3,10 @@
 ## Introduction
 Urban-Worm is a Python library that integrates remote sensing imagery, street view data, and multimodal model to assess urban units with precision. Using Llama 3.2 vision and a specialized API for data collection, Urban-Worm is designed to support the automation of the evaluation for urban environments, including roof integrity, structural condition, landscape quality, and urban perception.
 
+<picture>
+  <img alt="workflow" src="docs/images/urabn_worm_diagram" width="100%">
+</picture>
+
 ## Features
 - download building footprints from OSM and global building released by Bing map 
 - search and clip aerial and street view images using urban units such as parcel and building footprint data
