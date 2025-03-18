@@ -85,6 +85,13 @@ res = data.loopUnitChat(system=system, prompt=prompt, type='both', epsg=2253)
 
 More examples can be found [here](docs/example.ipynb).
 
+## To do
+The next version will have functionalities using Google APIs:
+- search for units with address
+- find historical images
+
+An agent webUI is in the incoming development plan for providing interactive operation and data visualization. 
+
 ## Legal Notice
 This repository and its content are provided for educational purposes only. By using the information and code provided, users acknowledge that they are using the APIs and models at their own risk and agree to comply with any applicable laws and regulations. Users who intend to download a large number of image tiles from any basemap are advised to contact the basemap provider to obtain permission before doing so. Unauthorized use of the basemap or any of its components may be a violation of copyright laws or other applicable laws and regulations.
 
