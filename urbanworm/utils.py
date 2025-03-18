@@ -12,6 +12,40 @@ from pano2pers import Equirectangular
 import base64
 import cv2
 import matplotlib.pyplot as plt
+import re
+
+def is_base64(s):
+    """Checks if a string is base64 encoded."""
+    try:
+        if isinstance(s, str):
+            sb_bytes = s.encode('ascii')
+        elif isinstance(s, bytes):
+            sb_bytes = s
+        else:
+            return False
+        base64.b64decode(sb_bytes)
+        return re.match('^([A-Za-z0-9+/]{4})*([A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{2}==)?$', s)
+    except Exception:
+        return False
+
+def is_image_path(s):
+    """Checks if a string is a valid path and if a file exists at that path, and if it is an image."""
+    image_extensions = ('.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp')
+    return os.path.isfile(s) and s.lower().endswith(image_extensions)
+
+def detect_input_type(input_string):
+    """Detects if the input string is an image path or base64 encoded."""
+    if is_image_path(input_string):
+        return "image_path"
+    elif is_base64(input_string):
+        return "base64"
+    else:
+        return "unknown"
+
+def encode_image_to_base64(image_path):
+    """Encodes an image file to a Base64 string."""
+    with open(image_path, "rb") as image_file:
+        return base64.b64encode(image_file.read()).decode("utf-8")
 
 # Load shapefile
 def loadSHP(file):
@@ -259,75 +293,84 @@ def response2gdf(qna_dict):
     import numpy as np
     import geopandas as gpd
     from shapely.geometry import Point
-    import math
+    # import math
 
-    def findQgroup(num, groupSzie, totalSize):
-        if groupSzie == 1:
-            return 1
-        else:
-            return math.ceil((num/totalSize)/(groupSzie/totalSize))
+    # def findQgroup(num, groupSzie, totalSize):
+    #     if groupSzie == 1:
+    #         return 1
+    #     else:
+    #         return math.ceil((num/totalSize)/(groupSzie/totalSize))
         
     def renameKey(qna_list, t):
         return [{f'{t}_{key}{i+1}': qna_list[i][key] for key in qna_list[i]} for i in range(len(qna_list))]
 
     def extract_qna(qna, tag, fs):
-        question_num = len(qna[0])
-        fs_ = [fs for i in range(question_num)]
-        fs_ = list(np.concatenate(fs_))
-        size = len(fs_)
-        dic = {}
-        fields = []
-        for i in range(len(qna)):
-            qna_ = [dict(q) for q in qna[i]]
-            qna_ = renameKey(qna_, tag)
-            qna_ = {k: v for d_ in qna_ for k, v in d_.items()}
-            if i == 0:
-                dic = {f'{tag}_{fs_[idx]}{findQgroup(idx+1,question_num,size)}': [] for idx in range(size)}
-                fields = list(dic.keys())
-            for field in fields:
-                # n = findQgroup(fs_.index(field)+1, question_num, size)
-                # dic[f'{tag}_{field}{n}'] += [q_[f'{tag}_{field}{n}'] for q_ in qna_]
-                dic[field] += [qna_[field]]
-        return dic
+        if 'QnA' not in str(type(qna[0][0])) and tag == 'street_view':
+            out = [extract_qna(qna[i], tag, fs) for i in range(len(qna))]
+            return out
+        else:
+            question_num = len(qna[0])
+            fs_ = [fs for i in range(question_num)]
+            fs_ = list(np.concatenate(fs_))
+            # size = len(fs_)
+            dic = {}
+            fields = []
+            for i in range(len(qna)):
+                qna_ = [dict(q) for q in qna[i]]
+                qna_ = renameKey(qna_, tag)
+                qna_ = {k: v for d_ in qna_ for k, v in d_.items()}
+                if i == 0:
+                    # dic = {f'{tag}_{fs_[idx]}{findQgroup(idx+1,question_num,size)}': [] for idx in range(size)}
+                    dic = {key:[] for key in qna_}
+                    fields = list(dic.keys())
+                for field in fields:
+                    dic[field] += [qna_[field]]
+            return dic
     
     fields, qna_top, qna_street = None, None, None
+    df_top, df_street = None, None
 
-    if "top_view" not in qna_dict or "street_view" not in qna_dict:
+    if "top_view" not in qna_dict and "street_view" not in qna_dict:
         raise ValueError("no response in the input data.")
     
     if "top_view" in qna_dict:
         qna_top = qna_dict['top_view']
     if "street_view" in qna_dict:
         qna_street = qna_dict['street_view']
-    if "top_view" in qna_dict and "street_view" in qna_dict:
-        qna_top = qna_dict['top_view']
-        qna_street = qna_dict['street_view']
+    # if "top_view" in qna_dict and "street_view" in qna_dict:
+    #     qna_top = qna_dict['top_view']
+    #     qna_street = qna_dict['street_view']
     
     # Create dictionary for GeoDataFrame
     geo_data = {
         "geometry": [Point(lon, lat) for lon, lat in zip(qna_dict["lon"], qna_dict["lat"])]
     }
+    geo_df = gpd.GeoDataFrame(geo_data, crs="EPSG:4326")
 
     if qna_top:
         fields = list(vars(qna_dict["top_view"][0][0]).keys())
-        dict_top = extract_qna(qna_top, 'top_view', fields)
-        # return df_top
+        df_top = pd.DataFrame(extract_qna(qna_top, 'top_view', fields))
     if qna_street:
-        fields = list(vars(qna_dict["street_view"][0][0]).keys())
-        dict_street = extract_qna(qna_street, 'street_view', fields)
+        try:
+            fields = list(vars(qna_dict["street_view"][0][0]).keys())
+        except: 
+            fields = list(vars(qna_dict["street_view"][0][0][0]).keys())
+        df_street = pd.DataFrame(extract_qna(qna_street, 'street_view', fields))
     
-    if dict_top is not None and dict_street is not None:
-        out = merged_dict = {**geo_data, **dict_top, **dict_street}
-        # df = pd.concat([dict_top, df_street], axis=1)
-    elif dict_top is not None:
-        out = merged_dict = {**geo_data, **dict_top}
-    elif dict_street is not None:
-        out = merged_dict = {**geo_data, **dict_street}
-    return gpd.GeoDataFrame(out, crs="EPSG:4326")
+    if df_top is not None and df_street is not None:
+        df_temp = pd.concat([df_top, df_street], axis=1)
+        return pd.concat([geo_df, df_temp], axis=1)
+    elif df_top is not None:
+        return pd.concat([geo_df, df_top], axis=1)
+    elif df_street is not None:
+        return pd.concat([geo_df, df_top], axis=1)
+
 
 def plot_base64_image(img_base64):
     """Decodes a Base64 image and plots it using Matplotlib."""
-    
+
+    import matplotlib.pyplot as plt
+
     # Decode Base64 to bytes
     img_data = base64.b64decode(img_base64)
     

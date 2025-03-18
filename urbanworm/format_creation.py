@@ -21,9 +21,7 @@ def schema(fields: dict):
     - Pydantic model: Customized QnA class.
     """
 
-    base_field = {'base64_image': (str, ...)}
-
-    CustomQnA = create_model("QnA", {**fields, **base_field})
+    CustomQnA = create_model("QnA", **fields)
     return CustomQnA
 
 class Response(BaseModel, Generic[T]):

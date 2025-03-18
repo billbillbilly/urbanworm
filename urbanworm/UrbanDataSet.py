@@ -7,12 +7,8 @@ from rasterio.mask import mask
 import tempfile
 import os
 from typing import List
-from utils import loadSHP
-from utils import meters_to_degrees
-from utils import getSV
-from utils import tms_to_geotiff
-from utils import getOSMbuildings
-from utils import getGlobalMLBuilding
+from utils import *
+# from utils import loadSHP, meters_to_degrees, getSV, tms_to_geotiff, getOSMbuildings, getGlobalMLBuilding, response2gdf, encode_image_to_base64
 
 class QnA(BaseModel):
     question: str
@@ -34,38 +30,46 @@ class UrbanDataSet:
         mapillary_key (str): The Mapillary API key.
         random_sample (int): The number of random samples.
     '''
-    def __init__(self, image=None, images=None, units=None, format=None, mapillary_key=None, random_sample=None):
-        self.img = image
-        self.imgs = images
+    def __init__(self, image=None, images:list=None, units=None, format=None, mapillary_key=None, random_sample=None):
+        if image != None and detect_input_type(image) == 'image_path':
+            self.img = encode_image_to_base64(image)
+        else:
+            self.img = image
+
+        if images != None and detect_input_type(images[0]) == 'image_path':
+            self.imgs = [encode_image_to_base64(im) for im in images]
+        else:
+            self.imgs = images
+
         if random_sample != None and units != None:
             self.units = loadSHP(units).sample(random_sample)
         elif random_sample == None and units != None:
             self.units = loadSHP(units)
         else:
             self.units = units
+
         if format == None:
             self.format = Response()
         else:
             self.format = format
+
         self.mapillary_key = mapillary_key
+
+        self.results = None
+
+        self.preload_model()
 
     def preload_model(self):
         """
         Ensures that the required Ollama model is available.
         If not, it automatically pulls the model.
         """
+
+        import ollama
+
         model_name = "llama3.2-vision"
         try:
-            # Get list of models currently installed
-            installed_models = ollama.list()
-            model_names = [m["name"] for m in installed_models["models"]]
-
-            if model_name not in model_names:
-                print(f"Model {model_name} not found. Pulling now...")
-                ollama.pull(model_name)
-                print(f"Model {model_name} successfully pulled!")
-            else:
-                print(f"Model {model_name} is already available.")
+            ollama.pull(model_name)
 
         except Exception as e:
             print(f"Warning: Ollama is not installed or failed to check models: {e}")
@@ -99,17 +103,24 @@ class UrbanDataSet:
     
     def oneImgChat(self, system=None, prompt=None, 
                    temp=0.0, top_k=0.8, top_p=0.8):
+        print("Inference starts ...")
         r = self.LLM_chat(system=system, prompt=prompt, img=[self.img], 
-                             temp=temp, top_k=top_k, top_p=top_p)
-        return r.responses[0]
+                          temp=temp, top_k=top_k, top_p=top_p)
+        r = dict(r.responses[0])
+        r['img'] = self.img
+        return r
     
     def loopImgChat(self, system=None, prompt=None, 
                     temp=0.0, top_k=0.8, top_p=0.8):
         res = []
-        for img in self.imgs:
+        print("Inference starts ...")
+        for i in range(len(self.imgs)):
+            img = self.imgs[i]
             r = self.LLM_chat(system=system, prompt=prompt, img=[img], 
                               temp=temp, top_k=top_k, top_p=top_p)
-            res += [r.responses[0]]
+            r = dict(r.responses[0])
+            im = {'img': img}
+            res += [{**r, **im}]
         return res
             
     def loopUnitChat(self, system=None, prompt:dict=None, 
@@ -147,6 +158,9 @@ class UrbanDataSet:
             "lon": [],
             "lat": [],
         }
+
+        top_view_imgs = {'top_view_base64':[]}
+        street_view_imgs = {'street_view_base64':[]}
 
         for i in range(len(self.units)):
             # Get the extent of one polygon from the filtered GeoDataFrame
@@ -194,9 +208,14 @@ class UrbanDataSet:
                     dest.write(out_image)
                 # clean up temp file
                 os.remove(image)
+
+                # convert image into base64
+                clipped_image_base64 = encode_image_to_base64(clipped_image)
+                top_view_imgs['top_view_base64'] += [clipped_image_base64]
+
                 # process aerial image
                 top_res = self.LLM_chat(system=system, 
-                                    prompt=f'Please note that you should answer questions for the aerial image. {prompt["top"]}', 
+                                    prompt=prompt["top"], 
                                     img=[clipped_image], 
                                     temp=temp, 
                                     top_k=top_k, 
@@ -205,6 +224,7 @@ class UrbanDataSet:
                 if i == 0:
                     dic['top_view'] = []
                 dic['top_view'].append(top_res.responses)
+                
                 # clean up temp file
                 os.remove(clipped_image)
 
@@ -212,8 +232,11 @@ class UrbanDataSet:
             if  (type == 'street' or type == 'both') and epsg != None and self.mapillary_key != None:
                 input_svis = getSV(centroid, epsg, self.mapillary_key, multi=multi)
                 if None not in input_svis:
+                    # save imgs
+                    street_view_imgs['street_view_base64'] += [input_svis]
+                    # inference
                     res = self.LLM_chat(system=system, 
-                                        prompt=f'Please note that you should answer questions for the street view image. {prompt["street"]}', 
+                                        prompt=prompt["street"], 
                                         img=input_svis, 
                                         temp=temp, 
                                         top_k=top_k, 
@@ -224,8 +247,35 @@ class UrbanDataSet:
                     if multi:
                         dic['street_view'] += [res]
                     else:
-                        dic['street_view'] += res.responses
+                        dic['street_view'] += [res.responses]
+
+        self.results = {'from_loopUnitChat':dic, 'base64_imgs':{**top_view_imgs, **street_view_imgs}}
         return dic
+    
+    def to_gdf(self):
+        '''
+        This function is used to convert output from MLLM into a GeoDataframe,
+        including coordinates, questions, responses, input images (base64)
+        '''
+
+        import pandas as pd
+        import copy
+
+        if self.results is not None:
+            if 'from_loopUnitChat' in self.results:
+                res_df = response2gdf(self.results['from_loopUnitChat'])
+                img_dic = copy.deepcopy(self.results['base64_imgs'])
+                if img_dic['top_view_base64'] == []:
+                    img_dic.pop("top_view_base64")
+                if img_dic['street_view_base64'] == []:
+                    img_dic.pop("street_view_base64")
+                imgs_df = pd.DataFrame(img_dic)
+
+                return pd.concat([res_df, imgs_df], axis=1)
+            else:
+                return "This method can only support the output of '.loopUnitChat()' method"
+        else:
+            return "This method can only be called after running the '.loopUnitChat()' method"
     
     def LLM_chat(self, system=None, prompt=None, img=None, temp=None, top_k=None, top_p=None):
         '''
@@ -279,4 +329,6 @@ class UrbanDataSet:
             }
         )
         return self.format.model_validate_json(res.message.content)
-
+    
+    def plotBase64(self, img):
+        plot_base64_image(img)
