@@ -7,8 +7,7 @@ from rasterio.mask import mask
 import tempfile
 import os
 from typing import List
-from utils import *
-# from utils import loadSHP, meters_to_degrees, getSV, tms_to_geotiff, getOSMbuildings, getGlobalMLBuilding, response2gdf, encode_image_to_base64
+from .utils import *
 
 class QnA(BaseModel):
     question: str

@@ -8,7 +8,7 @@ import math
 import requests
 import sys
 import os
-from pano2pers import Equirectangular
+from .pano2pers import Equirectangular
 import base64
 import cv2
 import matplotlib.pyplot as plt
