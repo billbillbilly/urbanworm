@@ -5,7 +5,7 @@
 # Urban-Worm
 
 ## Introduction
-Urban-Worm is a Python library that integrates remote sensing imagery, street view data, and multimodal model to assess urban units with precision. Using Llama 3.2 vision and a specialized API for data collection, Urban-Worm is designed to support the automation of the evaluation for urban environments, including roof integrity, structural condition, landscape quality, and urban perception.
+Urban-Worm is a Python library that integrates remote sensing imagery, street view data, and multimodal model to assess urban units. Using Llama 3.2 vision and APIs for data collection, Urban-Worm is designed to support the automation of the evaluation for urban environments, including roof integrity, structural condition, landscape quality, and urban perception.
 
 <picture>
   <img alt="workflow" src="docs/images/urabn_worm_diagram.jpg" width="100%">
@@ -83,9 +83,19 @@ data.mapillary_key = 'MLY|......'
 res = data.loopUnitChat(system=system, prompt=prompt, type='both', epsg=2253)
 ```
 
+More examples can be found [here](docs/example.ipynb).
 
+## Legal Notice
+This repository and its content are provided for educational purposes only. By using the information and code provided, users acknowledge that they are using the APIs and models at their own risk and agree to comply with any applicable laws and regulations. Users who intend to download a large number of image tiles from any basemap are advised to contact the basemap provider to obtain permission before doing so. Unauthorized use of the basemap or any of its components may be a violation of copyright laws or other applicable laws and regulations.
 
-## Reference
-Wu et al., (2023). samgeo: A Python package for segmenting geospatial data with the Segment Anything Model (SAM). Journal of Open Source Software, 8(89), 5663, https://doi.org/10.21105/joss.05663
+## Acknowledgements
+The package is heavily built on Ollama client, Ollama-python, and Llama 3.2 Vision. Credit goes to the developers of these projects.
+- [ollama](https://github.com/ollama/ollama)
+- [ollama-python](https://github.com/ollama/ollama-python)
+- [structured outputs](https://ollama.com/blog/structured-outputs)
+- [llama 3.2 vision](https://huggingface.co/meta-llama/Llama-3.2-11B-Vision)
 
-Structured outputs https://ollama.com/blog/structured-outputs
+The functionality about sourcing and processing GIS data (satellite & street view imagery) is built on the following open projects. Credit goes to the developers of these projects.
+- [tms2geotiff](https://github.com/gumblex/tms2geotiff)
+- [GlobalMLBuildingFootprints](https://github.com/microsoft/GlobalMLBuildingFootprints)
+- [Mapillary API](https://www.mapillary.com/developer/api-documentation)
