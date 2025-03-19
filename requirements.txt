@@ -9,3 +9,5 @@ pillow
 opencv-python
 xyzservices
 pydantic
+matplotlib
+requests
