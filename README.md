@@ -16,31 +16,45 @@ Urban-Worm is a Python library that integrates remote sensing imagery, street vi
 </picture>
 
 ## Features
+- run Llama 3.2 vision locally with local datasets and remain information privacy
 - download building footprints from OSM and global building released by Bing map 
-- search and clip aerial and street view images using urban units such as parcel and building footprint data
-- stream street view images via APIs 
-- automatically calibrate the oritation of panorama street view 
+- search and clip aerial and street view images (via APIs) based on urban units such as parcel and building footprint data
+- automatically calibrate the oritation of panorama street view and the extent of aerial image
 
 ## Installation
 Please make sure [Ollama](https://ollama.com/) is installed before installing urban-worm
-For Linux, users can install ollama:
+
+For Linux, users can also install ollama by running in the terminal:
 ```sh
 curl -fsSL https://ollama.com/install.sh | sh
 ```
-
-#### MacOS
-For mac users, it may be nacessary to install gdal:
+For MacOS, users can also install ollama using `brew`:
 ```sh
- brew install gdal
+brew install ollama
 ```
-If the installation method above does not work, try to install with conda if you have:
+To install `brew`, run in the terminal:
+```sh
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+
+Windows users should directly install the [Ollama client](https://ollama.com/)
+
+#### install gdal first
+For macOS, Linux, and Windows users, `gdal` may need to be installed at very begining using `conda`. Please download and install [Anaconda](https://www.anaconda.com/download/success) to use `conda`.
+
+If the installation method above does not work, try to install with `conda`:
 ```sh
  conda install -c conda-forge gdal
 ```
 
+Mac users may install `gdal` (if the installation method below does not work, try to install with conda):
+```sh
+ brew install gdal
+```
+
 The package urabnworm can be installed with `pip`:
 ```sh
-pip install urbanworm 
+pip install urban-worm 
 ```
 
 ## Usage
@@ -118,4 +132,4 @@ The functionality about sourcing and processing GIS data (satellite & street vie
 - [GlobalMLBuildingFootprints](https://github.com/microsoft/GlobalMLBuildingFootprints)
 - [Mapillary API](https://www.mapillary.com/developer/api-documentation)
 
-The development of this package is supported by the city of Detroit and inspired by the discussion with them.
+The development of this package is supported and inspired by the city of Detroit.
