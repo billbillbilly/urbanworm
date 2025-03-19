@@ -5,7 +5,7 @@
 # Urban-Worm
 
 ## Introduction
-Urban-Worm is a Python library that integrates remote sensing imagery, street view data, and multimodal model to assess urban units. Using Llama 3.2 vision and APIs for data collection, Urban-Worm is designed to support the automation of the evaluation for urban environments, including roof integrity, structural condition, landscape quality, and urban perception.
+Urban-Worm is a Python library that integrates remote sensing imagery, street view data, and multimodal model to assess urban units. Using APIs for data collection and Llama 3.2 vision for inference, Urban-Worm is designed to support the automation of the evaluation for urban environments, including roof integrity, structural condition, landscape quality, and urban perception.
 
 <picture>
   <img alt="workflow" src="docs/images/urabn_worm_diagram.jpg" width="100%">
@@ -113,3 +113,5 @@ The functionality about sourcing and processing GIS data (satellite & street vie
 - [tms2geotiff](https://github.com/gumblex/tms2geotiff)
 - [GlobalMLBuildingFootprints](https://github.com/microsoft/GlobalMLBuildingFootprints)
 - [Mapillary API](https://www.mapillary.com/developer/api-documentation)
+
+The development of this package is supported by the city of Detroit and inspired by the discussion with them.
