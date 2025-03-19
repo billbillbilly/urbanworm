@@ -55,7 +55,7 @@ prompt = '''
 res = data.oneImgChat(system=system, prompt=prompt)
 ```
 
-#### multiple (aerial + street view) images inference using OSM data
+#### multiple (aerial & street view) images inference using OSM data
 ```python
 bbox = (-83.235572,42.348092,-83.235154,42.348806)
 data = UrbanDataSet()

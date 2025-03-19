@@ -101,16 +101,19 @@ class UrbanDataSet:
         return f"{len(buildings)} buildings found in the bounding box."
     
     def oneImgChat(self, system=None, prompt=None, 
-                   temp=0.0, top_k=0.8, top_p=0.8):
+                   temp=0.0, top_k=0.8, top_p=0.8, 
+                   saveImg:bool=True):
         print("Inference starts ...")
         r = self.LLM_chat(system=system, prompt=prompt, img=[self.img], 
                           temp=temp, top_k=top_k, top_p=top_p)
         r = dict(r.responses[0])
-        r['img'] = self.img
+        if saveImg:
+            r['img'] = self.img
         return r
     
     def loopImgChat(self, system=None, prompt=None, 
-                    temp=0.0, top_k=0.8, top_p=0.8):
+                    temp=0.0, top_k=0.8, top_p=0.8,
+                    saveImg:bool=True):
         res = []
         print("Inference starts ...")
         for i in range(len(self.imgs)):
@@ -118,13 +121,17 @@ class UrbanDataSet:
             r = self.LLM_chat(system=system, prompt=prompt, img=[img], 
                               temp=temp, top_k=top_k, top_p=top_p)
             r = dict(r.responses[0])
-            im = {'img': img}
-            res += [{**r, **im}]
+            if saveImg:
+                im = {'img': img}
+                res += [{**r, **im}]
+            else:
+                res += [r]
         return res
             
     def loopUnitChat(self, system=None, prompt:dict=None, 
                      temp:float=0.0, top_k:float=0.8, top_p:float=0.8, 
-                     type:str='top', epsg:int=None, multi:bool=False):
+                     type:str='top', epsg:int=None, multi:bool=False, 
+                     saveImg:bool=True):
         '''
         chat with MLLM model for each unit in the shapefile.
         example prompt:
@@ -222,7 +229,8 @@ class UrbanDataSet:
                 # initialize the list
                 if i == 0:
                     dic['top_view'] = []
-                dic['top_view'].append(top_res.responses)
+                if saveImg:
+                    dic['top_view'].append(top_res.responses)
                 
                 # clean up temp file
                 os.remove(clipped_image)
@@ -232,7 +240,8 @@ class UrbanDataSet:
                 input_svis = getSV(centroid, epsg, self.mapillary_key, multi=multi)
                 if None not in input_svis:
                     # save imgs
-                    street_view_imgs['street_view_base64'] += [input_svis]
+                    if saveImg:
+                        street_view_imgs['street_view_base64'] += [input_svis]
                     # inference
                     res = self.LLM_chat(system=system, 
                                         prompt=prompt["street"], 
@@ -264,13 +273,15 @@ class UrbanDataSet:
             if 'from_loopUnitChat' in self.results:
                 res_df = response2gdf(self.results['from_loopUnitChat'])
                 img_dic = copy.deepcopy(self.results['base64_imgs'])
-                if img_dic['top_view_base64'] == []:
-                    img_dic.pop("top_view_base64")
-                if img_dic['street_view_base64'] == []:
-                    img_dic.pop("street_view_base64")
-                imgs_df = pd.DataFrame(img_dic)
-
-                return pd.concat([res_df, imgs_df], axis=1)
+                if img_dic['top_view_base64'] != [] or img_dic['street_view_base64'] != []:
+                    if img_dic['top_view_base64'] == []:
+                        img_dic.pop("top_view_base64")
+                    if img_dic['street_view_base64'] == []:
+                        img_dic.pop("street_view_base64")
+                    imgs_df = pd.DataFrame(img_dic)
+                    return pd.concat([res_df, imgs_df], axis=1)
+                else:
+                    return res_df
             else:
                 return "This method can only support the output of '.loopUnitChat()' method"
         else:
