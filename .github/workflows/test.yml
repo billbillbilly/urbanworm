@@ -1,0 +1,50 @@
+name: Test Ollama on Self-Hosted Runner
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  test:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Ollama
+        run: curl -fsSL https://ollama.com/install.sh | sh
+
+      - name: Start Ollama
+        run: ollama serve & 
+
+      - name: Wait for Ollama to be ready
+        run: sleep 10
+
+      - name: Pull the required model
+        run: ollama pull llama3.2-vision
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+
+      - name: Install GDAL
+        run: |
+              python -m pip install --upgrade pip
+              pip install --no-cache-dir Cython
+              pip install --find-links=https://girder.github.io/large_image_wheels --no-cache GDAL
+      - name: Test GDAL installation
+        run: |
+              python -c "from osgeo import gdal"
+              gdalinfo --version
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e .
+
+      - name: Run tests with real Ollama server
+        run: pytest tests
