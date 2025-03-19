@@ -13,7 +13,12 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Ollama (on MacOS)
-        run: brew install ollama
+        run: |
+            if ! command -v ollama &> /dev/null; then
+                brew install ollama
+            else
+                echo "Ollama is already installed."
+            fi
 
       - name: Start Ollama
         run: ollama serve & 
