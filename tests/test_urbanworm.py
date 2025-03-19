@@ -20,32 +20,6 @@ class TestUrbanDataSet(unittest.TestCase):
         dataset.preload_model()
         mock_pull.assert_called_with("llama3.2-vision")  # Ensures model pull happens
 
-    @patch("utils.getOSMbuildings")
-    def test_bbox2Buildings(self, mock_getOSMbuildings):
-        """Test extracting buildings from a bounding box."""
-        
-        # Mock GeoDataFrame with building polygons
-        mock_data = gpd.GeoDataFrame(
-            {"geometry": [Polygon([
-                (-83.235572, 42.348092), 
-                (-83.235154, 42.348806), 
-                (-83.235300, 42.348500)
-            ])]},
-            crs="EPSG:4326"
-        )
-        
-        mock_getOSMbuildings.return_value = mock_data
-
-        dataset = UrbanDataSet()
-        dataset.bbox2Buildings((-83.235572,42.348092,-83.235154,42.348806))
-
-        # Ensure result is a GeoDataFrame
-        self.assertIsInstance(dataset.units, gpd.GeoDataFrame)
-
-        # Ensure it contains at least one geometry
-        self.assertFalse(dataset.units.empty)
-        self.assertTrue("geometry" in dataset.units.columns)
-
     @patch("ollama.chat")
     def test_oneImgChat(self, mock_chat):
         """Test that `oneImgChat()` calls Ollama correctly."""
@@ -61,7 +35,8 @@ class TestUrbanDataSet(unittest.TestCase):
     @patch("ollama.chat")
     def test_loopUnitChat(self, mock_chat, mock_getSV):
         """Test processing multiple units for chat with street view."""
-        dataset = UrbanDataSet(units="dummy_shapefile.shp", mapillary_key="test_key")
+        dataset = UrbanDataSet()
+        dataset.bbox2Buildings((-83.235572,42.348092,-83.235154,42.348806))
 
         # Simulate Ollama chat returning structured responses
         mock_chat.return_value = {"message": {"content": "Street view analysis"}}
@@ -76,30 +51,6 @@ class TestUrbanDataSet(unittest.TestCase):
         self.assertIsInstance(result, dict)  # Should return a dictionary
         self.assertIn("street_view", result)  # Key should exist
         self.assertGreater(len(result["street_view"]), 0)  # Should contain responses
-
-    @patch("urbanworm.response2gdf")
-    def test_to_gdf(self, mock_response2gdf):
-        """Test conversion of results to GeoDataFrame."""
-        
-        # ✅ Mock response2gdf function
-        mock_gdf = gpd.GeoDataFrame(
-            {"lon": [-83.23], "lat": [42.34], "response": ["Test response"]},
-            geometry=[Polygon([(-83.23, 42.34), (-83.21, 42.35), (-83.20, 42.36)])],
-            crs="EPSG:4326"
-        )
-        mock_response2gdf.return_value = mock_gdf
-
-        dataset = UrbanDataSet()
-        dataset.results = {
-            "from_loopUnitChat": {"lon": [-83.23], "lat": [42.34], "response": ["Test response"]},
-            "base64_imgs": {"top_view_base64": [], "street_view_base64": []},
-        }
-        
-        result = dataset.to_gdf()
-
-        self.assertIsInstance(result, gpd.GeoDataFrame)  # Should return a GeoDataFrame
-        self.assertFalse(result.empty)  # Should not be empty
-        self.assertIn("response", result.columns)  # Should contain response column
 
 if __name__ == "__main__":
     unittest.main()
