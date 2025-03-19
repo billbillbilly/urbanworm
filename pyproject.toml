@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "urban-worm"
-version = "0.0.1"
+version = "0.0.2"
 dynamic = [
     "dependencies",
 ]
@@ -64,4 +64,4 @@ max-line-length = 88
 [tool.setuptools_scm]
 
 [project.urls]
-Homepage = "https://https://github.com/billbillbilly/urbanworm/"
+Homepage = "https://github.com/billbillbilly/urbanworm"
