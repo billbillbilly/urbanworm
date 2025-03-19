@@ -12,8 +12,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Ollama
-        run: curl -fsSL https://ollama.com/install.sh | sh
+      - name: Install Ollama (on MacOS)
+        run: brew install ollama
 
       - name: Start Ollama
         run: ollama serve & 
