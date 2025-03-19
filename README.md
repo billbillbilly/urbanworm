@@ -47,24 +47,29 @@ from urbanworm import UrbanDataSet
 data = UrbanDataSet(image = '../docs/data/test1.jpg')
 system = '''
     Given a top view image, you are going to roughly estimate house conditions. Your answer should be based only on your observation. 
-    The format of your response must include question, answer (yes or no), explaination (within 50 words)
+    The format of your response must include question, answer (yes or no), explanation (within 50 words)
 '''
 prompt = '''
     Is there any damage on the roof?
 '''
-res = data.oneImgChat(system=system, prompt=prompt)
+data.oneImgChat(system=system, prompt=prompt)
+# output:
+# {'question': 'Is there any damage on the roof?',
+#  'answer': 'no',
+#  'explanation': 'No visible signs of damage or wear on the roof',
+#  'img': '/9j/4AAQSkZ...'}
 ```
 
 #### multiple (aerial & street view) images inference using OSM data
 ```python
 bbox = (-83.235572,42.348092,-83.235154,42.348806)
 data = UrbanDataSet()
-data.bbox2osmBuildings(bbox)
+data.bbox2Buildings(bbox)
 
 system = '''
     Given a top view image or street view images, you are going to roughly estimate house conditions. 
     Your answer should be based only on your observation. 
-    The format of your response must include question, answer (yes or no), explaination (within 50 words) for each question.
+    The format of your response must include question, answer (yes or no), explanation (within 50 words) for each question.
 '''
 
 prompt = {
@@ -79,8 +84,10 @@ prompt = {
 
 # add the Mapillary key
 data.mapillary_key = 'MLY|......'
-# inspect both the aerial and street view images (with type='both')
-res = data.loopUnitChat(system=system, prompt=prompt, type='both', epsg=2253)
+# use both the aerial and street view images (with type='both')
+data.loopUnitChat(system=system, prompt=prompt, type='both', epsg=2253)
+# convert results into GeoDataframe
+data.to_gdf()
 ```
 
 More examples can be found [here](docs/example.ipynb).
