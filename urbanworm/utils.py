@@ -16,15 +16,15 @@ import re
 
 def is_base64(s):
     """Checks if a string is base64 encoded."""
+    import io
+    from PIL import Image
     try:
-        if isinstance(s, str):
-            sb_bytes = s.encode('ascii')
-        elif isinstance(s, bytes):
-            sb_bytes = s
-        else:
-            return False
-        base64.b64decode(sb_bytes)
-        return re.match('^([A-Za-z0-9+/]{4})*([A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{2}==)?$', s)
+        # Decode Base64
+        decoded_data = base64.b64decode(s, validate=True)
+        # Verify it's an image
+        image = Image.open(io.BytesIO(decoded_data))
+        image.verify()
+        return True
     except Exception:
         return False
 
