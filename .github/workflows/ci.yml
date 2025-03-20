@@ -1,10 +1,11 @@
 
 name: ci 
 on:
+  workflow_dispatch:
   push:
     branches:
       - gh-pages
-  workflow_dispatch:
+  
 permissions:
   contents: write
 jobs:
