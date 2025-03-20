@@ -5,6 +5,7 @@ theme:
   icon:
     logo: urabn_worm_logo
   palette:
+
     # Palette toggle for light mode
     - media: "(prefers-color-scheme: light)"
       scheme: default
@@ -18,3 +19,5 @@ theme:
       toggle:
         icon: material/toggle-switch
         name: Switch to light mode
+
+copyright: Copyright &copy; 2025 Xiaohao Yang
