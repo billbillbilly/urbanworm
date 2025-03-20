@@ -12,6 +12,7 @@ theme:
       toggle:
         icon: material/toggle-switch-off-outline
         name: Switch to dark mode
+      primary: green
 
     # Palette toggle for dark mode
     - media: "(prefers-color-scheme: dark)"
@@ -19,5 +20,6 @@ theme:
       toggle:
         icon: material/toggle-switch
         name: Switch to light mode
+      primary: green
 
 copyright: Copyright &copy; 2025 Xiaohao Yang
