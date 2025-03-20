@@ -21,7 +21,7 @@ theme:
       toggle:
         icon: material/toggle-switch
         name: Switch to light mode
-      primary: green
-      accent: light blue
+      primary: purple
+      accent: green
 
 copyright: Copyright &copy; 2025 Xiaohao Yang
