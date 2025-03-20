@@ -1,5 +1,5 @@
 [![image](https://img.shields.io/pypi/v/urban-worm.svg)](https://pypi.python.org/pypi/urban-worm)
-[![image](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/billbillbilly/urbanworm/blob/main/docs/example0.ipynb)
+[![image](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/billbillbilly/urbanworm/blob/main/docs/example_osm.ipynb)
 
 <picture>
   <img alt="logo" src="docs/images/urabn_worm_logo.jpg" width="100%">
