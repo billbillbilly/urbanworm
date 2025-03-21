@@ -49,6 +49,7 @@ def encode_image_to_base64(image_path):
 
 # Load shapefile
 def loadSHP(file):
+    """Import shp file"""
     try:
         # Read shapefile
         gdf = gpd.read_file(file)
@@ -68,7 +69,10 @@ def meters_to_degrees(meters, latitude):
     return meters / meters_per_degree
 
 # Get street view images from Mapillary
-def getSV(centroid, epsg, key, multi=False):
+def getSV(centroid, epsg:int, key:str, multi:bool=False, 
+          fov:int=80, heading:int=None, pitch:int=10, 
+          height:int=300, width:int=400):
+    """Get closest SVI(s) with given coordinates using APIs"""
     bbox = projection(centroid, epsg)
     url = f"https://graph.mapillary.com/images?access_token={key}&fields=id,compass_angle,thumb_2048_url,geometry&bbox={bbox}&is_pano=true"
     # while not response or 'data' not in response:
@@ -83,12 +87,15 @@ def getSV(centroid, epsg, key, multi=False):
             img_heading = float(response.iloc[i,1])
             img_url = response.iloc[i,2]
             image_lon, image_lat = response.iloc[i,5]
-            # calculate bearing to the house
-            bearing_to_house = calculate_bearing(image_lat, image_lon, centroid.y, centroid.x)
-            relative_heading = (bearing_to_house - img_heading) % 360
+            if heading == None:
+                # calculate bearing to the house
+                bearing_to_house = calculate_bearing(image_lat, image_lon, centroid.y, centroid.x)
+                relative_heading = (bearing_to_house - img_heading) % 360
+            else:
+                relative_heading = heading
             # reframe image
             svi = Equirectangular(img_url=img_url)
-            sv = svi.GetPerspective(80, relative_heading, 10, 300, 400, 128)
+            sv = svi.GetPerspective(fov, relative_heading, pitch, height, width, 128)
             svis.append(sv)
         return svis
     except:
@@ -97,26 +104,26 @@ def getSV(centroid, epsg, key, multi=False):
 
 # Reproject the point to the desired EPSG
 def projection(centroid, epsg):
-        x, y = degree2dis(centroid, epsg)
-        # Get unit name (meters, degrees, etc.)
-        crs = CRS.from_epsg(epsg)
-        unit_name = crs.axis_info[0].unit_name
-        # set search distance to 25 meters
-        r = 50
-        if unit_name == 'foot':
-            r = 164.042
-        elif unit_name == 'degree':
-            print("Error: epsg must be projected system.")
-            sys.exit(1)
-        # set bbox
-        x_min = x - r
-        y_min = y - r
-        x_max = x + r
-        y_max = y + r
-        # Convert to EPSG:4326 (Lat/Lon) 
-        x_min, y_min = dis2degree(x_min, y_min, epsg)
-        x_max, y_max = dis2degree(x_max, y_max, epsg)
-        return f'{x_min},{y_min},{x_max},{y_max}'
+    x, y = degree2dis(centroid, epsg)
+    # Get unit name (meters, degrees, etc.)
+    crs = CRS.from_epsg(epsg)
+    unit_name = crs.axis_info[0].unit_name
+    # set search distance to 25 meters
+    r = 50
+    if unit_name == 'foot':
+        r = 164.042
+    elif unit_name == 'degree':
+        print("Error: epsg must be projected system.")
+        sys.exit(1)
+    # set bbox
+    x_min = x - r
+    y_min = y - r
+    x_max = x + r
+    y_max = y + r
+    # Convert to EPSG:4326 (Lat/Lon) 
+    x_min, y_min = dis2degree(x_min, y_min, epsg)
+    x_max, y_max = dis2degree(x_max, y_max, epsg)
+    return f'{x_min},{y_min},{x_max},{y_max}'
 
 # Convert distance to degree
 def dis2degree(ptx, pty, epsg):
@@ -162,6 +169,7 @@ def calculate_bearing(lat1, lon1, lat2, lon2):
 
 # get building footprints from OSM uing bbox
 def getOSMbuildings(bbox, min_area=0, max_area=None):
+    """Get building footprints with a bounding box from OSM."""
     # Extract bounding box coordinates
     min_lon, min_lat, max_lon, max_lat = bbox
 
@@ -204,9 +212,9 @@ def getOSMbuildings(bbox, min_area=0, max_area=None):
 # Credits to contributors @GlobalMLBuildingFootprints.
 def getGlobalMLBuilding(bbox, min_area:float=0.0, max_area:float=None):
     """
-    Fetches Global ML Building footprints within a bounding box and filters them by area.
+    Fetches Global ML Building footprints within a bounding box.
 
-    Parameters:
+    Args:
     - bbox (tuple/list): (min_lon, min_lat, max_lon, max_lat)
     - min_area (float): Minimum building area in square meters (default=0)
     - max_area (float): Maximum building area in square meters (default=None, no limit)
@@ -288,7 +296,10 @@ def getGlobalMLBuilding(bbox, min_area:float=0.0, max_area:float=None):
     return combined_gdf
 
 def response2gdf(qna_dict):
-    """Extracts filds from QnA objects as a single dictionary."""
+    """
+    Extracts filds from QnA objects as a single dictionary.
+    """
+
     import pandas as pd
     import numpy as np
     import geopandas as gpd

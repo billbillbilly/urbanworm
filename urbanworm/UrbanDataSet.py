@@ -29,7 +29,7 @@ class UrbanDataSet:
         mapillary_key (str): The Mapillary API key.
         random_sample (int): The number of random samples.
     '''
-    def __init__(self, image=None, images:list=None, units=None, format=None, mapillary_key=None, random_sample=None):
+    def __init__(self, image=None, images:list=None, units:str=None, format=None, mapillary_key=None, random_sample=None):
         if image != None and detect_input_type(image) == 'image_path':
             self.img = encode_image_to_base64(image)
         else:
@@ -131,6 +131,7 @@ class UrbanDataSet:
     def loopUnitChat(self, system=None, prompt:dict=None, 
                      temp:float=0.0, top_k:float=0.8, top_p:float=0.8, 
                      type:str='top', epsg:int=None, multi:bool=False, 
+                     sv_fov:int=80, sv_pitch:int=10, sv_size:tuple=(300,400),
                      saveImg:bool=True):
         '''
         chat with MLLM model for each unit in the shapefile.
@@ -151,6 +152,10 @@ class UrbanDataSet:
             type (str): The type of image to process.
             epsg (int): The EPSG code (required when type='street' or type='both').
             multi (bool): The multi flag for multiple street view images for one unit.
+            sv_fov (int): The horizontal field of view of the image expressed in degrees(required when type='street' or type='both').
+            sv_pitch (int): The up or down angle of the camera relative to the Street View vehicle (required when type='street' or type='both').
+            sv_size (tuple): The height and width (height,width) for the street image (required when type='street' or type='both').
+            saveImg (bool): The saveImg for save each image in base64 format in the output
         '''
 
         if type == 'top' and 'top' not in prompt:
@@ -236,8 +241,9 @@ class UrbanDataSet:
                 os.remove(clipped_image)
 
             # process street view image
-            if  (type == 'street' or type == 'both') and epsg != None and self.mapillary_key != None:
-                input_svis = getSV(centroid, epsg, self.mapillary_key, multi=multi)
+            if (type == 'street' or type == 'both') and epsg != None and self.mapillary_key != None:
+                input_svis = getSV(centroid, epsg, self.mapillary_key, multi=multi, 
+                                   fov=sv_fov, pitch=sv_pitch, height=sv_size[0], width=sv_size[1])
                 if None not in input_svis:
                     # save imgs
                     if saveImg:
