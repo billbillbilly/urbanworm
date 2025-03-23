@@ -31,6 +31,9 @@ plugins:
       default_handler: python
   - autorefs
   - git-revision-date
+  - mkdocs-jupyter:
+      include_source: True
+      execute: False
 
 markdown_extensions:
   - admonition
