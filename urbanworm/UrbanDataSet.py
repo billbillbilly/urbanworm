@@ -85,6 +85,8 @@ class UrbanDataSet:
             min_area (int): The minimum area.
             max_area (int): The maximum area.
             random_sample (int): The number of random samples.
+
+        return (str): The number of buildings found in the bounding box
         '''
         if source == 'osm':
             buildings = getOSMbuildings(bbox, min_area, max_area)
@@ -103,6 +105,22 @@ class UrbanDataSet:
     def oneImgChat(self, system=None, prompt=None, 
                    temp=0.0, top_k=0.8, top_p=0.8, 
                    saveImg:bool=True):
+        
+        '''
+        chat with MLLM model with one image.
+
+        Args:
+            system (optinal): The system message.
+            prompt (str): The prompt message.
+            img (str): The image path.
+            temp (float): The temperature value.
+            top_k (float): The top_k value.
+            top_p (float): The top_p value.
+            saveImg (bool): The saveImg for save each image in base64 format in the output.
+
+        return (dict): A dictionary includes questions/messages, responses/answers, and image base64 (if required) 
+        '''
+
         print("Inference starts ...")
         r = self.LLM_chat(system=system, prompt=prompt, img=[self.img], 
                           temp=temp, top_k=top_k, top_p=top_p)
@@ -113,10 +131,27 @@ class UrbanDataSet:
     
     def loopImgChat(self, system=None, prompt=None, 
                     temp=0.0, top_k=0.8, top_p=0.8,
-                    saveImg:bool=True):
+                    saveImg:bool=True, progressBar:bool=False):
+        '''
+        chat with MLLM model for each image.
+
+        Args:
+            system (optinal): The system message.
+            prompt (str): The prompt message.
+            temp (float): The temperature value.
+            top_k (float): The top_k value.
+            top_p (float): The top_p value.
+            saveImg (bool): The saveImg for save each image in base64 format in the output.
+            progressBar (bool): The progress bar for showing the progress of data analysis over the units
+
+        return (list): A list of dictionaries. Each dict includes questions/messages, responses/answers, and image base64 (if required)
+        '''
+
+        from tqdm import tqdm
+
         res = []
-        print("Inference starts ...")
-        for i in range(len(self.imgs)):
+        for i in tqdm(range(len(self.imgs)), desc="Processing...", ncols=75, disable=progressBar):
+        # for i in range(len(self.imgs)):
             img = self.imgs[i]
             r = self.LLM_chat(system=system, prompt=prompt, img=[img], 
                               temp=temp, top_k=top_k, top_p=top_p)
@@ -149,6 +184,10 @@ class UrbanDataSet:
         Args:
             system (optinal): The system message.
             prompt (dict): The prompt message for either top or street view or both.
+            img (str): The image path.
+            temp (float): The temperature value.
+            top_k (float): The top_k value.
+            top_p (float): The top_p value.
             type (str): The type of image to process.
             epsg (int): The EPSG code (required when type='street' or type='both').
             multi (bool): The multi flag for multiple street view images for one unit.
@@ -157,6 +196,8 @@ class UrbanDataSet:
             sv_size (tuple): The height and width (height,width) for the street image (required when type='street' or type='both').
             saveImg (bool): The saveImg for save each image in base64 format in the output.
             progressBar (bool): The progress bar for showing the progress of data analysis over the units
+
+        return (dict): A dictionary includes questions/messages, responses/answers, and image base64 (if required) for each unit
         '''
 
         from tqdm import tqdm
@@ -272,8 +313,10 @@ class UrbanDataSet:
     
     def to_gdf(self):
         '''
-        This function is used to convert output from MLLM into a GeoDataframe,
+        Convert output from MLLM into a GeoDataframe,
         including coordinates, questions, responses, input images (base64)
+
+        return (GeoDataframe): A GeoDataframe converted from the results 
         '''
 
         import pandas as pd
@@ -302,7 +345,14 @@ class UrbanDataSet:
         This function is used to chat with the LLM model with a list of images.
 
         Args:
+            system (str): The system message.
+            prompt (str): The user message.
             img (list): The list of image paths.
+            temp (float): The temperature value.
+            top_k (float): The top_k value.
+            top_p (float): The top_p value.
+
+        return (Response/list): an Response object or a list of QnA objects
         '''
 
         if prompt != None and img != None:
@@ -327,6 +377,8 @@ class UrbanDataSet:
             temp (float): The temperature value.
             top_k (float): The top_k value.
             top_p (float): The top_p value.
+
+        return (Response): Response object
         '''
         res = ollama.chat(
             model='llama3.2-vision',
@@ -351,4 +403,7 @@ class UrbanDataSet:
         return self.format.model_validate_json(res.message.content)
     
     def plotBase64(self, img):
+        '''
+        plot a single base64 image
+        '''
         plot_base64_image(img)
