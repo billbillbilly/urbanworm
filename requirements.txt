@@ -11,3 +11,4 @@ xyzservices
 pydantic
 matplotlib
 requests
+tqdm
