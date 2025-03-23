@@ -132,7 +132,7 @@ class UrbanDataSet:
                      temp:float=0.0, top_k:float=0.8, top_p:float=0.8, 
                      type:str='top', epsg:int=None, multi:bool=False, 
                      sv_fov:int=80, sv_pitch:int=10, sv_size:tuple=(300,400),
-                     saveImg:bool=True):
+                     saveImg:bool=True, progressBar:bool=False):
         '''
         chat with MLLM model for each unit in the shapefile.
         example prompt:
@@ -155,8 +155,11 @@ class UrbanDataSet:
             sv_fov (int): The horizontal field of view of the image expressed in degrees(required when type='street' or type='both').
             sv_pitch (int): The up or down angle of the camera relative to the Street View vehicle (required when type='street' or type='both').
             sv_size (tuple): The height and width (height,width) for the street image (required when type='street' or type='both').
-            saveImg (bool): The saveImg for save each image in base64 format in the output
+            saveImg (bool): The saveImg for save each image in base64 format in the output.
+            progressBar (bool): The progress bar for showing the progress of data analysis over the units
         '''
+
+        from tqdm import tqdm
 
         if type == 'top' and 'top' not in prompt:
             return "Please provide prompt for top view images when type='top'"
@@ -173,7 +176,8 @@ class UrbanDataSet:
         top_view_imgs = {'top_view_base64':[]}
         street_view_imgs = {'street_view_base64':[]}
 
-        for i in range(len(self.units)):
+        for i in tqdm(range(len(self.units)), desc="Processing...", ncols=75, disable=progressBar):
+        # for i in range(len(self.units)):
             # Get the extent of one polygon from the filtered GeoDataFrame
             polygon = self.units.geometry.iloc[i]
             centroid = polygon.centroid

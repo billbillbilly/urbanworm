@@ -376,7 +376,6 @@ def response2gdf(qna_dict):
     elif df_street is not None:
         return pd.concat([geo_df, df_top], axis=1)
 
-
 def plot_base64_image(img_base64):
     """Decodes a Base64 image and plots it using Matplotlib."""
 
@@ -399,6 +398,13 @@ def plot_base64_image(img_base64):
     plt.imshow(img)
     plt.axis("off")  # Hide axes
     plt.show()
+
+#----------------------- To Do -----------------------
+
+# chat with model to analyze/summarize results
+
+# function to plot/visualize results (images + questions + answer + explanation)
+
 
 # The adapted function is from geosam and originally from https://github.com/gumblex/tms2geotiff. 
 # Credits to Dr.Qiusheng Wu and the GitHub user @gumblex.
