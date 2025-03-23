@@ -658,17 +658,193 @@
 <a id="urbanworm.utils.getSV"></a>
     <div class="doc doc-contents first">
 
-        <p>Get closest SVI(s) with given coordinates using APIs</p>
+        <p>Retrieve the closest street view image(s) near a coordinate using the Mapillary API.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>centroid</code>
+            </td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The coordinates (geometry.centroid of GeoDataFrame)</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>epsg</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>EPSG code for projecting the coordinates.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>key</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Mapillary API access token.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>multi</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Whether to return multiple SVIs (default is False).</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>fov</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Field of view in degrees for the perspective image. Defaults to 80.</p>
+              </div>
+            </td>
+            <td>
+                  <code>80</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>heading</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Camera heading in degrees. If None, it will be computed based on the house orientation.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>pitch</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Camera pitch angle. Defaults to 10.</p>
+              </div>
+            </td>
+            <td>
+                  <code>10</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>height</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Height in pixels of the returned image. Defaults to 300.</p>
+              </div>
+            </td>
+            <td>
+                  <code>300</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>width</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Width in pixels of the returned image. Defaults to 400.</p>
+              </div>
+            </td>
+            <td>
+                  <code>400</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="list">list</span>[<span title="str">str</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>gpd.GeoDataFrame: A GeoDataFrame converted from the results</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
             <details class="quote">
               <summary>Source code in <code>urbanworm/utils.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 72</span>
-<span class="normal"> 73</span>
-<span class="normal"> 74</span>
-<span class="normal"> 75</span>
-<span class="normal"> 76</span>
-<span class="normal"> 77</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 77</span>
 <span class="normal"> 78</span>
 <span class="normal"> 79</span>
 <span class="normal"> 80</span>
@@ -694,10 +870,47 @@
 <span class="normal">100</span>
 <span class="normal">101</span>
 <span class="normal">102</span>
-<span class="normal">103</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">getSV</span><span class="p">(</span><span class="n">centroid</span><span class="p">,</span> <span class="n">epsg</span><span class="p">:</span><span class="nb">int</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span><span class="nb">str</span><span class="p">,</span> <span class="n">multi</span><span class="p">:</span><span class="nb">bool</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> 
+<span class="normal">103</span>
+<span class="normal">104</span>
+<span class="normal">105</span>
+<span class="normal">106</span>
+<span class="normal">107</span>
+<span class="normal">108</span>
+<span class="normal">109</span>
+<span class="normal">110</span>
+<span class="normal">111</span>
+<span class="normal">112</span>
+<span class="normal">113</span>
+<span class="normal">114</span>
+<span class="normal">115</span>
+<span class="normal">116</span>
+<span class="normal">117</span>
+<span class="normal">118</span>
+<span class="normal">119</span>
+<span class="normal">120</span>
+<span class="normal">121</span>
+<span class="normal">122</span>
+<span class="normal">123</span>
+<span class="normal">124</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">getSV</span><span class="p">(</span><span class="n">centroid</span><span class="p">,</span> <span class="n">epsg</span><span class="p">:</span><span class="nb">int</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span><span class="nb">str</span><span class="p">,</span> <span class="n">multi</span><span class="p">:</span><span class="nb">bool</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> 
           <span class="n">fov</span><span class="p">:</span><span class="nb">int</span><span class="o">=</span><span class="mi">80</span><span class="p">,</span> <span class="n">heading</span><span class="p">:</span><span class="nb">int</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">pitch</span><span class="p">:</span><span class="nb">int</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> 
-          <span class="n">height</span><span class="p">:</span><span class="nb">int</span><span class="o">=</span><span class="mi">300</span><span class="p">,</span> <span class="n">width</span><span class="p">:</span><span class="nb">int</span><span class="o">=</span><span class="mi">400</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Get closest SVI(s) with given coordinates using APIs&quot;&quot;&quot;</span>
+          <span class="n">height</span><span class="p">:</span><span class="nb">int</span><span class="o">=</span><span class="mi">300</span><span class="p">,</span> <span class="n">width</span><span class="p">:</span><span class="nb">int</span><span class="o">=</span><span class="mi">400</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Retrieve the closest street view image(s) near a coordinate using the Mapillary API.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        centroid: The coordinates (geometry.centroid of GeoDataFrame)</span>
+<span class="sd">        epsg (int): EPSG code for projecting the coordinates.</span>
+<span class="sd">        key (str): Mapillary API access token.</span>
+<span class="sd">        multi (bool, optional): Whether to return multiple SVIs (default is False).</span>
+<span class="sd">        fov (int, optional): Field of view in degrees for the perspective image. Defaults to 80.</span>
+<span class="sd">        heading (int, optional): Camera heading in degrees. If None, it will be computed based on the house orientation.</span>
+<span class="sd">        pitch (int, optional): Camera pitch angle. Defaults to 10.</span>
+<span class="sd">        height (int, optional): Height in pixels of the returned image. Defaults to 300.</span>
+<span class="sd">        width (int, optional): Width in pixels of the returned image. Defaults to 400.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        gpd.GeoDataFrame: A GeoDataFrame converted from the results</span>
+<span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">bbox</span> <span class="o">=</span> <span class="n">projection</span><span class="p">(</span><span class="n">centroid</span><span class="p">,</span> <span class="n">epsg</span><span class="p">)</span>
     <span class="n">url</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;https://graph.mapillary.com/images?access_token=</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">&amp;fields=id,compass_angle,thumb_2048_url,geometry&amp;bbox=</span><span class="si">{</span><span class="n">bbox</span><span class="si">}</span><span class="s2">&amp;is_pano=true&quot;</span>
     <span class="c1"># while not response or &#39;data&#39; not in response:</span>
@@ -739,33 +952,98 @@
 <a id="urbanworm.utils.getOSMbuildings"></a>
     <div class="doc doc-contents first">
 
-        <p>Get building footprints with a bounding box from OSM.</p>
+        <p>Get building footprints within a bounding box from OpenStreetMap using the Overpass API.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>bbox</code>
+            </td>
+            <td>
+                  <code><span title="tuple">tuple</span> or <span title="list">list</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A bounding box in the form (min_lon, min_lat, max_lon, max_lat).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>min_area</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Minimum footprint area in square meters. Defaults to 0.</p>
+              </div>
+            </td>
+            <td>
+                  <code>0</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>max_area</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Maximum footprint area in square meters. If None, no upper limit is applied.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="geopandas.GeoDataFrame">GeoDataFrame</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>gpd.GeoDataFrame or None: A GeoDataFrame of building footprints if any are found; otherwise, None.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
             <details class="quote">
               <summary>Source code in <code>urbanworm/utils.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">171</span>
-<span class="normal">172</span>
-<span class="normal">173</span>
-<span class="normal">174</span>
-<span class="normal">175</span>
-<span class="normal">176</span>
-<span class="normal">177</span>
-<span class="normal">178</span>
-<span class="normal">179</span>
-<span class="normal">180</span>
-<span class="normal">181</span>
-<span class="normal">182</span>
-<span class="normal">183</span>
-<span class="normal">184</span>
-<span class="normal">185</span>
-<span class="normal">186</span>
-<span class="normal">187</span>
-<span class="normal">188</span>
-<span class="normal">189</span>
-<span class="normal">190</span>
-<span class="normal">191</span>
-<span class="normal">192</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">192</span>
 <span class="normal">193</span>
 <span class="normal">194</span>
 <span class="normal">195</span>
@@ -781,8 +1059,49 @@
 <span class="normal">205</span>
 <span class="normal">206</span>
 <span class="normal">207</span>
-<span class="normal">208</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">getOSMbuildings</span><span class="p">(</span><span class="n">bbox</span><span class="p">,</span> <span class="n">min_area</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">max_area</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Get building footprints with a bounding box from OSM.&quot;&quot;&quot;</span>
+<span class="normal">208</span>
+<span class="normal">209</span>
+<span class="normal">210</span>
+<span class="normal">211</span>
+<span class="normal">212</span>
+<span class="normal">213</span>
+<span class="normal">214</span>
+<span class="normal">215</span>
+<span class="normal">216</span>
+<span class="normal">217</span>
+<span class="normal">218</span>
+<span class="normal">219</span>
+<span class="normal">220</span>
+<span class="normal">221</span>
+<span class="normal">222</span>
+<span class="normal">223</span>
+<span class="normal">224</span>
+<span class="normal">225</span>
+<span class="normal">226</span>
+<span class="normal">227</span>
+<span class="normal">228</span>
+<span class="normal">229</span>
+<span class="normal">230</span>
+<span class="normal">231</span>
+<span class="normal">232</span>
+<span class="normal">233</span>
+<span class="normal">234</span>
+<span class="normal">235</span>
+<span class="normal">236</span>
+<span class="normal">237</span>
+<span class="normal">238</span>
+<span class="normal">239</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">getOSMbuildings</span><span class="p">(</span><span class="n">bbox</span><span class="p">:</span><span class="nb">tuple</span><span class="o">|</span><span class="nb">list</span><span class="p">,</span> <span class="n">min_area</span><span class="p">:</span><span class="nb">float</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">max_area</span><span class="p">:</span><span class="nb">float</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get building footprints within a bounding box from OpenStreetMap using the Overpass API.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        bbox (tuple or list): A bounding box in the form (min_lon, min_lat, max_lon, max_lat).</span>
+<span class="sd">        min_area (float): Minimum footprint area in square meters. Defaults to 0.</span>
+<span class="sd">        max_area (float, optional): Maximum footprint area in square meters. If None, no upper limit is applied.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        gpd.GeoDataFrame or None: A GeoDataFrame of building footprints if any are found; otherwise, None.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
     <span class="c1"># Extract bounding box coordinates</span>
     <span class="n">min_lon</span><span class="p">,</span> <span class="n">min_lat</span><span class="p">,</span> <span class="n">max_lon</span><span class="p">,</span> <span class="n">max_lat</span> <span class="o">=</span> <span class="n">bbox</span>
 
@@ -832,49 +1151,98 @@
 <a id="urbanworm.utils.getGlobalMLBuilding"></a>
     <div class="doc doc-contents first">
 
-        <p>Fetches Global ML Building footprints within a bounding box.</p>
-<p>Args:
-- bbox (tuple/list): (min_lon, min_lat, max_lon, max_lat)
-- min_area (float): Minimum building area in square meters (default=0)
-- max_area (float): Maximum building area in square meters (default=None, no limit)</p>
-<p>Returns:
-- gpd.GeoDataFrame: Filtered building footprints.</p>
+        <p>Fetch building footprints from the Global ML Building dataset within a given bounding box.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>bbox</code>
+            </td>
+            <td>
+                  <code><span title="tuple">tuple</span> or <span title="list">list</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Bounding box defined as (min_lon, min_lat, max_lon, max_lat).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>min_area</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Minimum building footprint area in square meters. Defaults to 0.0.</p>
+              </div>
+            </td>
+            <td>
+                  <code>0.0</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>max_area</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Maximum building footprint area in square meters. Defaults to None (no upper limit).</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="geopandas.GeoDataFrame">GeoDataFrame</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>gpd.GeoDataFrame: Filtered building footprints within the bounding box.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
             <details class="quote">
               <summary>Source code in <code>urbanworm/utils.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">213</span>
-<span class="normal">214</span>
-<span class="normal">215</span>
-<span class="normal">216</span>
-<span class="normal">217</span>
-<span class="normal">218</span>
-<span class="normal">219</span>
-<span class="normal">220</span>
-<span class="normal">221</span>
-<span class="normal">222</span>
-<span class="normal">223</span>
-<span class="normal">224</span>
-<span class="normal">225</span>
-<span class="normal">226</span>
-<span class="normal">227</span>
-<span class="normal">228</span>
-<span class="normal">229</span>
-<span class="normal">230</span>
-<span class="normal">231</span>
-<span class="normal">232</span>
-<span class="normal">233</span>
-<span class="normal">234</span>
-<span class="normal">235</span>
-<span class="normal">236</span>
-<span class="normal">237</span>
-<span class="normal">238</span>
-<span class="normal">239</span>
-<span class="normal">240</span>
-<span class="normal">241</span>
-<span class="normal">242</span>
-<span class="normal">243</span>
-<span class="normal">244</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">244</span>
 <span class="normal">245</span>
 <span class="normal">246</span>
 <span class="normal">247</span>
@@ -926,17 +1294,48 @@
 <span class="normal">293</span>
 <span class="normal">294</span>
 <span class="normal">295</span>
-<span class="normal">296</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">getGlobalMLBuilding</span><span class="p">(</span><span class="n">bbox</span><span class="p">,</span> <span class="n">min_area</span><span class="p">:</span><span class="nb">float</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">max_area</span><span class="p">:</span><span class="nb">float</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="normal">296</span>
+<span class="normal">297</span>
+<span class="normal">298</span>
+<span class="normal">299</span>
+<span class="normal">300</span>
+<span class="normal">301</span>
+<span class="normal">302</span>
+<span class="normal">303</span>
+<span class="normal">304</span>
+<span class="normal">305</span>
+<span class="normal">306</span>
+<span class="normal">307</span>
+<span class="normal">308</span>
+<span class="normal">309</span>
+<span class="normal">310</span>
+<span class="normal">311</span>
+<span class="normal">312</span>
+<span class="normal">313</span>
+<span class="normal">314</span>
+<span class="normal">315</span>
+<span class="normal">316</span>
+<span class="normal">317</span>
+<span class="normal">318</span>
+<span class="normal">319</span>
+<span class="normal">320</span>
+<span class="normal">321</span>
+<span class="normal">322</span>
+<span class="normal">323</span>
+<span class="normal">324</span>
+<span class="normal">325</span>
+<span class="normal">326</span>
+<span class="normal">327</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">getGlobalMLBuilding</span><span class="p">(</span><span class="n">bbox</span><span class="p">:</span><span class="nb">tuple</span> <span class="o">|</span> <span class="nb">list</span><span class="p">,</span> <span class="n">min_area</span><span class="p">:</span><span class="nb">float</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">max_area</span><span class="p">:</span><span class="nb">float</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Fetches Global ML Building footprints within a bounding box.</span>
+<span class="sd">    Fetch building footprints from the Global ML Building dataset within a given bounding box.</span>
 
 <span class="sd">    Args:</span>
-<span class="sd">    - bbox (tuple/list): (min_lon, min_lat, max_lon, max_lat)</span>
-<span class="sd">    - min_area (float): Minimum building area in square meters (default=0)</span>
-<span class="sd">    - max_area (float): Maximum building area in square meters (default=None, no limit)</span>
+<span class="sd">        bbox (tuple or list): Bounding box defined as (min_lon, min_lat, max_lon, max_lat).</span>
+<span class="sd">        min_area (float): Minimum building footprint area in square meters. Defaults to 0.0.</span>
+<span class="sd">        max_area (float, optional): Maximum building footprint area in square meters. Defaults to None (no upper limit).</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">    - gpd.GeoDataFrame: Filtered building footprints.</span>
+<span class="sd">        gpd.GeoDataFrame: Filtered building footprints within the bounding box.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">mercantile</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">tqdm</span><span class="w"> </span><span class="kn">import</span> <span class="n">tqdm</span>
@@ -1000,13 +1399,13 @@
             <span class="n">combined_gdf</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">concat</span><span class="p">([</span><span class="n">combined_gdf</span><span class="p">,</span><span class="n">gdf</span><span class="p">],</span><span class="n">ignore_index</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
     <span class="c1"># Reproject to a UTM CRS for accurate area measurement</span>
-    <span class="n">utm_crs</span> <span class="o">=</span> <span class="n">gdf</span><span class="o">.</span><span class="n">estimate_utm_crs</span><span class="p">()</span>  
+    <span class="n">utm_crs</span> <span class="o">=</span> <span class="n">combined_gdf</span><span class="o">.</span><span class="n">estimate_utm_crs</span><span class="p">()</span>  
     <span class="c1"># Compute area and filter buildings by area</span>
-    <span class="n">gdf</span> <span class="o">=</span> <span class="n">gdf</span><span class="o">.</span><span class="n">to_crs</span><span class="p">(</span><span class="n">utm_crs</span><span class="p">)</span>
-    <span class="n">gdf</span><span class="p">[</span><span class="s2">&quot;area_m2&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">gdf</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">area</span>
-    <span class="n">gdf</span> <span class="o">=</span> <span class="n">gdf</span><span class="p">[</span><span class="n">gdf</span><span class="p">[</span><span class="s2">&quot;area_m2&quot;</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="n">min_area</span><span class="p">]</span>  <span class="c1"># Filter min area</span>
+    <span class="n">combined_gdf</span> <span class="o">=</span> <span class="n">combined_gdf</span><span class="o">.</span><span class="n">to_crs</span><span class="p">(</span><span class="n">utm_crs</span><span class="p">)</span>
+    <span class="n">combined_gdf</span><span class="p">[</span><span class="s2">&quot;area_&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">combined_gdf</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">area</span>
+    <span class="n">combined_gdf</span> <span class="o">=</span> <span class="n">combined_gdf</span><span class="p">[</span><span class="n">combined_gdf</span><span class="p">[</span><span class="s2">&quot;area_&quot;</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="n">min_area</span><span class="p">]</span>  <span class="c1"># Filter min area</span>
     <span class="k">if</span> <span class="n">max_area</span><span class="p">:</span>
-        <span class="n">gdf</span> <span class="o">=</span> <span class="n">gdf</span><span class="p">[</span><span class="n">gdf</span><span class="p">[</span><span class="s2">&quot;area_m2&quot;</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="n">max_area</span><span class="p">]</span>  <span class="c1"># Filter max area</span>
+        <span class="n">combined_gdf</span> <span class="o">=</span> <span class="n">combined_gdf</span><span class="p">[</span><span class="n">combined_gdf</span><span class="p">[</span><span class="s2">&quot;area_&quot;</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="n">max_area</span><span class="p">]</span>  <span class="c1"># Filter max area</span>
     <span class="c1"># Reproject back to WGS84</span>
     <span class="n">combined_gdf</span><span class="o">.</span><span class="n">to_crs</span><span class="p">(</span><span class="s1">&#39;EPSG:4326&#39;</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">combined_gdf</span>

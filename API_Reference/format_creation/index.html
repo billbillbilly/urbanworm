@@ -624,18 +624,74 @@
 <a id="urbanworm.format_creation.create_format"></a>
     <div class="doc doc-contents first">
 
-        <p>format a Response model with a customized QnA model.</p>
-<p>Parameters:
-- fields (dict): fields to add dynamically.</p>
-<p>Returns:
-- Pydantic model: Response class.</p>
+        <p>Create a generic <code>Response</code> model using a dynamically defined Pydantic schema.</p>
+<p>This function allows you to define a custom set of fields (e.g., for QnA-style data),
+and returns a typed <code>Response[CustomQnA]</code> model class.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>fields</code>
+            </td>
+            <td>
+                  <code><span title="dict">dict</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A dictionary of field definitions for the inner model.
+Example:
+    fields = {
+        "question": (str, ...),
+        "answer": (str, ...),
+        "explanation": (str, ...),
+    }</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="typing.Type">Type</span>[<span title="urbanworm.format_creation.Response">Response</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Type[Response]: A <code>Response</code> model class parameterized with the dynamically created schema.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
             <details class="quote">
               <summary>Source code in <code>urbanworm/format_creation.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">30</span>
-<span class="normal">31</span>
-<span class="normal">32</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">32</span>
 <span class="normal">33</span>
 <span class="normal">34</span>
 <span class="normal">35</span>
@@ -647,20 +703,38 @@
 <span class="normal">41</span>
 <span class="normal">42</span>
 <span class="normal">43</span>
-<span class="normal">44</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">create_format</span><span class="p">(</span><span class="n">fields</span><span class="p">:</span> <span class="nb">dict</span><span class="p">):</span>
+<span class="normal">44</span>
+<span class="normal">45</span>
+<span class="normal">46</span>
+<span class="normal">47</span>
+<span class="normal">48</span>
+<span class="normal">49</span>
+<span class="normal">50</span>
+<span class="normal">51</span>
+<span class="normal">52</span>
+<span class="normal">53</span>
+<span class="normal">54</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">create_format</span><span class="p">(</span><span class="n">fields</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Type</span><span class="p">[</span><span class="n">Response</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    format a Response model with a customized QnA model.</span>
+<span class="sd">    Create a generic `Response` model using a dynamically defined Pydantic schema.</span>
 
-<span class="sd">    Parameters:</span>
-<span class="sd">    - fields (dict): fields to add dynamically.</span>
+<span class="sd">    This function allows you to define a custom set of fields (e.g., for QnA-style data),</span>
+<span class="sd">    and returns a typed `Response[CustomQnA]` model class.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        fields (dict): A dictionary of field definitions for the inner model.</span>
+<span class="sd">            Example:</span>
+<span class="sd">                fields = {</span>
+<span class="sd">                    &quot;question&quot;: (str, ...),</span>
+<span class="sd">                    &quot;answer&quot;: (str, ...),</span>
+<span class="sd">                    &quot;explanation&quot;: (str, ...),</span>
+<span class="sd">                }</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">    - Pydantic model: Response class.</span>
+<span class="sd">        Type[Response]: A `Response` model class parameterized with the dynamically created schema.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="c1"># Dynamically create the model</span>
     <span class="n">CustomQnA</span> <span class="o">=</span> <span class="n">schema</span><span class="p">(</span><span class="n">fields</span><span class="p">)</span>
-
     <span class="k">return</span> <span class="n">Response</span><span class="p">[</span><span class="n">CustomQnA</span><span class="p">]</span>
 </code></pre></div></td></tr></table></div>
             </details>
