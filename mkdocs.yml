@@ -4,6 +4,7 @@ theme:
   custom_dir: overrides
   icon:
     logo: urabn_worm_logo
+    repo: fontawesome/brands/github
   palette:
 
     # Palette toggle for light mode
@@ -23,5 +24,18 @@ theme:
         name: Switch to light mode
       primary: purple
       accent: green
+
+plugins:
+  - search
+  - mkdocstrings:
+      default_handler: python
+  - autorefs
+  - git-revision-date
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - toc:
+      permalink: true
 
 copyright: Copyright &copy; 2025 Xiaohao Yang

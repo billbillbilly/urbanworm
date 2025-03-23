@@ -1,0 +1,1 @@
+::: urbanworm.pano2pers.Equirectangular
