@@ -3,9 +3,11 @@ __version__ = '0.0.1'
 import ollama
 from pydantic import BaseModel
 import rasterio
+import geopandas as gpd
 from rasterio.mask import mask
 import tempfile
 import os
+from typing import Union
 from typing import List
 from .utils import *
 
@@ -20,16 +22,20 @@ class Response(BaseModel):
 class UrbanDataSet:
     '''
     Dataset class for urban imagery inference using MLLM.
-
-    Args:
-        image (str): The path to the image.
-        images (list): The list of image paths.
-        units (str): The path to the shapefile.
-        format (Response): The response format.
-        mapillary_key (str): The Mapillary API key.
-        random_sample (int): The number of random samples.
     '''
-    def __init__(self, image=None, images:list=None, units:str=None, format=None, mapillary_key=None, random_sample=None):
+    def __init__(self, image=None, images:list=None, units:str=None, format=None, mapillary_key=None, random_sample:int=None):
+        '''
+        Add data or api key
+
+        Args:
+            image (str): The path to the image.
+            images (list): The list of image paths.
+            units (str): The path to the shapefile.
+            format (Response): The response format.
+            mapillary_key (str): The Mapillary API key.
+            random_sample (int): The number of random samples.
+        '''
+
         if image != None and detect_input_type(image) == 'image_path':
             self.img = encode_image_to_base64(image)
         else:
@@ -75,9 +81,9 @@ class UrbanDataSet:
             print("Please install Ollama client: https://github.com/ollama/ollama/tree/main")
             raise RuntimeError("Ollama not available. Install it before running.")
 
-    def bbox2Buildings(self, bbox, source='osm', min_area=0, max_area=None, random_sample=None):
+    def bbox2Buildings(self, bbox, source='osm', min_area=0, max_area=None, random_sample=None) -> str:
         '''
-        This function is used to extract buildings from OpenStreetMap using the bbox.
+        Extract buildings from OpenStreetMap using the bbox.
 
         Args:
             bbox (list): The bounding box.
@@ -86,7 +92,8 @@ class UrbanDataSet:
             max_area (int): The maximum area.
             random_sample (int): The number of random samples.
 
-        return (str): The number of buildings found in the bounding box
+        Returns:
+            str: The number of buildings found in the bounding box
         '''
         if source == 'osm':
             buildings = getOSMbuildings(bbox, min_area, max_area)
@@ -104,10 +111,10 @@ class UrbanDataSet:
     
     def oneImgChat(self, system=None, prompt=None, 
                    temp=0.0, top_k=0.8, top_p=0.8, 
-                   saveImg:bool=True):
+                   saveImg:bool=True) -> dict:
         
         '''
-        chat with MLLM model with one image.
+        Chat with MLLM model with one image.
 
         Args:
             system (optinal): The system message.
@@ -118,7 +125,8 @@ class UrbanDataSet:
             top_p (float): The top_p value.
             saveImg (bool): The saveImg for save each image in base64 format in the output.
 
-        return (dict): A dictionary includes questions/messages, responses/answers, and image base64 (if required) 
+        Returns:
+            dict: A dictionary includes questions/messages, responses/answers, and image base64 (if required) 
         '''
 
         print("Inference starts ...")
@@ -131,9 +139,9 @@ class UrbanDataSet:
     
     def loopImgChat(self, system=None, prompt=None, 
                     temp=0.0, top_k=0.8, top_p=0.8,
-                    saveImg:bool=True, progressBar:bool=False):
+                    saveImg:bool=True, progressBar:bool=False) -> list:
         '''
-        chat with MLLM model for each image.
+        Chat with MLLM model for each image.
 
         Args:
             system (optinal): The system message.
@@ -144,7 +152,8 @@ class UrbanDataSet:
             saveImg (bool): The saveImg for save each image in base64 format in the output.
             progressBar (bool): The progress bar for showing the progress of data analysis over the units
 
-        return (list): A list of dictionaries. Each dict includes questions/messages, responses/answers, and image base64 (if required)
+        Returns:
+            list A list of dictionaries. Each dict includes questions/messages, responses/answers, and image base64 (if required)
         '''
 
         from tqdm import tqdm
@@ -167,38 +176,59 @@ class UrbanDataSet:
                      temp:float=0.0, top_k:float=0.8, top_p:float=0.8, 
                      type:str='top', epsg:int=None, multi:bool=False, 
                      sv_fov:int=80, sv_pitch:int=10, sv_size:tuple=(300,400),
-                     saveImg:bool=True, progressBar:bool=False):
-        '''
-        chat with MLLM model for each unit in the shapefile.
-        example prompt:
-        prompt = {
-            'top': ''
-                Is there any damage on the roof?
-            '',
-            'street': ''
-                Is the wall missing or damaged?
-                Is the yard maintained well?
-            ''
+                     saveImg:bool=True, progressBar:bool=False) -> dict:
+        """
+        Chat with the MLLM model for each spatial unit in the shapefile.
+
+        This function loops through all units (e.g., buildings or parcels) in `self.units`, 
+        generates top and/or street view images, and prompts a language model 
+        with custom messages. It stores results in `self.results`.
+
+        When finished, your self.results object looks like this:
+        ```python
+        {
+            'from_loopUnitChat': {
+                'lon': [...],
+                'lat': [...],
+                'top_view': [[QnA, QnA, ...], ...],      # Optional
+                'street_view': [[QnA, QnA, ...], ...],   # Optional
+            },
+            'base64_imgs': {
+                'top_view_base64': [...],      # Optional
+                'street_view_base64': [...],   # Optional
+            }
         }
+        ```
+
+        Example prompt:
+            prompt = {
+                "top": "
+                    Is there any damage on the roof?
+                ",
+                "street": "
+                    Is the wall missing or damaged? 
+                    Is the yard maintained well?
+                "
+            }
 
         Args:
-            system (optinal): The system message.
-            prompt (dict): The prompt message for either top or street view or both.
-            img (str): The image path.
-            temp (float): The temperature value.
-            top_k (float): The top_k value.
-            top_p (float): The top_p value.
-            type (str): The type of image to process.
-            epsg (int): The EPSG code (required when type='street' or type='both').
-            multi (bool): The multi flag for multiple street view images for one unit.
-            sv_fov (int): The horizontal field of view of the image expressed in degrees(required when type='street' or type='both').
-            sv_pitch (int): The up or down angle of the camera relative to the Street View vehicle (required when type='street' or type='both').
-            sv_size (tuple): The height and width (height,width) for the street image (required when type='street' or type='both').
-            saveImg (bool): The saveImg for save each image in base64 format in the output.
-            progressBar (bool): The progress bar for showing the progress of data analysis over the units
+            system (str, optional): System message to guide the LLM behavior.
+            prompt (dict): Dictionary containing the prompts for 'top' and/or 'street' views.
+            temp (float, optional): Temperature for generation randomness. Defaults to 0.0.
+            top_k (float, optional): Top-k sampling parameter. Defaults to 0.8.
+            top_p (float, optional): Top-p sampling parameter. Defaults to 0.8.
+            type (str, optional): Which image type(s) to use: "top", "street", or "both". Defaults to "top".
+            epsg (int, optional): EPSG code for coordinate transformation. Required if type includes "street".
+            multi (bool, optional): Whether to return multiple SVIs per unit. Defaults to False.
+            sv_fov (int, optional): Field of view for street view. Defaults to 80.
+            sv_pitch (int, optional): Pitch angle for street view. Defaults to 10.
+            sv_size (tuple, optional): Size (height, width) for street view images. Defaults to (300, 400).
+            saveImg (bool, optional): Whether to save images (as base64 strings) in output. Defaults to True.
+            progressBar (bool, optional): Whether to show progress bar. Defaults to False.
 
-        return (dict): A dictionary includes questions/messages, responses/answers, and image base64 (if required) for each unit
-        '''
+        Returns:
+            dict: A dictionary containing prompts, responses, and (optionally) image data for each unit.
+        """
 
         from tqdm import tqdm
 
@@ -311,13 +341,17 @@ class UrbanDataSet:
         self.results = {'from_loopUnitChat':dic, 'base64_imgs':{**top_view_imgs, **street_view_imgs}}
         return dic
     
-    def to_gdf(self):
-        '''
-        Convert output from MLLM into a GeoDataframe,
-        including coordinates, questions, responses, input images (base64)
+    def to_gdf(self) -> gpd.GeoDataFrame | str:
+        """
+        Convert the output from an MLLM response (from .loopUnitChat) into a GeoDataFrame.
 
-        return (GeoDataframe): A GeoDataframe converted from the results 
-        '''
+        This method extracts coordinates, questions, responses, and base64-encoded input images
+        from the stored `self.results` object, and formats them into a structured GeoDataFrame.
+
+        Returns:
+            gpd.GeoDataFrame: A GeoDataFrame containing spatial responses and associated metadata.
+            str: An error message if `.loopUnitChat()` has not been run or if the format is unsupported.
+        """
 
         import pandas as pd
         import copy
@@ -340,19 +374,25 @@ class UrbanDataSet:
         else:
             return "This method can only be called after running the '.loopUnitChat()' method"
     
-    def LLM_chat(self, system=None, prompt=None, img=None, temp=None, top_k=None, top_p=None):
+    def LLM_chat(self, system=None, prompt=None, img=None, temp=None, top_k=None, top_p=None) -> Union["Response", list["QnA"]]:
         '''
-        This function is used to chat with the LLM model with a list of images.
+        Chat with the LLM model with a list of images.\
+        
+        Depending on the number of images provided, the method will:
+        - Return a single Response object if only one image is provided.
+        - Return a list of QnA objects if multiple images are provided (e.g., aerial and street views).
 
         Args:
-            system (str): The system message.
-            prompt (str): The user message.
-            img (list): The list of image paths.
-            temp (float): The temperature value.
-            top_k (float): The top_k value.
-            top_p (float): The top_p value.
+            system (str): The system message guiding the LLM.
+            prompt (str): The user prompt to the LLM.
+            img (list[str]): A list of image paths (1 or 3 recommended).
+            temp (float, optional): Temperature parameter for response randomness.
+            top_k (float, optional): Top-K sampling filter.
+            top_p (float, optional): Top-P (nucleus) sampling filter.
 
-        return (Response/list): an Response object or a list of QnA objects
+        Returns:
+            Union[Response, list[QnA]]: A Response object if a single reply is generated,
+            or a list of QnA objects for multi-turn/image-question responses.
         '''
 
         if prompt != None and img != None:
@@ -366,19 +406,20 @@ class UrbanDataSet:
                     res += [r.responses]
                 return res
 
-    def chat(self, system=None, prompt=None, img=None, temp=None, top_k=None, top_p=None):
+    def chat(self, system=None, prompt=None, img=None, temp=None, top_k=None, top_p=None) -> Response:
         '''
-        This function is used to chat with the LLM model.'
+        Chat with the LLM model using a system message, prompt, and optional image.
 
         Args:
-            system (str): The system message.
-            prompt (str): The user message.
-            img (str): The image path.
-            temp (float): The temperature value.
-            top_k (float): The top_k value.
-            top_p (float): The top_p value.
+            system (str): The system-level instruction for the model.
+            prompt (str): The user message or question.
+            img (str): Path to a single image to be sent to the model.
+            temp (float, optional): Sampling temperature for generation (higher = more random).
+            top_k (float, optional): Top-k sampling parameter.
+            top_p (float, optional): Top-p (nucleus) sampling parameter.
 
-        return (Response): Response object
+        Returns:
+            Response: Parsed response from the LLM, returned as a `Response` object.
         '''
         res = ollama.chat(
             model='llama3.2-vision',

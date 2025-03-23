@@ -9,20 +9,59 @@ import base64
 
 # Equirectangular to Perspective
 class Equirectangular:
-    def __init__(self, img_path=None, img_url=None):
+    '''
+    Covert paronoma to perspective
+    '''
+
+    def __init__(self, img_path:str=None, img_url:str=None):
+        '''
+        Add image
+
+        Args:
+            img_path (str): Image path
+            img_url (str): Image URL
+        '''
         if img_path != None:
             self._img = cv2.imread(img_path, cv2.IMREAD_COLOR)
         elif img_url != None:
             self._img = self.read_url2img(img_url)
         [self._height, self._width, _] = self._img.shape
     
-    def read_url2img(self, url):
+    def read_url2img(self, url:str) -> np.ndarray:
+        '''
+        Read image from a URL
+
+        Args:
+            url (str): Image URL
+
+        Returns: 
+            np.ndarray: The image as a NumPy array.
+        '''
         resp = urlopen(url, timeout=100)
         image = np.asarray(bytearray(resp.read()), dtype="uint8")
         image = cv2.imdecode(image, cv2.IMREAD_COLOR)
         return image
 
-    def GetPerspective(self, FOV, THETA, PHI, height, width, RADIUS = 128):
+    def GetPerspective(self, FOV:float, THETA:float, PHI:float, height:int, width:int, RADIUS:int = 128) -> str:
+        """
+        Convert an equirectangular panorama image to a perspective view.
+
+        This function computes the perspective projection of a 360° panorama image 
+        based on field of view and view angles, returning the perspective as a 
+        base64-encoded PNG image (useful for web/LLM APIs).
+
+        Args:
+            FOV (float): Field of view in degrees.
+            THETA (float): Horizontal viewing angle (left/right), in degrees.
+            PHI (float): Vertical viewing angle (up/down), in degrees.
+            height (int): Height of the output image.
+            width (int): Width of the output image.
+            RADIUS (int, optional): Projection sphere radius. Defaults to 128.
+
+        Returns:
+            str: A base64-encoded PNG string representing the perspective view.
+        """
+
         # THETA is left/right angle, PHI is up/down angle, both in degree
         equ_h = self._height
         equ_w = self._width
