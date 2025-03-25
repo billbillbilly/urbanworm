@@ -76,7 +76,7 @@ def meters_to_degrees(meters, latitude):
 # Get street view images from Mapillary
 def getSV(centroid, epsg:int, key:str, multi:bool=False, 
           fov:int=80, heading:int=None, pitch:int=10, 
-          height:int=300, width:int=400) -> list[str] | None:
+          height:int=300, width:int=400) -> list[str]:
     """
     Retrieve the closest street view image(s) near a coordinate using the Mapillary API.
 
@@ -92,7 +92,7 @@ def getSV(centroid, epsg:int, key:str, multi:bool=False,
         width (int, optional): Width in pixels of the returned image. Defaults to 400.
     
     Returns:
-        gpd.GeoDataFrame: A GeoDataFrame converted from the results
+        list[str]: A list of images in base64 format
     """
     bbox = projection(centroid, epsg)
     url = f"https://graph.mapillary.com/images?access_token={key}&fields=id,compass_angle,thumb_2048_url,geometry&bbox={bbox}&is_pano=true"
@@ -120,8 +120,7 @@ def getSV(centroid, epsg:int, key:str, multi:bool=False,
             svis.append(sv)
         return svis
     except:
-        print("no street view image found")
-        return None
+        return []
 
 # Reproject the point to the desired EPSG
 def projection(centroid, epsg):
@@ -189,14 +188,14 @@ def calculate_bearing(lat1, lon1, lat2, lon2):
     return (bearing + 360) % 360  # Normalize to 0-360
 
 # get building footprints from OSM uing bbox
-def getOSMbuildings(bbox:tuple|list, min_area:float=0, max_area:float=None) -> gpd.GeoDataFrame | None:
+def getOSMbuildings(bbox:tuple|list, min_area:float|int=0, max_area:float|int=None) -> gpd.GeoDataFrame | None:
     """
     Get building footprints within a bounding box from OpenStreetMap using the Overpass API.
 
     Args:
         bbox (tuple or list): A bounding box in the form (min_lon, min_lat, max_lon, max_lat).
-        min_area (float): Minimum footprint area in square meters. Defaults to 0.
-        max_area (float, optional): Maximum footprint area in square meters. If None, no upper limit is applied.
+        min_area (float or int): Minimum footprint area in square meters. Defaults to 0.
+        max_area (float or int, optional): Maximum footprint area in square meters. If None, no upper limit is applied.
 
     Returns:
         gpd.GeoDataFrame or None: A GeoDataFrame of building footprints if any are found; otherwise, None.
@@ -241,14 +240,14 @@ def getOSMbuildings(bbox:tuple|list, min_area:float=0, max_area:float=None) -> g
 # get building footprints from open building footprints released by Bing Maps using a bbox
 # Adopted code is originally from https://github.com/microsoft/GlobalMLBuildingFootprints.git
 # Credits to contributors @GlobalMLBuildingFootprints.
-def getGlobalMLBuilding(bbox:tuple | list, min_area:float=0.0, max_area:float=None) -> gpd.GeoDataFrame:
+def getGlobalMLBuilding(bbox:tuple | list, min_area:float|int=0.0, max_area:float|int=None) -> gpd.GeoDataFrame:
     """
     Fetch building footprints from the Global ML Building dataset within a given bounding box.
 
     Args:
         bbox (tuple or list): Bounding box defined as (min_lon, min_lat, max_lon, max_lat).
-        min_area (float): Minimum building footprint area in square meters. Defaults to 0.0.
-        max_area (float, optional): Maximum building footprint area in square meters. Defaults to None (no upper limit).
+        min_area (float or int): Minimum building footprint area in square meters. Defaults to 0.0.
+        max_area (float or int, optional): Maximum building footprint area in square meters. Defaults to None (no upper limit).
 
     Returns:
         gpd.GeoDataFrame: Filtered building footprints within the bounding box.
