@@ -23,7 +23,8 @@ class UrbanDataSet:
     '''
     Dataset class for urban imagery inference using MLLM.
     '''
-    def __init__(self, image=None, images:list=None, units:str=None, format=None, mapillary_key=None, random_sample:int=None):
+    def __init__(self, image=None, images:list=None, units:str=None, 
+                 format:Response=None, mapillary_key:int=None, random_sample:int=None):
         '''
         Add data or api key
 
@@ -62,17 +63,16 @@ class UrbanDataSet:
 
         self.results = None
 
-        self.preload_model()
-
-    def preload_model(self):
+    def preload_model(self, model_name):
         """
         Ensures that the required Ollama model is available.
         If not, it automatically pulls the model.
-        """
 
+        Args:
+            model_name (str): model name
+        """
         import ollama
 
-        model_name = "llama3.2-vision"
         try:
             ollama.pull(model_name)
 
@@ -81,20 +81,26 @@ class UrbanDataSet:
             print("Please install Ollama client: https://github.com/ollama/ollama/tree/main")
             raise RuntimeError("Ollama not available. Install it before running.")
 
-    def bbox2Buildings(self, bbox, source='osm', min_area=0, max_area=None, random_sample=None) -> str:
+    def bbox2Buildings(self, bbox:list|tuple, source:str='osm', 
+                       min_area:float|int=0, max_area:float|int=None, 
+                       random_sample:int=None) -> str:
         '''
         Extract buildings from OpenStreetMap using the bbox.
 
         Args:
-            bbox (list): The bounding box.
+            bbox (list or tuple): The bounding box.
             source (str): The source of the buildings. ['osm', 'being']
-            min_area (int): The minimum area.
-            max_area (int): The maximum area.
+            min_area (float or int): The minimum area.
+            max_area (float or int): The maximum area.
             random_sample (int): The number of random samples.
 
         Returns:
             str: The number of buildings found in the bounding box
         '''
+
+        if source not in ['osm', 'being']:
+            raise Exception(f'{source} is not supported')
+
         if source == 'osm':
             buildings = getOSMbuildings(bbox, min_area, max_area)
         elif source == 'being':
@@ -109,14 +115,15 @@ class UrbanDataSet:
         self.units = buildings
         return f"{len(buildings)} buildings found in the bounding box."
     
-    def oneImgChat(self, system=None, prompt=None, 
-                   temp=0.0, top_k=0.8, top_p=0.8, 
+    def oneImgChat(self, model:str='llama3.2-vision',system:str=None, prompt:str=None, 
+                   temp:float=0.0, top_k:float=0.8, top_p:float=0.8,
                    saveImg:bool=True) -> dict:
         
         '''
         Chat with MLLM model with one image.
 
         Args:
+            model (str): Model name. Defaults to "llama3.2-vision". ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'minicpm-v']
             system (optinal): The system message.
             prompt (str): The prompt message.
             img (str): The image path.
@@ -129,22 +136,27 @@ class UrbanDataSet:
             dict: A dictionary includes questions/messages, responses/answers, and image base64 (if required) 
         '''
 
+        if model not in ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'minicpm-v']:
+            raise Exception(f'{model} is not supported')
+        self.preload_model(model)
+
         print("Inference starts ...")
-        r = self.LLM_chat(system=system, prompt=prompt, img=[self.img], 
+        r = self.LLM_chat(model=model, system=system, prompt=prompt, img=[self.img], 
                           temp=temp, top_k=top_k, top_p=top_p)
         r = dict(r.responses[0])
         if saveImg:
             r['img'] = self.img
         return r
     
-    def loopImgChat(self, system=None, prompt=None, 
-                    temp=0.0, top_k=0.8, top_p=0.8,
-                    saveImg:bool=True, progressBar:bool=False) -> list:
+    def loopImgChat(self, model:str='llama3.2-vision', system:str=None, prompt:str=None, 
+                    temp:float=0.0, top_k:float=0.8, top_p:float=0.8, saveImg:bool=True, 
+                    progressBar:bool=False) -> list:
         '''
         Chat with MLLM model for each image.
 
         Args:
-            system (optinal): The system message.
+            model (str): Model name. Defaults to "llama3.2-vision". ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'minicpm-v']
+            system (str, optinal): The system message.
             prompt (str): The prompt message.
             temp (float): The temperature value.
             top_k (float): The top_k value.
@@ -156,13 +168,17 @@ class UrbanDataSet:
             list A list of dictionaries. Each dict includes questions/messages, responses/answers, and image base64 (if required)
         '''
 
+        if model not in ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'minicpm-v']:
+            raise Exception(f'{model} is not supported')
+        self.preload_model(model)
+
         from tqdm import tqdm
 
         res = []
         for i in tqdm(range(len(self.imgs)), desc="Processing...", ncols=75, disable=progressBar):
         # for i in range(len(self.imgs)):
             img = self.imgs[i]
-            r = self.LLM_chat(system=system, prompt=prompt, img=[img], 
+            r = self.LLM_chat(model=model, system=system, prompt=prompt, img=[img], 
                               temp=temp, top_k=top_k, top_p=top_p)
             r = dict(r.responses[0])
             if saveImg:
@@ -172,10 +188,10 @@ class UrbanDataSet:
                 res += [r]
         return res
             
-    def loopUnitChat(self, system=None, prompt:dict=None, 
+    def loopUnitChat(self, model:str='llama3.2-vision', system:str=None, prompt:dict=None, 
                      temp:float=0.0, top_k:float=0.8, top_p:float=0.8, 
                      type:str='top', epsg:int=None, multi:bool=False, 
-                     sv_fov:int=80, sv_pitch:int=10, sv_size:tuple=(300,400),
+                     sv_fov:int=80, sv_pitch:int=10, sv_size:list|tuple=(300,400),
                      saveImg:bool=True, progressBar:bool=False) -> dict:
         """
         Chat with the MLLM model for each spatial unit in the shapefile.
@@ -212,6 +228,7 @@ class UrbanDataSet:
             }
 
         Args:
+            model (str): Model name. Defaults to "llama3.2-vision". ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'minicpm-v']
             system (str, optional): System message to guide the LLM behavior.
             prompt (dict): Dictionary containing the prompts for 'top' and/or 'street' views.
             temp (float, optional): Temperature for generation randomness. Defaults to 0.0.
@@ -222,13 +239,17 @@ class UrbanDataSet:
             multi (bool, optional): Whether to return multiple SVIs per unit. Defaults to False.
             sv_fov (int, optional): Field of view for street view. Defaults to 80.
             sv_pitch (int, optional): Pitch angle for street view. Defaults to 10.
-            sv_size (tuple, optional): Size (height, width) for street view images. Defaults to (300, 400).
+            sv_size (list, tuple, optional): Size (height, width) for street view images. Defaults to (300, 400).
             saveImg (bool, optional): Whether to save images (as base64 strings) in output. Defaults to True.
             progressBar (bool, optional): Whether to show progress bar. Defaults to False.
 
         Returns:
             dict: A dictionary containing prompts, responses, and (optionally) image data for each unit.
         """
+
+        if model not in ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'minicpm-v']:
+            raise Exception(f'{model} is not supported')
+        self.preload_model(model)
 
         from tqdm import tqdm
 
@@ -256,6 +277,35 @@ class UrbanDataSet:
             dic['lon'].append(centroid.x)
             dic['lat'].append(centroid.y)
 
+            # process street view image
+            if (type == 'street' or type == 'both') and epsg != None and self.mapillary_key != None:
+                input_svis = getSV(centroid, epsg, self.mapillary_key, multi=multi, 
+                                   fov=sv_fov, pitch=sv_pitch, height=sv_size[0], width=sv_size[1])
+                if len(input_svis) != 0:
+                    # save imgs
+                    if saveImg:
+                        street_view_imgs['street_view_base64'] += [input_svis]
+                    # inference
+                    res = self.LLM_chat(model=model,
+                                        system=system, 
+                                        prompt=prompt["street"], 
+                                        img=input_svis, 
+                                        temp=temp, 
+                                        top_k=top_k, 
+                                        top_p=top_p)
+                    # initialize the list
+                    if i == 0:
+                        dic['street_view'] = []
+                    if multi:
+                        dic['street_view'] += [res]
+                    else:
+                        dic['street_view'] += [res.responses]
+                else:
+                    dic['lon'].pop()
+                    dic['lat'].pop()
+                    continue
+
+            # process aerial image
             if type == 'top' or type == 'both':
                 # Convert meters to degrees dynamically based on latitude
                 # Approximate adjustment (5 meters)
@@ -284,7 +334,7 @@ class UrbanDataSet:
                     "height": out_image.shape[1],
                     "width": out_image.shape[2],
                     "transform": out_transform,
-                    "count": 3 #Ensure RGB (3 bands)
+                    "count": 3
                 })
 
                 # Create a temporary file for the clipped JPEG
@@ -300,7 +350,8 @@ class UrbanDataSet:
                 top_view_imgs['top_view_base64'] += [clipped_image_base64]
 
                 # process aerial image
-                top_res = self.LLM_chat(system=system, 
+                top_res = self.LLM_chat(model=model,
+                                    system=system, 
                                     prompt=prompt["top"], 
                                     img=[clipped_image], 
                                     temp=temp, 
@@ -314,29 +365,6 @@ class UrbanDataSet:
                 
                 # clean up temp file
                 os.remove(clipped_image)
-
-            # process street view image
-            if (type == 'street' or type == 'both') and epsg != None and self.mapillary_key != None:
-                input_svis = getSV(centroid, epsg, self.mapillary_key, multi=multi, 
-                                   fov=sv_fov, pitch=sv_pitch, height=sv_size[0], width=sv_size[1])
-                if None not in input_svis:
-                    # save imgs
-                    if saveImg:
-                        street_view_imgs['street_view_base64'] += [input_svis]
-                    # inference
-                    res = self.LLM_chat(system=system, 
-                                        prompt=prompt["street"], 
-                                        img=input_svis, 
-                                        temp=temp, 
-                                        top_k=top_k, 
-                                        top_p=top_p)
-                    # initialize the list
-                    if i == 0:
-                        dic['street_view'] = []
-                    if multi:
-                        dic['street_view'] += [res]
-                    else:
-                        dic['street_view'] += [res.responses]
 
         self.results = {'from_loopUnitChat':dic, 'base64_imgs':{**top_view_imgs, **street_view_imgs}}
         return dic
@@ -374,15 +402,17 @@ class UrbanDataSet:
         else:
             return "This method can only be called after running the '.loopUnitChat()' method"
     
-    def LLM_chat(self, system=None, prompt=None, img=None, temp=None, top_k=None, top_p=None) -> Union["Response", list["QnA"]]:
+    def LLM_chat(self, model:str='llama3.2-vision', system:str=None, prompt:str=None, 
+                 img:list[str]=None, temp:float=None, top_k:float=None, top_p:float=None) -> Union["Response", list["QnA"]]:
         '''
-        Chat with the LLM model with a list of images.\
+        Chat with the LLM model with a list of images.
         
         Depending on the number of images provided, the method will:
         - Return a single Response object if only one image is provided.
         - Return a list of QnA objects if multiple images are provided (e.g., aerial and street views).
 
         Args:
+            model (str): Model name.
             system (str): The system message guiding the LLM.
             prompt (str): The user prompt to the LLM.
             img (list[str]): A list of image paths (1 or 3 recommended).
@@ -397,20 +427,22 @@ class UrbanDataSet:
 
         if prompt != None and img != None:
             if len(img) == 1:
-                return self.chat(system, prompt, img[0], temp, top_k, top_p)
+                return self.chat(model, system, prompt, img[0], temp, top_k, top_p)
             elif len(img) == 3:
                 res = []
                 system = f'You are analyzing aerial or street view images. For street view, you should just foucus on the building and yard in the middle. {system}'
                 for i in range(len(img)):
-                    r = self.chat(system, prompt, img[i], temp, top_k, top_p)
+                    r = self.chat(model, system, prompt, img[i], temp, top_k, top_p)
                     res += [r.responses]
                 return res
 
-    def chat(self, system=None, prompt=None, img=None, temp=None, top_k=None, top_p=None) -> Response:
+    def chat(self, model:str='llama3.2-vision', system:str=None, prompt:str=None, 
+             img=None, temp=None, top_k:float=None, top_p:float=None) -> Response:
         '''
         Chat with the LLM model using a system message, prompt, and optional image.
 
         Args:
+            model (str): Model name. Defaults to "llama3.2-vision". ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'minicpm-v']
             system (str): The system-level instruction for the model.
             prompt (str): The user message or question.
             img (str): Path to a single image to be sent to the model.
@@ -421,8 +453,9 @@ class UrbanDataSet:
         Returns:
             Response: Parsed response from the LLM, returned as a `Response` object.
         '''
+
         res = ollama.chat(
-            model='llama3.2-vision',
+            model=model,
             format=self.format.model_json_schema(),
             messages=[
                 {
@@ -443,8 +476,40 @@ class UrbanDataSet:
         )
         return self.format.model_validate_json(res.message.content)
     
-    def plotBase64(self, img):
+    # def generate(self, system=None, prompt=None, img=None, temp=None, top_k=None, top_p=None) -> Response:
+    #     '''
+    #     Chat with the LLM model using a system message, prompt, and optional image.
+
+    #     Args:
+    #         system (str): The system-level instruction for the model.
+    #         prompt (str): The user message or question.
+    #         img (str): Path to a single image to be sent to the model.
+    #         temp (float, optional): Sampling temperature for generation (higher = more random).
+    #         top_k (float, optional): Top-k sampling parameter.
+    #         top_p (float, optional): Top-p (nucleus) sampling parameter.
+
+    #     Returns:
+    #         Response: Parsed response from the LLM, returned as a `Response` object.
+    #     '''
+    #     res = ollama.generate(
+    #         model='llama3.2-vision',
+    #         format=self.format.model_json_schema(),
+    #         system=system,
+    #         prompt=prompt,
+    #         images=[img],
+    #         options={
+    #             "temperature":temp,
+    #             "top_k":top_k,
+    #             "top_p":top_p
+    #         }
+    #     )
+    #     return self.format.model_validate_json(res.response)
+    
+    def plotBase64(self, img:str):
         '''
         plot a single base64 image
+
+        Args:
+            img (str): image base64 string
         '''
         plot_base64_image(img)
