@@ -331,7 +331,7 @@ def getGlobalMLBuilding(bbox:tuple | list, min_area:float|int=0.0, max_area:floa
     if max_area:
         combined_gdf = combined_gdf[combined_gdf["area_"] <= max_area]  # Filter max area
     # Reproject back to WGS84
-    combined_gdf.to_crs('EPSG:4326')
+    combined_gdf = combined_gdf.to_crs('EPSG:4326')
     return combined_gdf
 
 def response2gdf(qna_dict):
