@@ -302,7 +302,16 @@ def getGlobalMLBuilding(bbox:tuple | list, min_area:float|int=0.0, max_area:floa
                 if not os.path.exists(fn): # Skip if file already exists
                     gdf.to_file(fn, driver="GeoJSON")
             elif rows.shape[0] > 1:
-                raise ValueError(f"Multiple rows found for QuadKey: {quad_key}")
+                print(f"Warning: Multiple rows found for QuadKey: {quad_key}. Processing all entries.")
+                for _, row in rows.iterrows():
+                    url = row["Url"]
+                    df2 = pd.read_json(url, lines=True)
+                    df2["geometry"] = df2["geometry"].apply(geometry.shape)
+                    gdf = gpd.GeoDataFrame(df2, crs=4326)
+                    fn = os.path.join(tmpdir, f"{quad_key}_{_}.geojson")
+                    tmp_fns.append(fn)
+                    if not os.path.exists(fn):  # Skip if file already exists
+                        gdf.to_file(fn, driver="GeoJSON")
             else:
                 raise ValueError(f"QuadKey not found in dataset: {quad_key}")
         # Merge the GeoJSON files into a single file
