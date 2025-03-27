@@ -3,19 +3,19 @@
 [![image](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/billbillbilly/urbanworm/blob/main/docs/example_osm.ipynb)
 
 <picture>
-  <img alt="logo" src="docs/images/urabn_worm_logo.jpg" width="100%">
+  <img alt="logo" src="docs/images/urabn_worm_logo.png" width="100%">
 </picture>
 
 # Urban-Worm
 
 ## Introduction
-Urban-Worm is a Python library that integrates remote sensing imagery, street view data, and multimodal model to assess urban units. Using APIs for data collection and Llama 3.2 vision for inference, Urban-Worm is designed to support the automation of the evaluation for urban environments, including roof integrity, structural condition, landscape quality, and urban perception.
+Urban-Worm is a Python library that integrates remote sensing imagery, street view data, and multimodal model to assess urban units. Using APIs for data collection and vision-language models for inference, Urban-Worm is designed to support the automation of the evaluation for urban environments, including roof integrity, structural condition, landscape quality, and urban perception.
 
 - Free software: MIT license
 - [Documentation](https://billbillbilly.github.io/urbanworm/)
 
 <picture>
-  <img alt="workflow" src="docs/images/urabn_worm_diagram.jpg" width="100%">
+  <img alt="workflow" src="docs/images/urabn_worm_diagram.png" width="100%">
 </picture>
 
 ## Features

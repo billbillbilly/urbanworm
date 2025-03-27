@@ -78,6 +78,8 @@ def getSV(centroid, epsg:int, key:str, multi:bool=False,
           fov:int=80, heading:int=None, pitch:int=10, 
           height:int=300, width:int=400) -> list[str]:
     """
+    getSV
+
     Retrieve the closest street view image(s) near a coordinate using the Mapillary API.
 
     Args:
@@ -190,6 +192,8 @@ def calculate_bearing(lat1, lon1, lat2, lon2):
 # get building footprints from OSM uing bbox
 def getOSMbuildings(bbox:tuple|list, min_area:float|int=0, max_area:float|int=None) -> gpd.GeoDataFrame | None:
     """
+    getOSMbuildings
+
     Get building footprints within a bounding box from OpenStreetMap using the Overpass API.
 
     Args:
@@ -242,6 +246,8 @@ def getOSMbuildings(bbox:tuple|list, min_area:float|int=0, max_area:float|int=No
 # Credits to contributors @GlobalMLBuildingFootprints.
 def getGlobalMLBuilding(bbox:tuple | list, min_area:float|int=0.0, max_area:float|int=None) -> gpd.GeoDataFrame:
     """
+    getGlobalMLBuilding
+    
     Fetch building footprints from the Global ML Building dataset within a given bounding box.
 
     Args:
@@ -302,7 +308,16 @@ def getGlobalMLBuilding(bbox:tuple | list, min_area:float|int=0.0, max_area:floa
                 if not os.path.exists(fn): # Skip if file already exists
                     gdf.to_file(fn, driver="GeoJSON")
             elif rows.shape[0] > 1:
-                raise ValueError(f"Multiple rows found for QuadKey: {quad_key}")
+                print(f"Warning: Multiple rows found for QuadKey: {quad_key}. Processing all entries.")
+                for _, row in rows.iterrows():
+                    url = row["Url"]
+                    df2 = pd.read_json(url, lines=True)
+                    df2["geometry"] = df2["geometry"].apply(geometry.shape)
+                    gdf = gpd.GeoDataFrame(df2, crs=4326)
+                    fn = os.path.join(tmpdir, f"{quad_key}_{_}.geojson")
+                    tmp_fns.append(fn)
+                    if not os.path.exists(fn):  # Skip if file already exists
+                        gdf.to_file(fn, driver="GeoJSON")
             else:
                 raise ValueError(f"QuadKey not found in dataset: {quad_key}")
         # Merge the GeoJSON files into a single file
@@ -322,7 +337,7 @@ def getGlobalMLBuilding(bbox:tuple | list, min_area:float|int=0.0, max_area:floa
     if max_area:
         combined_gdf = combined_gdf[combined_gdf["area_"] <= max_area]  # Filter max area
     # Reproject back to WGS84
-    combined_gdf.to_crs('EPSG:4326')
+    combined_gdf = combined_gdf.to_crs('EPSG:4326')
     return combined_gdf
 
 def response2gdf(qna_dict):
