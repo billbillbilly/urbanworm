@@ -78,6 +78,8 @@ def getSV(centroid, epsg:int, key:str, multi:bool=False,
           fov:int=80, heading:int=None, pitch:int=10, 
           height:int=300, width:int=400) -> list[str]:
     """
+    getSV
+
     Retrieve the closest street view image(s) near a coordinate using the Mapillary API.
 
     Args:
@@ -190,6 +192,8 @@ def calculate_bearing(lat1, lon1, lat2, lon2):
 # get building footprints from OSM uing bbox
 def getOSMbuildings(bbox:tuple|list, min_area:float|int=0, max_area:float|int=None) -> gpd.GeoDataFrame | None:
     """
+    getOSMbuildings
+
     Get building footprints within a bounding box from OpenStreetMap using the Overpass API.
 
     Args:
@@ -242,6 +246,8 @@ def getOSMbuildings(bbox:tuple|list, min_area:float|int=0, max_area:float|int=No
 # Credits to contributors @GlobalMLBuildingFootprints.
 def getGlobalMLBuilding(bbox:tuple | list, min_area:float|int=0.0, max_area:float|int=None) -> gpd.GeoDataFrame:
     """
+    getGlobalMLBuilding
+    
     Fetch building footprints from the Global ML Building dataset within a given bounding box.
 
     Args:
