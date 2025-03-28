@@ -150,7 +150,7 @@ class UrbanDataSet:
     
     def loopImgChat(self, model:str='llama3.2-vision', system:str=None, prompt:str=None, 
                     temp:float=0.0, top_k:float=0.8, top_p:float=0.8, saveImg:bool=True, 
-                    progressBar:bool=False) -> list:
+                    disableProgressBar:bool=False) -> list:
         '''
         Chat with MLLM model for each image.
 
@@ -162,7 +162,7 @@ class UrbanDataSet:
             top_k (float): The top_k value.
             top_p (float): The top_p value.
             saveImg (bool): The saveImg for save each image in base64 format in the output.
-            progressBar (bool): The progress bar for showing the progress of data analysis over the units
+            disableProgressBar (bool): The progress bar for showing the progress of data analysis over the units
 
         Returns:
             list A list of dictionaries. Each dict includes questions/messages, responses/answers, and image base64 (if required)
@@ -175,7 +175,7 @@ class UrbanDataSet:
         from tqdm import tqdm
 
         res = []
-        for i in tqdm(range(len(self.imgs)), desc="Processing...", ncols=75, disable=progressBar):
+        for i in tqdm(range(len(self.imgs)), desc="Processing...", ncols=75, disable=disableProgressBar):
         # for i in range(len(self.imgs)):
             img = self.imgs[i]
             r = self.LLM_chat(model=model, system=system, prompt=prompt, img=[img], 
@@ -192,7 +192,7 @@ class UrbanDataSet:
                      temp:float=0.0, top_k:float=0.8, top_p:float=0.8, 
                      type:str='top', epsg:int=None, multi:bool=False, 
                      sv_fov:int=80, sv_pitch:int=10, sv_size:list|tuple=(300,400),
-                     saveImg:bool=True, progressBar:bool=False) -> dict:
+                     saveImg:bool=True, disableProgressBar:bool=False) -> dict:
         """
         Chat with the MLLM model for each spatial unit in the shapefile.
 
@@ -241,7 +241,7 @@ class UrbanDataSet:
             sv_pitch (int, optional): Pitch angle for street view. Defaults to 10.
             sv_size (list, tuple, optional): Size (height, width) for street view images. Defaults to (300, 400).
             saveImg (bool, optional): Whether to save images (as base64 strings) in output. Defaults to True.
-            progressBar (bool, optional): Whether to show progress bar. Defaults to False.
+            disableProgressBar (bool, optional): Whether to show progress bar. Defaults to False.
 
         Returns:
             dict: A dictionary containing prompts, responses, and (optionally) image data for each unit.
@@ -268,7 +268,7 @@ class UrbanDataSet:
         top_view_imgs = {'top_view_base64':[]}
         street_view_imgs = {'street_view_base64':[]}
 
-        for i in tqdm(range(len(self.units)), desc="Processing...", ncols=75, disable=progressBar):
+        for i in tqdm(range(len(self.units)), desc="Processing...", ncols=75, disable=disableProgressBar):
         # for i in range(len(self.units)):
             # Get the extent of one polygon from the filtered GeoDataFrame
             polygon = self.units.geometry.iloc[i]

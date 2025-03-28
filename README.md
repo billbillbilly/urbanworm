@@ -124,15 +124,15 @@ An agent webUI is in the incoming development plan for providing interactive ope
 This repository and its content are provided for educational purposes only. By using the information and code provided, users acknowledge that they are using the APIs and models at their own risk and agree to comply with any applicable laws and regulations. Users who intend to download a large number of image tiles from any basemap are advised to contact the basemap provider to obtain permission before doing so. Unauthorized use of the basemap or any of its components may be a violation of copyright laws or other applicable laws and regulations.
 
 ## Acknowledgements
-The package is heavily built on Ollama client, Ollama-python, and Llama 3.2 Vision. Credit goes to the developers of these projects.
+The package is heavily built on Ollama client and Ollama-python. Credit goes to the developers of these projects.
 - [ollama](https://github.com/ollama/ollama)
 - [ollama-python](https://github.com/ollama/ollama-python)
 - [structured outputs](https://ollama.com/blog/structured-outputs)
-- [llama 3.2 vision](https://huggingface.co/meta-llama/Llama-3.2-11B-Vision)
 
-The functionality about sourcing and processing GIS data (satellite & street view imagery) is built on the following open projects. Credit goes to the developers of these projects.
+The functionality about sourcing and processing GIS data (satellite & street view imagery) and 360-degree street view image processing is built on the following open projects. Credit goes to the developers of these projects.
 - [tms2geotiff](https://github.com/gumblex/tms2geotiff)
 - [GlobalMLBuildingFootprints](https://github.com/microsoft/GlobalMLBuildingFootprints)
 - [Mapillary API](https://www.mapillary.com/developer/api-documentation)
+- [Equirec2Perspec](https://github.com/fuenwang/Equirec2Perspec)
 
 The development of this package is supported and inspired by the city of Detroit.
