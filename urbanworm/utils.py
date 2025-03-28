@@ -444,12 +444,43 @@ def plot_base64_image(img_base64):
     plt.axis("off")  # Hide axes
     plt.show()
 
+# chat with model to analyze/summarize results
+def chatpd(df, prompt, output_type, model='llama3'):
+    from pandasai import SmartDataframe
+    from pandasai.llm.base import LLM
+    '''
+    "string", "number", "dataframe", "plot"
+    '''
+    class OllamaLLM(LLM):
+        def __init__(self, model, host='http://localhost:11434', *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.model = model
+            self.host = host
+
+        def call(self, prompt: str, *args, **kwargs) -> str:
+            messages = [
+                {"role": "system", "content": "You are a helpful data science assistant."},
+                {"role": "user", "content": prompt}
+            ]
+            response = requests.post(
+                f"{self.host}/api/chat",
+                json={"model": self.model, "messages": messages}
+            )
+            response.raise_for_status()
+            return response.json()["message"]["content"]
+        @property
+        def type(self) -> str:
+            return "ollama"
+    llm = OllamaLLM(model=model)
+    df = SmartDataframe(df, config={"llm": llm})
+    return df.chat(prompt, output_type)
+
+
 #----------------------- To Do -----------------------
 
-# chat with model to analyze/summarize results
+# function to plot/visualize results (images + questions + answer + explanation + ...)
 
-# function to plot/visualize results (images + questions + answer + explanation)
-
+#-----------------------------------------------------
 
 # The adapted function is from geosam and originally from https://github.com/gumblex/tms2geotiff. 
 # Credits to Dr.Qiusheng Wu and the GitHub user @gumblex.
