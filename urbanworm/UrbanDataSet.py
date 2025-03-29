@@ -23,7 +23,7 @@ class UrbanDataSet:
     '''
     Dataset class for urban imagery inference using MLLM.
     '''
-    def __init__(self, image=None, images:list=None, units:str=None, 
+    def __init__(self, image=None, images:list=None, units:str|gpd.GeoDataFrame=None, 
                  format:Response=None, mapillary_key:int=None, random_sample:int=None):
         '''
         Add data or api key
@@ -31,7 +31,7 @@ class UrbanDataSet:
         Args:
             image (str): The path to the image.
             images (list): The list of image paths.
-            units (str): The path to the shapefile.
+            units (str or GeoDataFrame): The path to the shapefile or geojson file, or GeoDataFrame.
             format (Response): The response format.
             mapillary_key (str): The Mapillary API key.
             random_sample (int): The number of random samples.
@@ -48,9 +48,10 @@ class UrbanDataSet:
             self.imgs = images
 
         if random_sample != None and units != None:
-            self.units = loadSHP(units).sample(random_sample)
+            self.units = self.__checkUnitsInputType(units)
+            self.units = self.units.sample(random_sample)
         elif random_sample == None and units != None:
-            self.units = loadSHP(units)
+            self.units = self.__checkUnitsInputType(units)
         else:
             self.units = units
 
@@ -62,8 +63,22 @@ class UrbanDataSet:
         self.mapillary_key = mapillary_key
 
         self.results = None
+        self.geo_df = None
+        self.messageHistory = []
 
-    def preload_model(self, model_name):
+    def __checkUnitsInputType(self, input:str|gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+        match input:
+            case isinstance(input, str):
+                if ".shp" in input.lower() or ".geojson" in input.lower():
+                    return loadSHP(input)
+                else:
+                    raise("Wrong type for units input!")
+            case isinstance(input, gpd.GeoDataFrame):
+                return input
+            case _:
+                raise("Wrong type for units input!")
+
+    def preload_model(self, model_name:str):
         """
         Ensures that the required Ollama model is available.
         If not, it automatically pulls the model.
@@ -217,15 +232,17 @@ class UrbanDataSet:
         ```
 
         Example prompt:
-            prompt = {
-                "top": "
-                    Is there any damage on the roof?
-                ",
-                "street": "
-                    Is the wall missing or damaged? 
-                    Is the yard maintained well?
-                "
-            }
+        ```python
+        prompt = {
+            "top": "
+                Is there any damage on the roof?
+            ",
+            "street": "
+                Is the wall missing or damaged? 
+                Is the yard maintained well?
+            "
+        }
+        ```
 
         Args:
             model (str): Model name. Defaults to "llama3.2-vision". ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'minicpm-v']
@@ -369,18 +386,22 @@ class UrbanDataSet:
         self.results = {'from_loopUnitChat':dic, 'base64_imgs':{**top_view_imgs, **street_view_imgs}}
         return dic
     
-    def to_gdf(self) -> gpd.GeoDataFrame | str:
+    def to_gdf(self, output:bool=True) -> gpd.GeoDataFrame | str:
         """
         Convert the output from an MLLM response (from .loopUnitChat) into a GeoDataFrame.
 
         This method extracts coordinates, questions, responses, and base64-encoded input images
         from the stored `self.results` object, and formats them into a structured GeoDataFrame.
 
+        Args:
+            output (bool): Whether to return a GeoDataFrame. Defaults to True.
+
         Returns:
             gpd.GeoDataFrame: A GeoDataFrame containing spatial responses and associated metadata.
             str: An error message if `.loopUnitChat()` has not been run or if the format is unsupported.
         """
 
+        import geopandas as gpd
         import pandas as pd
         import copy
 
@@ -394,13 +415,15 @@ class UrbanDataSet:
                     if img_dic['street_view_base64'] == []:
                         img_dic.pop("street_view_base64")
                     imgs_df = pd.DataFrame(img_dic)
-                    return pd.concat([res_df, imgs_df], axis=1)
+                    self.geo_df = gpd.GeoDataFrame(pd.concat([res_df, imgs_df], axis=1), geometry="geometry")
                 else:
-                    return res_df
+                    self.geo_df = gpd.GeoDataFrame(res_df, geometry="geometry")
+                if output:
+                    return self.geo_df
             else:
-                return "This method can only support the output of '.loopUnitChat()' method"
+                return "This method can only support the output of 'self.loopUnitChat()' method"
         else:
-            return "This method can only be called after running the '.loopUnitChat()' method"
+            return "This method can only be called after running the 'self.loopUnitChat()' method"
     
     def LLM_chat(self, model:str='llama3.2-vision', system:str=None, prompt:str=None, 
                  img:list[str]=None, temp:float=None, top_k:float=None, top_p:float=None) -> Union["Response", list["QnA"]]:
@@ -476,6 +499,59 @@ class UrbanDataSet:
         )
         return self.format.model_validate_json(res.message.content)
     
+    def dataAnalyst(self, 
+                    prompt:str, 
+                    system:str='you are a data spatial data analyst',
+                    model:str='gemma3') -> None:
+        
+        '''
+        Facilitates a conversation-based geospatial data analysis using a language model.
+
+        This method prepares and sends a prompt to a conversational language model to analyze or interpret 
+        a spatial dataset stored in the class's GeoDataFrame. It sets up the context with system instructions 
+        and manages the chat history for maintaining the continuity of analysis.
+
+        Args:
+        prompt (str): A user-defined instruction or query related to the spatial data analysis.
+        system (str, optional): A system message used to define the behavior or persona of the assistant (default is a spatial data analyst).
+        model (str, optional): The name of the language model to be used for processing the conversation (default is 'gemma3').
+
+        Returns:
+            None: The response is stored internally in `self.messageHistory`.
+        '''
+
+        import json
+
+        self.preload_model(model)
+        if self.geo_df == None:
+            print("Start to convert results to GeoDataFrame ...")
+            self.to_gdf(output=False)
+        if self.messageHistory == []:
+            self.messageHistory += [
+                {
+                    'role': "system",
+                    'content': system
+                },
+                {
+                    'role': 'user',
+                    'content': f'{prompt} /n {json.dumps(self.geo_df.to_geo_dict())}',
+                }
+            ]
+        else:
+            self.messageHistory += [
+                {
+                    'role': "system",
+                    'content': system
+                },
+                {
+                    'role': 'user',
+                    'content': prompt,
+                }
+            ]
+        conversations = chatpd(self.geo_df, self.messageHistory, model)
+        self.messageHistory = conversations
+            
+
     # def generate(self, system=None, prompt=None, img=None, temp=None, top_k=None, top_p=None) -> Response:
     #     '''
     #     Chat with the LLM model using a system message, prompt, and optional image.

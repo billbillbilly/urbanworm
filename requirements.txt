@@ -1,6 +1,5 @@
 ollama
 gdal
-pandasai>=3.0.0b2
 pandas
 geopandas
 rasterio

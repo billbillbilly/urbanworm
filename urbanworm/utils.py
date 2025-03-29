@@ -58,7 +58,7 @@ def loadSHP(file):
     try:
         # Read shapefile
         gdf = gpd.read_file(file)
-        # Ensure CRS is WGS84 for visualization
+        # Ensure CRS is WGS84
         gdf = gdf.to_crs("EPSG:4326")
         return gdf
 
@@ -421,7 +421,7 @@ def response2gdf(qna_dict):
     elif df_street is not None:
         return pd.concat([geo_df, df_top], axis=1)
 
-def plot_base64_image(img_base64):
+def plot_base64_image(img_base64:str):
     """Decodes a Base64 image and plots it using Matplotlib."""
 
     import matplotlib.pyplot as plt
@@ -445,36 +445,41 @@ def plot_base64_image(img_base64):
     plt.show()
 
 # chat with model to analyze/summarize results
-def chatpd(df, prompt, output_type, model='llama3'):
-    from pandasai import SmartDataframe
-    from pandasai.llm.base import LLM
-    '''
-    "string", "number", "dataframe", "plot"
-    '''
-    class OllamaLLM(LLM):
-        def __init__(self, model, host='http://localhost:11434', *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self.model = model
-            self.host = host
+def chatpd(df:gpd.GeoDataFrame, 
+           messages:list,
+           model:str) -> list:
+    import ollama
+    import copy
 
-        def call(self, prompt: str, *args, **kwargs) -> str:
-            messages = [
-                {"role": "system", "content": "You are a helpful data science assistant."},
-                {"role": "user", "content": prompt}
-            ]
-            response = requests.post(
-                f"{self.host}/api/chat",
-                json={"model": self.model, "messages": messages}
-            )
-            response.raise_for_status()
-            return response.json()["message"]["content"]
-        @property
-        def type(self) -> str:
-            return "ollama"
-    llm = OllamaLLM(model=model)
-    df = SmartDataframe(df, config={"llm": llm})
-    return df.chat(prompt, output_type)
+    # convert geodataframe into 
+    data = copy.deepcopy(df)
+    colnames = list(data.columns)
+    if 'top_view_base64' in colnames:
+        data.pop('top_view_base64')
+    if 'street_view_base64' in colnames:
+        data.pop('street_view_base64')
+    data = data.to_geo_dict()
 
+    # chat with model
+    final_reply = ""
+    res = ollama.chat(
+        model=model,
+        messages=messages,
+        options={
+            "temperature":0.3,
+            "top_k":0.8,
+            "top_p":0.8
+        },
+        stream=True
+    )
+    for chunk in res:
+        final_reply += chunk['message']['content']
+        print(chunk['message']['content'], end='', flush=True)
+    messages.append({
+        "role": "assistant",
+        "content": final_reply
+    })
+    return messages
 
 #----------------------- To Do -----------------------
 
