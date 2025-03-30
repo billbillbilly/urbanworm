@@ -58,7 +58,7 @@ def loadSHP(file):
     try:
         # Read shapefile
         gdf = gpd.read_file(file)
-        # Ensure CRS is WGS84 for visualization
+        # Ensure CRS is WGS84
         gdf = gdf.to_crs("EPSG:4326")
         return gdf
 
@@ -110,7 +110,7 @@ def getSV(centroid, epsg:int, key:str, multi:bool=False,
             img_heading = float(response.iloc[i,1])
             img_url = response.iloc[i,2]
             image_lon, image_lat = response.iloc[i,5]
-            if heading == None:
+            if heading is None:
                 # calculate bearing to the house
                 bearing_to_house = calculate_bearing(image_lat, image_lon, centroid.y, centroid.x)
                 relative_heading = (bearing_to_house - img_heading) % 360
@@ -421,7 +421,7 @@ def response2gdf(qna_dict):
     elif df_street is not None:
         return pd.concat([geo_df, df_top], axis=1)
 
-def plot_base64_image(img_base64):
+def plot_base64_image(img_base64:str):
     """Decodes a Base64 image and plots it using Matplotlib."""
 
     import matplotlib.pyplot as plt
@@ -444,12 +444,37 @@ def plot_base64_image(img_base64):
     plt.axis("off")  # Hide axes
     plt.show()
 
+# chat with model to analyze/summarize results
+def chatpd(messages:list,
+           model:str) -> list:
+    import ollama
+
+    # chat with model
+    final_reply = ""
+    res = ollama.chat(
+        model=model,
+        messages=messages,
+        options={
+            "temperature":0.2,
+            "top_k":0.8,
+            "top_p":0.8
+        },
+        stream=True
+    )
+    for chunk in res:
+        final_reply += chunk['message']['content']
+        print(chunk['message']['content'], end='', flush=True)
+    messages.append({
+        "role": "assistant",
+        "content": final_reply
+    })
+    return messages
+
 #----------------------- To Do -----------------------
 
-# chat with model to analyze/summarize results
+# function to plot/visualize results (images + questions + answer + explanation + ...)
 
-# function to plot/visualize results (images + questions + answer + explanation)
-
+#-----------------------------------------------------
 
 # The adapted function is from geosam and originally from https://github.com/gumblex/tms2geotiff. 
 # Credits to Dr.Qiusheng Wu and the GitHub user @gumblex.

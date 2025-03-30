@@ -27,7 +27,7 @@ jobs:
         run: sleep 10
 
       - name: Pull the required model
-        run: ollama pull llama3.2-vision
+        run: ollama pull gemma3:12b
 
       - name: Set up Python
         uses: actions/setup-python@v5
