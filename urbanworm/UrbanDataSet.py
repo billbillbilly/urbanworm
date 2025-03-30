@@ -1,5 +1,3 @@
-__version__ = '0.0.1'
-
 import ollama
 from pydantic import BaseModel
 import rasterio
@@ -37,25 +35,25 @@ class UrbanDataSet:
             random_sample (int): The number of random samples.
         '''
 
-        if image != None and detect_input_type(image) == 'image_path':
+        if image is not None and detect_input_type(image) == 'image_path':
             self.img = encode_image_to_base64(image)
         else:
             self.img = image
 
-        if images != None and detect_input_type(images[0]) == 'image_path':
+        if images is not None and detect_input_type(images[0]) == 'image_path':
             self.imgs = [encode_image_to_base64(im) for im in images]
         else:
             self.imgs = images
 
-        if random_sample != None and units != None:
+        if random_sample is not None and units is not None:
             self.units = self.__checkUnitsInputType(units)
             self.units = self.units.sample(random_sample)
-        elif random_sample == None and units != None:
+        elif random_sample == None and units is not None:
             self.units = self.__checkUnitsInputType(units)
         else:
             self.units = units
 
-        if format == None:
+        if format is None:
             self.format = Response()
         else:
             self.format = format
@@ -125,12 +123,12 @@ class UrbanDataSet:
                 return "No buildings found in the bounding box. Please check https://overpass-turbo.eu/ for areas with buildings."
             if source == 'being':
                 return "No buildings found in the bounding box. Please check https://github.com/microsoft/GlobalMLBuildingFootprints for areas with buildings."
-        if random_sample != None:
+        if random_sample is not None:
             buildings = buildings.sample(random_sample)
         self.units = buildings
         return f"{len(buildings)} buildings found in the bounding box."
     
-    def oneImgChat(self, model:str='llama3.2-vision',system:str=None, prompt:str=None, 
+    def oneImgChat(self, model:str='gemma3:12b',system:str=None, prompt:str=None, 
                    temp:float=0.0, top_k:float=0.8, top_p:float=0.8,
                    saveImg:bool=True) -> dict:
         
@@ -138,7 +136,7 @@ class UrbanDataSet:
         Chat with MLLM model with one image.
 
         Args:
-            model (str): Model name. Defaults to "llama3.2-vision". ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'minicpm-v']
+            model (str): Model name. Defaults to "gemma3:12b". ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'minicpm-v']
             system (optinal): The system message.
             prompt (str): The prompt message.
             img (str): The image path.
@@ -163,14 +161,14 @@ class UrbanDataSet:
             r['img'] = self.img
         return r
     
-    def loopImgChat(self, model:str='llama3.2-vision', system:str=None, prompt:str=None, 
+    def loopImgChat(self, model:str='gemma3:12b', system:str=None, prompt:str=None, 
                     temp:float=0.0, top_k:float=0.8, top_p:float=0.8, saveImg:bool=True, 
                     disableProgressBar:bool=False) -> list:
         '''
         Chat with MLLM model for each image.
 
         Args:
-            model (str): Model name. Defaults to "llama3.2-vision". ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'minicpm-v']
+            model (str): Model name. Defaults to "gemma3:12b". ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'minicpm-v']
             system (str, optinal): The system message.
             prompt (str): The prompt message.
             temp (float): The temperature value.
@@ -203,7 +201,7 @@ class UrbanDataSet:
                 res += [r]
         return res
             
-    def loopUnitChat(self, model:str='llama3.2-vision', system:str=None, prompt:dict=None, 
+    def loopUnitChat(self, model:str='gemma3:12b', system:str=None, prompt:dict=None, 
                      temp:float=0.0, top_k:float=0.8, top_p:float=0.8, 
                      type:str='top', epsg:int=None, multi:bool=False, 
                      sv_fov:int=80, sv_pitch:int=10, sv_size:list|tuple=(300,400),
@@ -245,7 +243,7 @@ class UrbanDataSet:
         ```
 
         Args:
-            model (str): Model name. Defaults to "llama3.2-vision". ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'minicpm-v']
+            model (str): Model name. Defaults to "gemma3:12b". ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'minicpm-v']
             system (str, optional): System message to guide the LLM behavior.
             prompt (dict): Dictionary containing the prompts for 'top' and/or 'street' views.
             temp (float, optional): Temperature for generation randomness. Defaults to 0.0.
@@ -271,11 +269,13 @@ class UrbanDataSet:
         from tqdm import tqdm
 
         if type == 'top' and 'top' not in prompt:
-            return "Please provide prompt for top view images when type='top'"
+            print("Please provide prompt for top view images when type='top'") 
         if type == 'street' and 'street' not in prompt:
-            return "Please provide prompt for street view images when type='street'"
+            print("Please provide prompt for street view images when type='street'")
         if type == 'both' and 'top' not in prompt and 'street' not in prompt:
-            return "Please provide prompt for both top and street view images when type='both'"
+            print("Please provide prompt for both top and street view images when type='both'")
+        if (type == 'both' or type == 'street') and self.mapillary_key is None:
+            print("API key is missing. The program will process with type='top'")
 
         dic = {
             "lon": [],
@@ -384,6 +384,9 @@ class UrbanDataSet:
                 os.remove(clipped_image)
 
         self.results = {'from_loopUnitChat':dic, 'base64_imgs':{**top_view_imgs, **street_view_imgs}}
+        # reset message history
+        self.messageHistory = []
+        print('Reset message history.')
         return dic
     
     def to_gdf(self, output:bool=True) -> gpd.GeoDataFrame | str:
@@ -425,7 +428,7 @@ class UrbanDataSet:
         else:
             return "This method can only be called after running the 'self.loopUnitChat()' method"
     
-    def LLM_chat(self, model:str='llama3.2-vision', system:str=None, prompt:str=None, 
+    def LLM_chat(self, model:str='gemma3:12b', system:str=None, prompt:str=None, 
                  img:list[str]=None, temp:float=None, top_k:float=None, top_p:float=None) -> Union["Response", list["QnA"]]:
         '''
         Chat with the LLM model with a list of images.
@@ -448,7 +451,7 @@ class UrbanDataSet:
             or a list of QnA objects for multi-turn/image-question responses.
         '''
 
-        if prompt != None and img != None:
+        if prompt is not None and img is not None:
             if len(img) == 1:
                 return self.chat(model, system, prompt, img[0], temp, top_k, top_p)
             elif len(img) == 3:
@@ -459,13 +462,13 @@ class UrbanDataSet:
                     res += [r.responses]
                 return res
 
-    def chat(self, model:str='llama3.2-vision', system:str=None, prompt:str=None, 
+    def chat(self, model:str='gemma3:12b', system:str=None, prompt:str=None, 
              img=None, temp=None, top_k:float=None, top_p:float=None) -> Response:
         '''
         Chat with the LLM model using a system message, prompt, and optional image.
 
         Args:
-            model (str): Model name. Defaults to "llama3.2-vision". ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'minicpm-v']
+            model (str): Model name. Defaults to "gemma3:12b". ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'minicpm-v']
             system (str): The system-level instruction for the model.
             prompt (str): The user message or question.
             img (str): Path to a single image to be sent to the model.
@@ -501,7 +504,7 @@ class UrbanDataSet:
     
     def dataAnalyst(self, 
                     prompt:str, 
-                    system:str='you are a data spatial data analyst',
+                    system:str='you are a data spatial data analyst.',
                     model:str='gemma3') -> None:
         
         '''
@@ -512,29 +515,50 @@ class UrbanDataSet:
         and manages the chat history for maintaining the continuity of analysis.
 
         Args:
-        prompt (str): A user-defined instruction or query related to the spatial data analysis.
-        system (str, optional): A system message used to define the behavior or persona of the assistant (default is a spatial data analyst).
-        model (str, optional): The name of the language model to be used for processing the conversation (default is 'gemma3').
+            prompt (str): A user-defined instruction or query related to the spatial data analysis.
+            system (str, optional): A system message used to define the behavior or persona of the assistant (default is a spatial data analyst).
+            model (str, optional): The name of the language model to be used for processing the conversation (default is 'gemma3').
 
         Returns:
             None: The response is stored internally in `self.messageHistory`.
         '''
 
         import json
+        import copy
+
+        def format_geo_dict(dic):
+            dic['id'] = int(dic['id']) + 1
+            dic['coordinates'] = dic['geometry']['coordinates']
+            dic.pop('geometry')
+            return dic
 
         self.preload_model(model)
-        if self.geo_df == None:
-            print("Start to convert results to GeoDataFrame ...")
-            self.to_gdf(output=False)
+        
         if self.messageHistory == []:
+            # convert geodataframe into geo_dict
+            if self.geo_df is None:
+                print("Start to convert results to GeoDataFrame ...")
+                self.to_gdf(output=False)
+            data = copy.deepcopy(self.geo_df)
+            colnames = list(data.columns)
+            if 'top_view_base64' in colnames:
+                data.pop('top_view_base64')
+            if 'street_view_base64' in colnames:
+                data.pop('street_view_base64')
+            data = data.to_geo_dict()
+            # format data structure
+            data.pop('type', None)
+            data['locations'] = data.pop('features')
+            data['locations'] = [format_geo_dict(each) for each in data['locations']]
+            # inialize message log
             self.messageHistory += [
                 {
                     'role': "system",
-                    'content': system
+                    'content': f'{system} \nData: {json.dumps(data)}'
                 },
                 {
                     'role': 'user',
-                    'content': f'{prompt} /n {json.dumps(self.geo_df.to_geo_dict())}',
+                    'content': f'{prompt} \nPlease just answer my question.',
                 }
             ]
         else:
@@ -548,38 +572,8 @@ class UrbanDataSet:
                     'content': prompt,
                 }
             ]
-        conversations = chatpd(self.geo_df, self.messageHistory, model)
+        conversations = chatpd(self.messageHistory, model)
         self.messageHistory = conversations
-            
-
-    # def generate(self, system=None, prompt=None, img=None, temp=None, top_k=None, top_p=None) -> Response:
-    #     '''
-    #     Chat with the LLM model using a system message, prompt, and optional image.
-
-    #     Args:
-    #         system (str): The system-level instruction for the model.
-    #         prompt (str): The user message or question.
-    #         img (str): Path to a single image to be sent to the model.
-    #         temp (float, optional): Sampling temperature for generation (higher = more random).
-    #         top_k (float, optional): Top-k sampling parameter.
-    #         top_p (float, optional): Top-p (nucleus) sampling parameter.
-
-    #     Returns:
-    #         Response: Parsed response from the LLM, returned as a `Response` object.
-    #     '''
-    #     res = ollama.generate(
-    #         model='llama3.2-vision',
-    #         format=self.format.model_json_schema(),
-    #         system=system,
-    #         prompt=prompt,
-    #         images=[img],
-    #         options={
-    #             "temperature":temp,
-    #             "top_k":top_k,
-    #             "top_p":top_p
-    #         }
-    #     )
-    #     return self.format.model_validate_json(res.response)
     
     def plotBase64(self, img:str):
         '''
@@ -589,3 +583,36 @@ class UrbanDataSet:
             img (str): image base64 string
         '''
         plot_base64_image(img)
+
+    def export(self, out_type:str, file_name:str) -> None:
+        '''
+        Exports the result to a specified spatial data format.
+
+        This method saves the spatial data stored in `self.geo_df` to a file in the specified format.
+        If the GeoDataFrame is not yet initialized, it will attempt to convert the results first.
+
+        Args:
+            out_type (str): The output file format. 
+                            Options include: 'geojson': Exports the data as a GeoJSON file;
+                                            'shapefile' : Exports the data as an ESRI Shapefile.
+                                            'geopackage': Exports the data as a GeoPackage (GPKG).
+
+            file_name (str): The path and file name where the data will be saved. 
+                            For shapefiles, provide a `.shp` file path.
+                            For GeoJSON, use `.geojson`.
+                            For GeoPackage, use `.gpkg`.
+
+        Returns: 
+            None
+        '''
+        if self.geo_df is None:
+            print("Start to convert results to GeoDataFrame ...")
+            self.to_gdf(output=False)
+        if out_type == 'geojson':
+            self.geo_df.to_file(file_name, driver='GeoJSON')
+        elif out_type == 'shapefile':
+            self.geo_df.to_file(out_type)
+        elif out_type == 'seopackage':
+            self.geo_df.to_file(file_name, layer='data', driver="GPKG")
+        
+        

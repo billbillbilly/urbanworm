@@ -110,7 +110,7 @@ def getSV(centroid, epsg:int, key:str, multi:bool=False,
             img_heading = float(response.iloc[i,1])
             img_url = response.iloc[i,2]
             image_lon, image_lat = response.iloc[i,5]
-            if heading == None:
+            if heading is None:
                 # calculate bearing to the house
                 bearing_to_house = calculate_bearing(image_lat, image_lon, centroid.y, centroid.x)
                 relative_heading = (bearing_to_house - img_heading) % 360
@@ -445,20 +445,9 @@ def plot_base64_image(img_base64:str):
     plt.show()
 
 # chat with model to analyze/summarize results
-def chatpd(df:gpd.GeoDataFrame, 
-           messages:list,
+def chatpd(messages:list,
            model:str) -> list:
     import ollama
-    import copy
-
-    # convert geodataframe into 
-    data = copy.deepcopy(df)
-    colnames = list(data.columns)
-    if 'top_view_base64' in colnames:
-        data.pop('top_view_base64')
-    if 'street_view_base64' in colnames:
-        data.pop('street_view_base64')
-    data = data.to_geo_dict()
 
     # chat with model
     final_reply = ""
@@ -466,7 +455,7 @@ def chatpd(df:gpd.GeoDataFrame,
         model=model,
         messages=messages,
         options={
-            "temperature":0.3,
+            "temperature":0.2,
             "top_k":0.8,
             "top_p":0.8
         },
