@@ -16,11 +16,17 @@ Urban-Worm is a Python library that integrates remote sensing imagery, street vi
 </picture>
 
 ## Features
-- run vision-language models locally with local datasets and remain information privacy
-- download building footprints from OSM and global building released by Bing map 
-- search and clip aerial and street view images (via APIs) based on urban units such as parcel and building footprint data
-- automatically calibrate the oritation of panorama street view and the extent of aerial image
-- stream chat with LLMs to analyze results
+- Run vision-language models locally using custom datasets while maintaining data privacy
+- Download building footprints from OpenStreetMap (OSM) and global building datasets released by Bing Maps
+- Search for (via APIs) and clip aerial or street view imagery, based on urban units such as parcels or building footprints
+- Automatically calibrate the orientation of panoramic street views and define the spatial extent of aerial imagery
+- Interact with LLMs through a streaming chat interface to analyze and interpret results
+
+## Computing Resources
+Large language models (LLMs) and vision-language models (VLMs) typically require substantial RAM and can be quite slow when running solely on a CPU. While macOS devices with Apple Silicon can accelerate computation using Metal, performance is still not on par with high-end NVIDIA GPUs, which are strongly recommended for optimal speed and efficiency. This package is built on Ollama, which provides fast performance—especially for local use with quantized models. However, the number of parameters in a model directly affects VRAM requirements. More powerful models need more VRAM to run entirely on the GPU. For instance, the Llama3.2-Vision model with 11 billion parameters requires approximately 10 GB of GPU memory. Additionally, image resolution plays a crucial role in inference time—particularly for high-resolution inputs like satellite imagery or street views. The higher the resolution, the longer a VLM may take to process the image.
+
+## Legal Notice
+This repository and its content are provided for educational purposes only. By using the information and code provided, users acknowledge that they are using the APIs and models at their own risk and agree to comply with any applicable laws and regulations. Users who intend to download a large number of image tiles from any basemap are advised to contact the basemap provider to obtain permission before doing so. Unauthorized use of the basemap or any of its components may be a violation of copyright laws or other applicable laws and regulations.
 
 ## Acknowledgements
 The package is heavily built on Ollama client and Ollama-python. Credit goes to the developers of these projects.
