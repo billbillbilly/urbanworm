@@ -25,6 +25,10 @@ theme:
       primary: purple
       accent: green
 
+repo_url: https://github.com/billbillbilly/urbanworm
+repo_name: GitHub
+repo_badge: true
+
 plugins:
   - search
   - mkdocstrings:
