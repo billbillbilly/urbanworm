@@ -1,5 +1,6 @@
 [![image](https://img.shields.io/pypi/v/urban-worm.svg)](https://pypi.python.org/pypi/urban-worm)
 [![PyPI Downloads](https://static.pepy.tech/badge/urban-worm)](https://pepy.tech/project/urban-worm)
+[![PyPI Downloads](https://static.pepy.tech/badge/urban-worm/week)](https://pepy.tech/projects/urban-worm)
 [![Docs](https://img.shields.io/badge/docs-latest-blue)](https://billbillbilly.github.io/urbanworm/)
 [![image](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/billbillbilly/urbanworm/blob/main/docs/example_osm.ipynb)
 
