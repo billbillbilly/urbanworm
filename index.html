@@ -419,6 +419,24 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#computing-resources" class="md-nav__link">
+    <span class="md-ellipsis">
+      Computing Resources
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#legal-notice" class="md-nav__link">
+    <span class="md-ellipsis">
+      Legal Notice
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#acknowledgements" class="md-nav__link">
     <span class="md-ellipsis">
       Acknowledgements
@@ -653,6 +671,24 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#computing-resources" class="md-nav__link">
+    <span class="md-ellipsis">
+      Computing Resources
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#legal-notice" class="md-nav__link">
+    <span class="md-ellipsis">
+      Legal Notice
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#acknowledgements" class="md-nav__link">
     <span class="md-ellipsis">
       Acknowledgements
@@ -693,12 +729,16 @@
 </picture></p>
 <h2 id="features">Features<a class="headerlink" href="#features" title="Permanent link">&para;</a></h2>
 <ul>
-<li>run vision-language models locally with local datasets and remain information privacy</li>
-<li>download building footprints from OSM and global building released by Bing map </li>
-<li>search and clip aerial and street view images (via APIs) based on urban units such as parcel and building footprint data</li>
-<li>automatically calibrate the oritation of panorama street view and the extent of aerial image</li>
-<li>stream chat with LLMs to analyze results</li>
+<li>Run vision-language models locally using custom datasets while maintaining data privacy</li>
+<li>Download building footprints from OpenStreetMap (OSM) and global building datasets released by Bing Maps</li>
+<li>Search for (via APIs) and clip aerial or street view imagery, based on urban units such as parcels or building footprints</li>
+<li>Automatically calibrate the orientation of panoramic street views and define the spatial extent of aerial imagery</li>
+<li>Interact with LLMs through a streaming chat interface to analyze and interpret results</li>
 </ul>
+<h2 id="computing-resources">Computing Resources<a class="headerlink" href="#computing-resources" title="Permanent link">&para;</a></h2>
+<p>Large language models (LLMs) and vision-language models (VLMs) typically require substantial RAM and can be quite slow when running solely on a CPU. While macOS devices with Apple Silicon can accelerate computation using Metal, performance is still not on par with high-end NVIDIA GPUs, which are strongly recommended for optimal speed and efficiency. This package is built on Ollama, which provides fast performance—especially for local use with quantized models. However, the number of parameters in a model directly affects VRAM requirements. More powerful models need more VRAM to run entirely on the GPU. For instance, the Llama3.2-Vision model with 11 billion parameters requires approximately 10 GB of GPU memory. Additionally, image resolution plays a crucial role in inference time—particularly for high-resolution inputs like satellite imagery or street views. The higher the resolution, the longer a VLM may take to process the image.</p>
+<h2 id="legal-notice">Legal Notice<a class="headerlink" href="#legal-notice" title="Permanent link">&para;</a></h2>
+<p>This repository and its content are provided for educational purposes only. By using the information and code provided, users acknowledge that they are using the APIs and models at their own risk and agree to comply with any applicable laws and regulations. Users who intend to download a large number of image tiles from any basemap are advised to contact the basemap provider to obtain permission before doing so. Unauthorized use of the basemap or any of its components may be a violation of copyright laws or other applicable laws and regulations.</p>
 <h2 id="acknowledgements">Acknowledgements<a class="headerlink" href="#acknowledgements" title="Permanent link">&para;</a></h2>
 <p>The package is heavily built on Ollama client and Ollama-python. Credit goes to the developers of these projects.</p>
 <ul>
