@@ -116,11 +116,13 @@ data.to_gdf()
 More examples can be found [here](docs/example.ipynb).
 
 ## To do
-The next version will have functionalities using Google APIs:
-- search for units with address
-- find historical images
+- [ ] Basic plot method in UrbanDataSet class
+- [ ] Improve the method dataAnalyst in UrbanDataSet class by adding fucntionality of feeding more meaningful introduction of data to LLMs
+- [ ] A webUI providing interactive operation and data visualization 
 
-An agent webUI is in the incoming development plan for providing interactive operation and data visualization. 
+The next version will have functionalities using Google APIs:
+- [ ] search for units with address
+- [ ] find historical images
 
 ## Legal Notice
 This repository and its content are provided for educational purposes only. By using the information and code provided, users acknowledge that they are using the APIs and models at their own risk and agree to comply with any applicable laws and regulations. Users who intend to download a large number of image tiles from any basemap are advised to contact the basemap provider to obtain permission before doing so. Unauthorized use of the basemap or any of its components may be a violation of copyright laws or other applicable laws and regulations.
@@ -129,7 +131,6 @@ This repository and its content are provided for educational purposes only. By u
 The package is heavily built on Ollama client and Ollama-python. Credit goes to the developers of these projects.
 - [ollama](https://github.com/ollama/ollama)
 - [ollama-python](https://github.com/ollama/ollama-python)
-- [structured outputs](https://ollama.com/blog/structured-outputs)
 
 The functionality about sourcing and processing GIS data (satellite & street view imagery) and 360-degree street view image processing is built on the following open projects. Credit goes to the developers of these projects.
 - [tms2geotiff](https://github.com/gumblex/tms2geotiff)
