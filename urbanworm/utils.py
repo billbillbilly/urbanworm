@@ -244,7 +244,7 @@ def getOSMbuildings(bbox:tuple|list, min_area:float|int=0, max_area:float|int=No
 # get building footprints from open building footprints released by Bing Maps using a bbox
 # Adopted code is originally from https://github.com/microsoft/GlobalMLBuildingFootprints.git
 # Credits to contributors @GlobalMLBuildingFootprints.
-def getGlobalMLBuilding(bbox:tuple | list, min_area:float|int=0.0, max_area:float|int=None) -> gpd.GeoDataFrame:
+def getGlobalMLBuilding(bbox:tuple | list, epsg:int=None, min_area:float|int=0.0, max_area:float|int=None) -> gpd.GeoDataFrame:
     """
     getGlobalMLBuilding
     
@@ -252,6 +252,7 @@ def getGlobalMLBuilding(bbox:tuple | list, min_area:float|int=0.0, max_area:floa
 
     Args:
         bbox (tuple or list): Bounding box defined as (min_lon, min_lat, max_lon, max_lat).
+        epsg (int, optional): EPSG code for coordinate transformation. Required if min_area > 0 or max_area is specified.
         min_area (float or int): Minimum building footprint area in square meters. Defaults to 0.0.
         max_area (float or int, optional): Maximum building footprint area in square meters. Defaults to None (no upper limit).
 
@@ -328,17 +329,29 @@ def getGlobalMLBuilding(bbox:tuple | list, min_area:float|int=0.0, max_area:floa
             idx += len(gdf)
             combined_gdf = pd.concat([combined_gdf,gdf],ignore_index=True)
     
-    # Reproject to a UTM CRS for accurate area measurement
-    utm_crs = combined_gdf.estimate_utm_crs()  
-    # Compute area and filter buildings by area
-    combined_gdf = combined_gdf.to_crs(utm_crs)
-    combined_gdf["area_"] = combined_gdf.geometry.area
-    combined_gdf = combined_gdf[combined_gdf["area_"] >= min_area]  # Filter min area
-    if max_area:
-        combined_gdf = combined_gdf[combined_gdf["area_"] <= max_area]  # Filter max area
+    # # Reproject to a UTM CRS for accurate area measurement
+    # utm_crs = combined_gdf.estimate_utm_crs()  
+    # # Compute area and filter buildings by area
+    # combined_gdf = combined_gdf.to_crs(utm_crs)
+    # combined_gdf["area_"] = combined_gdf.geometry.area
+    # combined_gdf = combined_gdf[combined_gdf["area_"] >= min_area]  # Filter min area
+    # if max_area:
+    #     combined_gdf = combined_gdf[combined_gdf["area_"] <= max_area]  # Filter max area
+
+    combined_gdf = filterBF(combined_gdf, epsg, min_area, max_area)
     # Reproject back to WGS84
     combined_gdf = combined_gdf.to_crs('EPSG:4326')
     return combined_gdf
+
+def filterBF(data, epsg, minm, maxm):
+    # Reproject to a CRS for accurate area measurement
+    gdf_proj = data.units.to_crs(epsg)
+    # Compute area and filter buildings by area
+    gdf_proj['footprint_area'] = gdf_proj.geometry.area
+    gdf_proj = gdf_proj[gdf_proj["footprint_area"] >= minm]  # Filter min area
+    if maxm:
+        gdf_proj = gdf_proj[gdf_proj["footprint_area"] <= maxm]  # Filter max area
+    return gdf_proj
 
 def response2gdf(qna_dict):
     """
@@ -379,8 +392,11 @@ def response2gdf(qna_dict):
                     # dic = {f'{tag}_{fs_[idx]}{findQgroup(idx+1,question_num,size)}': [] for idx in range(size)}
                     dic = {key:[] for key in qna_}
                     fields = list(dic.keys())
-                for field in fields:
-                    dic[field] += [qna_[field]]
+                for field_i in range(len(fields)):
+                    try:
+                        dic[fields[field_i]] += [qna_[fields[field_i]]]
+                    except:
+                        pass
             return dic
     
     fields, qna_top, qna_street = None, None, None

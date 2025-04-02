@@ -19,7 +19,7 @@ class Response(BaseModel):
 
 class UrbanDataSet:
     '''
-    Dataset class for urban imagery inference using MLLM.
+    Dataset class for urban imagery inference using MLLMs.
     '''
     def __init__(self, image=None, images:list=None, units:str|gpd.GeoDataFrame=None, 
                  format:Response=None, mapillary_key:int=None, random_sample:int=None):
@@ -94,7 +94,7 @@ class UrbanDataSet:
             print("Please install Ollama client: https://github.com/ollama/ollama/tree/main")
             raise RuntimeError("Ollama not available. Install it before running.")
 
-    def bbox2Buildings(self, bbox:list|tuple, source:str='osm', 
+    def bbox2Buildings(self, bbox:list|tuple, source:str='osm', epsg:int=None,
                        min_area:float|int=0, max_area:float|int=None, 
                        random_sample:int=None) -> str:
         '''
@@ -102,7 +102,8 @@ class UrbanDataSet:
 
         Args:
             bbox (list or tuple): The bounding box.
-            source (str): The source of the buildings. ['osm', 'being']
+            source (str): The source of the buildings. ['osm', 'bing']
+            epsg (int, optional): EPSG code for coordinate transformation. Required if source='bing' and (min_area > 0 or max_area) is specified.
             min_area (float or int): The minimum area.
             max_area (float or int): The maximum area.
             random_sample (int): The number of random samples.
@@ -111,17 +112,17 @@ class UrbanDataSet:
             str: The number of buildings found in the bounding box
         '''
 
-        if source not in ['osm', 'being']:
+        if source not in ['osm', 'bing']:
             raise Exception(f'{source} is not supported')
 
         if source == 'osm':
-            buildings = getOSMbuildings(bbox, min_area, max_area)
-        elif source == 'being':
-            buildings = getGlobalMLBuilding(bbox, min_area, max_area)
+            buildings = getOSMbuildings(bbox, epsg, min_area, max_area)
+        elif source == 'bing':
+            buildings = getGlobalMLBuilding(bbox, epsg, min_area, max_area)
         if buildings is None or buildings.empty:
             if source == 'osm':
                 return "No buildings found in the bounding box. Please check https://overpass-turbo.eu/ for areas with buildings."
-            if source == 'being':
+            if source == 'bing':
                 return "No buildings found in the bounding box. Please check https://github.com/microsoft/GlobalMLBuildingFootprints for areas with buildings."
         if random_sample is not None:
             buildings = buildings.sample(random_sample)
@@ -219,12 +220,12 @@ class UrbanDataSet:
             'from_loopUnitChat': {
                 'lon': [...],
                 'lat': [...],
-                'top_view': [[QnA, QnA, ...], ...],      # Optional
-                'street_view': [[QnA, QnA, ...], ...],   # Optional
+                'top_view': [[QnA, QnA, ...], ...],     
+                'street_view': [[QnA, QnA, ...], ...],   
             },
             'base64_imgs': {
-                'top_view_base64': [...],      # Optional
-                'street_view_base64': [...],   # Optional
+                'top_view_base64': [...],      
+                'street_view_base64': [...], 
             }
         }
         ```
