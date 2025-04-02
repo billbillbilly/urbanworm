@@ -116,8 +116,10 @@ class UrbanDataSet:
             raise Exception(f'{source} is not supported')
 
         if source == 'osm':
-            buildings = getOSMbuildings(bbox, epsg, min_area, max_area)
+            buildings = getOSMbuildings(bbox, min_area, max_area)
         elif source == 'bing':
+            if epsg is None:
+                raise "Please specify epsg"
             buildings = getGlobalMLBuilding(bbox, epsg, min_area, max_area)
         if buildings is None or buildings.empty:
             if source == 'osm':
