@@ -17,7 +17,7 @@ Urban-Worm is a Python library that integrates remote sensing imagery, street vi
 
 ## Features
 - Run vision-language models locally using custom datasets while maintaining data privacy
-- Download building footprints from OpenStreetMap (OSM) and global building datasets released by Bing Maps
+- Download building footprints from OpenStreetMap (OSM) and global building datasets released by Bing Maps with options to filter building footprints by area
 - Search for (via APIs) and clip aerial or street view imagery, based on urban units such as parcels or building footprints
 - Automatically calibrate the orientation of panoramic street views and define the spatial extent of aerial imagery
 - Interact with LLMs through a streaming chat interface to analyze and interpret results
