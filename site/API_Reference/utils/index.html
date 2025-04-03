@@ -1330,6 +1330,22 @@
           </tr>
           <tr class="doc-section-item">
             <td>
+                <code>epsg</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>EPSG code for coordinate transformation. Required if min_area &gt; 0 or max_area is specified.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
                 <code>min_area</code>
             </td>
             <td>
@@ -1483,7 +1499,10 @@
 <span class="normal">338</span>
 <span class="normal">339</span>
 <span class="normal">340</span>
-<span class="normal">341</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">getGlobalMLBuilding</span><span class="p">(</span><span class="n">bbox</span><span class="p">:</span><span class="nb">tuple</span> <span class="o">|</span> <span class="nb">list</span><span class="p">,</span> <span class="n">min_area</span><span class="p">:</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">max_area</span><span class="p">:</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">:</span>
+<span class="normal">341</span>
+<span class="normal">342</span>
+<span class="normal">343</span>
+<span class="normal">344</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">getGlobalMLBuilding</span><span class="p">(</span><span class="n">bbox</span><span class="p">:</span><span class="nb">tuple</span> <span class="o">|</span> <span class="nb">list</span><span class="p">,</span> <span class="n">epsg</span><span class="p">:</span><span class="nb">int</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">min_area</span><span class="p">:</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">max_area</span><span class="p">:</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    getGlobalMLBuilding</span>
 
@@ -1491,6 +1510,7 @@
 
 <span class="sd">    Args:</span>
 <span class="sd">        bbox (tuple or list): Bounding box defined as (min_lon, min_lat, max_lon, max_lat).</span>
+<span class="sd">        epsg (int, optional): EPSG code for coordinate transformation. Required if min_area &gt; 0 or max_area is specified.</span>
 <span class="sd">        min_area (float or int): Minimum building footprint area in square meters. Defaults to 0.0.</span>
 <span class="sd">        max_area (float or int, optional): Maximum building footprint area in square meters. Defaults to None (no upper limit).</span>
 
@@ -1567,14 +1587,16 @@
             <span class="n">idx</span> <span class="o">+=</span> <span class="nb">len</span><span class="p">(</span><span class="n">gdf</span><span class="p">)</span>
             <span class="n">combined_gdf</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">concat</span><span class="p">([</span><span class="n">combined_gdf</span><span class="p">,</span><span class="n">gdf</span><span class="p">],</span><span class="n">ignore_index</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
-    <span class="c1"># Reproject to a UTM CRS for accurate area measurement</span>
-    <span class="n">utm_crs</span> <span class="o">=</span> <span class="n">combined_gdf</span><span class="o">.</span><span class="n">estimate_utm_crs</span><span class="p">()</span>  
-    <span class="c1"># Compute area and filter buildings by area</span>
-    <span class="n">combined_gdf</span> <span class="o">=</span> <span class="n">combined_gdf</span><span class="o">.</span><span class="n">to_crs</span><span class="p">(</span><span class="n">utm_crs</span><span class="p">)</span>
-    <span class="n">combined_gdf</span><span class="p">[</span><span class="s2">&quot;area_&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">combined_gdf</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">area</span>
-    <span class="n">combined_gdf</span> <span class="o">=</span> <span class="n">combined_gdf</span><span class="p">[</span><span class="n">combined_gdf</span><span class="p">[</span><span class="s2">&quot;area_&quot;</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="n">min_area</span><span class="p">]</span>  <span class="c1"># Filter min area</span>
-    <span class="k">if</span> <span class="n">max_area</span><span class="p">:</span>
-        <span class="n">combined_gdf</span> <span class="o">=</span> <span class="n">combined_gdf</span><span class="p">[</span><span class="n">combined_gdf</span><span class="p">[</span><span class="s2">&quot;area_&quot;</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="n">max_area</span><span class="p">]</span>  <span class="c1"># Filter max area</span>
+    <span class="c1"># # Reproject to a UTM CRS for accurate area measurement</span>
+    <span class="c1"># utm_crs = combined_gdf.estimate_utm_crs()  </span>
+    <span class="c1"># # Compute area and filter buildings by area</span>
+    <span class="c1"># combined_gdf = combined_gdf.to_crs(utm_crs)</span>
+    <span class="c1"># combined_gdf[&quot;area_&quot;] = combined_gdf.geometry.area</span>
+    <span class="c1"># combined_gdf = combined_gdf[combined_gdf[&quot;area_&quot;] &gt;= min_area]  # Filter min area</span>
+    <span class="c1"># if max_area:</span>
+    <span class="c1">#     combined_gdf = combined_gdf[combined_gdf[&quot;area_&quot;] &lt;= max_area]  # Filter max area</span>
+
+    <span class="n">combined_gdf</span> <span class="o">=</span> <span class="n">filterBF</span><span class="p">(</span><span class="n">combined_gdf</span><span class="p">,</span> <span class="n">epsg</span><span class="p">,</span> <span class="n">min_area</span><span class="p">,</span> <span class="n">max_area</span><span class="p">)</span>
     <span class="c1"># Reproject back to WGS84</span>
     <span class="n">combined_gdf</span> <span class="o">=</span> <span class="n">combined_gdf</span><span class="o">.</span><span class="n">to_crs</span><span class="p">(</span><span class="s1">&#39;EPSG:4326&#39;</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">combined_gdf</span>
