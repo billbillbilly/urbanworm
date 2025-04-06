@@ -301,6 +301,7 @@ class UrbanDataSet:
             if (type == 'street' or type == 'both') and epsg != None and self.mapillary_key != None:
                 input_svis = getSV(centroid, epsg, self.mapillary_key, multi=multi, 
                                    fov=sv_fov, pitch=sv_pitch, height=sv_size[0], width=sv_size[1])
+                
                 if len(input_svis) != 0:
                     # save imgs
                     if saveImg:
@@ -385,11 +386,12 @@ class UrbanDataSet:
                 
                 # clean up temp file
                 os.remove(clipped_image)
-
+        
         self.results = {'from_loopUnitChat':dic, 'base64_imgs':{**top_view_imgs, **street_view_imgs}}
         # reset message history
-        self.messageHistory = []
-        print('Reset message history.')
+        if self.messageHistory != []:
+            self.messageHistory = []
+            print('Reset message history.')
         return dic
     
     def to_gdf(self, output:bool=True) -> gpd.GeoDataFrame | str:

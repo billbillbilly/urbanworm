@@ -97,14 +97,15 @@ def getSV(centroid, epsg:int, key:str, multi:bool=False,
         list[str]: A list of images in base64 format
     """
     bbox = projection(centroid, epsg)
+    
     url = f"https://graph.mapillary.com/images?access_token={key}&fields=id,compass_angle,thumb_2048_url,geometry&bbox={bbox}&is_pano=true"
-    # while not response or 'data' not in response:
+    svis = []
     try:
-        response = requests.get(url).json()
+        response = retry_request(url)
+        response = response.json()
         # find the closest image
         response = closest(centroid, response, multi)
 
-        svis = []
         for i in range(len(response)):
             # Extract Image ID, Compass Angle, image url, and coordinates
             img_heading = float(response.iloc[i,1])
@@ -121,7 +122,8 @@ def getSV(centroid, epsg:int, key:str, multi:bool=False,
             sv = svi.GetPerspective(fov, relative_heading, pitch, height, width, 128)
             svis.append(sv)
         return svis
-    except:
+    except Exception as e:
+        print(f"Error in getSV: {e}")
         return []
 
 # Reproject the point to the desired EPSG
@@ -146,6 +148,21 @@ def projection(centroid, epsg):
     x_min, y_min = dis2degree(x_min, y_min, epsg)
     x_max, y_max = dis2degree(x_max, y_max, epsg)
     return f'{x_min},{y_min},{x_max},{y_max}'
+
+def retry_request(url, retries=3):
+    response = None
+    for _ in range(retries):
+        # Check for rate limit or server error
+        try:
+            response = requests.get(url)
+            # If the response status code is in the list, wait and retry
+            if response.status_code != 200:
+                continue
+            else:
+                return response
+        except:
+            pass
+    return response
 
 # Convert distance to degree
 def dis2degree(ptx, pty, epsg):
