@@ -263,6 +263,7 @@ class UrbanDataSet:
             sv_fov (int, optional): Field of view for street view. Defaults to 80.
             sv_pitch (int, optional): Pitch angle for street view. Defaults to 10.
             sv_size (list, tuple, optional): Size (height, width) for street view images. Defaults to (300, 400).
+            sv_source (str, optional): Source for street view images. Defaults to 'mapillary'.
             saveImg (bool, optional): Whether to save images (as base64 strings) in output. Defaults to True.
             disableProgressBar (bool, optional): Whether to show progress bar. Defaults to False.
 
@@ -303,9 +304,13 @@ class UrbanDataSet:
             dic['lat'].append(centroid.y)
 
             # process street view image
-            if (type == 'street' or type == 'both') and epsg != None and self.mapillary_key != None:
-                input_svis = getSV(centroid, epsg, self.mapillary_key, multi=multi, 
-                                   fov=sv_fov, pitch=sv_pitch, height=sv_size[0], width=sv_size[1])
+            if (type == 'street' or type == 'both'):
+                if sv_source == 'mapillary' and epsg != None and self.mapillary_key != None:
+                    input_svis = getMSV(centroid, epsg, self.mapillary_key, multi=multi, 
+                                    fov=sv_fov, pitch=sv_pitch, height=sv_size[0], width=sv_size[1])
+                elif sv_source == 'google' and self.google_key != None and self.google_secret != None:
+                    input_svis = getGSV(centroid.x, centroid.y, self.google_key, multi=multi, 
+                                    fov=sv_fov, pitch=sv_pitch, height=sv_size[0], width=sv_size[1])
                 
                 if len(input_svis) != 0:
                     # save imgs
