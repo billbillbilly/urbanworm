@@ -13,6 +13,7 @@ import base64
 import cv2
 import matplotlib.pyplot as plt
 import re
+from urlsigner import sign_url
 
 def is_base64(s):
     """Checks if a string is base64 encoded."""
@@ -73,12 +74,71 @@ def meters_to_degrees(meters, latitude):
     meters_per_degree = 111320 * (1 - 0.000022 * abs(latitude))
     return meters / meters_per_degree
 
+def getGSV(lon, lat, epsg:int, key:str, secret:str,
+           multi:bool=False,
+           fov:int=80, heading:int=None, pitch:int=5,
+           height:int=300, width:int=400) -> list[str]:
+    """
+    getGSV
+
+    Retrieve the closest street view image(s) near a coordinate using the Google Street View API.
+
+    Args:
+        lon (float): Longitude of the location.
+        lat (float): Latitude of the location.
+        epsg (int): EPSG code for projecting the coordinates.
+        key (str): Google API access token.
+        multi (bool, optional): Whether to return multiple SVIs (default is False).
+        fov (int, optional): Field of view in degrees for the perspective image. Defaults to 80.
+        heading (int, optional): Camera heading in degrees. If None, it will be computed based on the house orientation.
+        pitch (int, optional): Camera pitch angle. Defaults to 10.
+        height (int, optional): Height in pixels of the returned image. Defaults to 300.
+        width (int, optional): Width in pixels of the returned image. Defaults to 400.
+
+    Returns:
+        list[str]: A list of images in base64 format
+    """
+    
+    try:
+        y, x, date, status = request_metadata(lat, lon, key, secret)
+        if status != 'OK':
+            return []
+        if heading is None:
+            # calculate bearing to the house
+            bearing_to_house = calculate_bearing(lat, lon, y, x)
+            heading = (bearing_to_house + 180) % 360
+        # Get image URL
+        img_url = f"https://maps.googleapis.com/maps/api/streetview?size={width}x{height}&fov={fov}&heading={heading}&pitch={pitch}&location={y},{x}&key={key}"
+        svi = Equirectangular(img_url=img_url)
+        sv = svi.GetPerspective(fov, heading, pitch, height, width, 128)
+        return [sv]
+    except Exception as e:
+        print(f"Error in getGSV: {e}")
+        return []
+    
+def request_metadata(lat, lon, api_key, secret):
+    get_meta = lambda x, y, key: f"https://maps.googleapis.com/maps/api/streetview/metadata?size=400x300&location={y},{x}&key={key}"
+    
+    # request
+    meta_url = get_meta(lon, lat, api_key)
+    meta_request = sign_url(meta_url, secret)
+    response = requests.get(meta_request)
+    response = response.json()
+    status = response['status']
+    if status == 'OK':
+        lat = response['location']['lat']
+        lon = response['location']['lng']
+        date = response['date']
+        return lat, lon, date, status
+    else:
+        return None, None, None, status
+
 # Get street view images from Mapillary
-def getSV(centroid, epsg:int, key:str, multi:bool=False, 
+def getMSV(centroid, epsg:int, key:str, multi:bool=False, 
           fov:int=80, heading:int=None, pitch:int=10, 
           height:int=300, width:int=400) -> list[str]:
     """
-    getSV
+    getMSV
 
     Retrieve the closest street view image(s) near a coordinate using the Mapillary API.
 

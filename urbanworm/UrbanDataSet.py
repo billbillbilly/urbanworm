@@ -22,7 +22,8 @@ class UrbanDataSet:
     Dataset class for urban imagery inference using MLLMs.
     '''
     def __init__(self, image=None, images:list=None, units:str|gpd.GeoDataFrame=None, 
-                 format:Response=None, mapillary_key:int=None, random_sample:int=None):
+                 format:Response=None, mapillary_key:int=None, google_key:int=None, 
+                 random_sample:int=None):
         '''
         Add data or api key
 
@@ -32,6 +33,7 @@ class UrbanDataSet:
             units (str or GeoDataFrame): The path to the shapefile or geojson file, or GeoDataFrame.
             format (Response): The response format.
             mapillary_key (str): The Mapillary API key.
+            google_key (str): The Google map API key.
             random_sample (int): The number of random samples.
         '''
 
@@ -59,6 +61,7 @@ class UrbanDataSet:
             self.format = format
 
         self.mapillary_key = mapillary_key
+        self.google_key = google_key
 
         self.results = None
         self.geo_df = None
