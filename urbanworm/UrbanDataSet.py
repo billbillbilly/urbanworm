@@ -22,8 +22,8 @@ class UrbanDataSet:
     Dataset class for urban imagery inference using MLLMs.
     '''
     def __init__(self, image=None, images:list=None, units:str|gpd.GeoDataFrame=None, 
-                 format:Response=None, mapillary_key:int=None, google_key:int=None, 
-                 random_sample:int=None):
+                 format:Response=None, mapillary_key:str=None, google_key:str=None, 
+                 google_secret:str=None, random_sample:int=None):
         '''
         Add data or api key
 
@@ -62,6 +62,7 @@ class UrbanDataSet:
 
         self.mapillary_key = mapillary_key
         self.google_key = google_key
+        self.google_secret = google_secret
 
         self.results = None
         self.geo_df = None
@@ -211,6 +212,7 @@ class UrbanDataSet:
                      temp:float=0.0, top_k:float=0.8, top_p:float=0.8, 
                      type:str='top', epsg:int=None, multi:bool=False, 
                      sv_fov:int=80, sv_pitch:int=10, sv_size:list|tuple=(300,400),
+                     sv_source:str='mapillary',
                      saveImg:bool=True, disableProgressBar:bool=False) -> dict:
         """
         Chat with the MLLM model for each spatial unit in the shapefile.

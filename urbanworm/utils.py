@@ -74,8 +74,7 @@ def meters_to_degrees(meters, latitude):
     meters_per_degree = 111320 * (1 - 0.000022 * abs(latitude))
     return meters / meters_per_degree
 
-def getGSV(lon, lat, epsg:int, key:str, secret:str,
-           multi:bool=False,
+def getGSV(lon, lat, key:str, secret:str, multi:bool=False,
            fov:int=80, heading:int=None, pitch:int=5,
            height:int=300, width:int=400) -> list[str]:
     """
@@ -86,7 +85,6 @@ def getGSV(lon, lat, epsg:int, key:str, secret:str,
     Args:
         lon (float): Longitude of the location.
         lat (float): Latitude of the location.
-        epsg (int): EPSG code for projecting the coordinates.
         key (str): Google API access token.
         multi (bool, optional): Whether to return multiple SVIs (default is False).
         fov (int, optional): Field of view in degrees for the perspective image. Defaults to 80.
@@ -109,8 +107,10 @@ def getGSV(lon, lat, epsg:int, key:str, secret:str,
             heading = (bearing_to_house + 180) % 360
         # Get image URL
         img_url = f"https://maps.googleapis.com/maps/api/streetview?size={width}x{height}&fov={fov}&heading={heading}&pitch={pitch}&location={y},{x}&key={key}"
-        svi = Equirectangular(img_url=img_url)
-        sv = svi.GetPerspective(fov, heading, pitch, height, width, 128)
+        resp = Equirectangular.read_url2img(img_url)
+        # Convert to base64
+        _, buffer = cv2.imencode('.png', resp)
+        sv = base64.b64encode(buffer).decode('utf-8')
         return [sv]
     except Exception as e:
         print(f"Error in getGSV: {e}")

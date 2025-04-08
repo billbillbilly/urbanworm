@@ -119,7 +119,7 @@ class Equirectangular:
         lat = lat / 90 * equ_cy + equ_cy
     
         persp = cv2.remap(self._img, lon.astype(np.float32), lat.astype(np.float32), cv2.INTER_CUBIC, borderMode=cv2.BORDER_WRAP)
-        # Convert for Ollama
+        # Convert to base64
         _, buffer = cv2.imencode('.png', persp)
         img_base64 = base64.b64encode(buffer).decode('utf-8')
         return img_base64
