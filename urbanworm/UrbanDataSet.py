@@ -132,14 +132,14 @@ class UrbanDataSet:
         return f"{len(buildings)} buildings found in the bounding box."
     
     def oneImgChat(self, model:str='gemma3:12b',system:str=None, prompt:str=None, 
-                   temp:float=0.0, top_k:float=0.8, top_p:float=0.8,
+                   temp:float=0.0, top_k:float=1.0, top_p:float=0.8,
                    saveImg:bool=True) -> dict:
         
         '''
         Chat with MLLM model with one image.
 
         Args:
-            model (str): Model name. Defaults to "gemma3:12b". ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'minicpm-v']
+            model (str): Model name. Defaults to "gemma3:12b". ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'minicpm-v', 'mistral-small3.1']
             system (optinal): The system message.
             prompt (str): The prompt message.
             img (str): The image path.
@@ -152,7 +152,7 @@ class UrbanDataSet:
             dict: A dictionary includes questions/messages, responses/answers, and image base64 (if required) 
         '''
 
-        if model not in ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'minicpm-v']:
+        if model not in ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'minicpm-v', 'mistral-small3.1']:
             raise Exception(f'{model} is not supported')
         self.preload_model(model)
 
@@ -165,13 +165,13 @@ class UrbanDataSet:
         return r
     
     def loopImgChat(self, model:str='gemma3:12b', system:str=None, prompt:str=None, 
-                    temp:float=0.0, top_k:float=0.8, top_p:float=0.8, saveImg:bool=True, 
+                    temp:float=0.0, top_k:float=1.0, top_p:float=0.8, saveImg:bool=True, 
                     disableProgressBar:bool=False) -> list:
         '''
         Chat with MLLM model for each image.
 
         Args:
-            model (str): Model name. Defaults to "gemma3:12b". ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'minicpm-v']
+            model (str): Model name. Defaults to "gemma3:12b". ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'minicpm-v', 'mistral-small3.1']
             system (str, optinal): The system message.
             prompt (str): The prompt message.
             temp (float): The temperature value.
@@ -184,7 +184,7 @@ class UrbanDataSet:
             list A list of dictionaries. Each dict includes questions/messages, responses/answers, and image base64 (if required)
         '''
 
-        if model not in ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'minicpm-v']:
+        if model not in ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'minicpm-v', 'mistral-small3.1']:
             raise Exception(f'{model} is not supported')
         self.preload_model(model)
 
@@ -246,11 +246,11 @@ class UrbanDataSet:
         ```
 
         Args:
-            model (str): Model name. Defaults to "gemma3:12b". ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'minicpm-v']
+            model (str): Model name. Defaults to "gemma3:12b". ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'minicpm-v', 'mistral-small3.1]
             system (str, optional): System message to guide the LLM behavior.
             prompt (dict): Dictionary containing the prompts for 'top' and/or 'street' views.
             temp (float, optional): Temperature for generation randomness. Defaults to 0.0.
-            top_k (float, optional): Top-k sampling parameter. Defaults to 0.8.
+            top_k (float, optional): Top-k sampling parameter. Defaults to 1.0.
             top_p (float, optional): Top-p sampling parameter. Defaults to 0.8.
             type (str, optional): Which image type(s) to use: "top", "street", or "both". Defaults to "top".
             epsg (int, optional): EPSG code for coordinate transformation. Required if type includes "street".
@@ -265,7 +265,7 @@ class UrbanDataSet:
             dict: A dictionary containing prompts, responses, and (optionally) image data for each unit.
         """
 
-        if model not in ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'minicpm-v']:
+        if model not in ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'minicpm-v', 'mistral-small3.1']:
             raise Exception(f'{model} is not supported')
         self.preload_model(model)
 
@@ -446,7 +446,7 @@ class UrbanDataSet:
             model (str): Model name.
             system (str): The system message guiding the LLM.
             prompt (str): The user prompt to the LLM.
-            img (list[str]): A list of image paths (1 or 3 recommended).
+            img (list[str]): A list of image paths.
             temp (float, optional): Temperature parameter for response randomness.
             top_k (float, optional): Top-K sampling filter.
             top_p (float, optional): Top-P (nucleus) sampling filter.
@@ -461,7 +461,7 @@ class UrbanDataSet:
                 return self.chat(model, system, prompt, img[0], temp, top_k, top_p)
             elif len(img) == 3:
                 res = []
-                system = f'You are analyzing aerial or street view images. For street view, you should just foucus on the building and yard in the middle. {system}'
+                system = f'You are analyzing aerial or street view images. For street view, you should just focus on the building and yard in the middle. {system}'
                 for i in range(len(img)):
                     r = self.chat(model, system, prompt, img[i], temp, top_k, top_p)
                     res += [r.responses]
@@ -473,7 +473,7 @@ class UrbanDataSet:
         Chat with the LLM model using a system message, prompt, and optional image.
 
         Args:
-            model (str): Model name. Defaults to "gemma3:12b". ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'minicpm-v']
+            model (str): Model name. Defaults to "gemma3:12b". ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'minicpm-v', 'mistral-small3.1']
             system (str): The system-level instruction for the model.
             prompt (str): The user message or question.
             img (str): Path to a single image to be sent to the model.
@@ -484,7 +484,16 @@ class UrbanDataSet:
         Returns:
             Response: Parsed response from the LLM, returned as a `Response` object.
         '''
+        if top_k > 100.0:
+            top_k = 100.0
+        elif top_k <= 0:
+            top_k = 1.0
 
+        if top_p > 1.0:
+            top_p = 1.0
+        elif top_p <= 0:
+            top_p = 0
+            
         res = ollama.chat(
             model=model,
             format=self.format.model_json_schema(),
