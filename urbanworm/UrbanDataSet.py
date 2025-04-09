@@ -41,7 +41,8 @@ class UrbanDataSet:
             self.img = image
 
         if images is not None and detect_input_type(images[0]) == 'image_path':
-            self.imgs = [encode_image_to_base64(im) for im in images]
+            self.imgs = images
+            self.base64Imgs = [encode_image_to_base64(im) for im in images]
         else:
             self.imgs = images
 
@@ -60,8 +61,7 @@ class UrbanDataSet:
 
         self.mapillary_key = mapillary_key
 
-        self.results = None
-        self.geo_df = None
+        self.results, self.geo_df, self.df = None, None, None
         self.messageHistory = []
 
     def __checkUnitsInputType(self, input:str|gpd.GeoDataFrame) -> gpd.GeoDataFrame:
@@ -75,6 +75,24 @@ class UrbanDataSet:
                 return input
             case _:
                 raise("Wrong type for units input!")
+            
+    def __checkModel(self, model:str) -> None:
+        '''
+        Check if the model is available.
+
+        Args:
+            model (str): The model name.
+        '''
+
+        if model not in ['granite3.2-vision', 
+                         'llama3.2-vision', 
+                         'gemma3', 
+                         'gemma3:1b', 
+                         'gemma3:12b', 
+                         'gemma3:27b',
+                         'minicpm-v', 
+                         'mistral-small3.1']:
+            raise Exception(f'{model} is not supported')
 
     def preload_model(self, model_name:str):
         """
@@ -152,8 +170,7 @@ class UrbanDataSet:
             dict: A dictionary includes questions/messages, responses/answers, and image base64 (if required) 
         '''
 
-        if model not in ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'minicpm-v', 'mistral-small3.1']:
-            raise Exception(f'{model} is not supported')
+        self.__checkModel(model)
         self.preload_model(model)
 
         print("Inference starts ...")
@@ -165,8 +182,8 @@ class UrbanDataSet:
         return r
     
     def loopImgChat(self, model:str='gemma3:12b', system:str=None, prompt:str=None, 
-                    temp:float=0.0, top_k:float=1.0, top_p:float=0.8, saveImg:bool=True, 
-                    disableProgressBar:bool=False) -> list:
+                    temp:float=0.0, top_k:float=1.0, top_p:float=0.8, saveImg:bool=False, 
+                    output_df:bool=False, disableProgressBar:bool=False) -> dict:
         '''
         Chat with MLLM model for each image.
 
@@ -177,38 +194,41 @@ class UrbanDataSet:
             temp (float): The temperature value.
             top_k (float): The top_k value.
             top_p (float): The top_p value.
-            saveImg (bool): The saveImg for save each image in base64 format in the output.
+            saveImg (bool): The saveImg for saving each image in base64 format in the output.
+            output_df (bool): The output_df for saving the result in a pandas DataFrame. Defaults to False.
             disableProgressBar (bool): The progress bar for showing the progress of data analysis over the units
 
         Returns:
             list A list of dictionaries. Each dict includes questions/messages, responses/answers, and image base64 (if required)
         '''
 
-        if model not in ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'minicpm-v', 'mistral-small3.1']:
-            raise Exception(f'{model} is not supported')
+        self.__checkModel(model)
         self.preload_model(model)
 
         from tqdm import tqdm
 
-        res = []
+        dic = {'responses': [], 'img': []}
         for i in tqdm(range(len(self.imgs)), desc="Processing...", ncols=75, disable=disableProgressBar):
-        # for i in range(len(self.imgs)):
-            img = self.imgs[i]
+            img = self.base64Imgs[i]
             r = self.LLM_chat(model=model, system=system, prompt=prompt, img=[img], 
                               temp=temp, top_k=top_k, top_p=top_p)
-            r = dict(r.responses[0])
+            r = r.responses
             if saveImg:
-                im = {'img': img}
-                res += [{**r, **im}]
-            else:
-                res += [r]
-        return res
+                if i == 0:
+                    dic['imgBase64'] = []
+                dic['imgBase64'] += [img]
+            dic['responses'] += [r]
+            dic['img'] += [self.imgs[i]]
+        self.results = {'from_loopImgChat':dic}
+        if output_df:
+            return self.to_df(output=True)
+        return dic
             
     def loopUnitChat(self, model:str='gemma3:12b', system:str=None, prompt:dict=None, 
-                     temp:float=0.0, top_k:float=0.8, top_p:float=0.8, 
+                     temp:float=0.0, top_k:float=1.0, top_p:float=0.8, 
                      type:str='top', epsg:int=None, multi:bool=False, 
                      sv_fov:int=80, sv_pitch:int=10, sv_size:list|tuple=(300,400),
-                     saveImg:bool=True, disableProgressBar:bool=False) -> dict:
+                     saveImg:bool=True, output_gdf:bool=False, disableProgressBar:bool=False) -> dict:
         """
         Chat with the MLLM model for each spatial unit in the shapefile.
 
@@ -246,7 +266,7 @@ class UrbanDataSet:
         ```
 
         Args:
-            model (str): Model name. Defaults to "gemma3:12b". ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'minicpm-v', 'mistral-small3.1]
+            model (str): Model name. Defaults to "gemma3:12b". ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'gemma3:27b', 'minicpm-v', 'mistral-small3.1]
             system (str, optional): System message to guide the LLM behavior.
             prompt (dict): Dictionary containing the prompts for 'top' and/or 'street' views.
             temp (float, optional): Temperature for generation randomness. Defaults to 0.0.
@@ -259,14 +279,14 @@ class UrbanDataSet:
             sv_pitch (int, optional): Pitch angle for street view. Defaults to 10.
             sv_size (list, tuple, optional): Size (height, width) for street view images. Defaults to (300, 400).
             saveImg (bool, optional): Whether to save images (as base64 strings) in output. Defaults to True.
+            output_gdf (bool, optional): Whether to return results as a GeoDataFrame. Defaults to False.
             disableProgressBar (bool, optional): Whether to show progress bar. Defaults to False.
 
         Returns:
             dict: A dictionary containing prompts, responses, and (optionally) image data for each unit.
         """
 
-        if model not in ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'minicpm-v', 'mistral-small3.1']:
-            raise Exception(f'{model} is not supported')
+        self.__checkModel(model)
         self.preload_model(model)
 
         from tqdm import tqdm
@@ -289,7 +309,6 @@ class UrbanDataSet:
         street_view_imgs = {'street_view_base64':[]}
 
         for i in tqdm(range(len(self.units)), desc="Processing...", ncols=75, disable=disableProgressBar):
-        # for i in range(len(self.units)):
             # Get the extent of one polygon from the filtered GeoDataFrame
             polygon = self.units.geometry.iloc[i]
             centroid = polygon.centroid
@@ -392,7 +411,28 @@ class UrbanDataSet:
         if self.messageHistory != []:
             self.messageHistory = []
             print('Reset message history.')
+        if output_gdf:
+            return self.to_gdf(output=True)
         return dic
+    
+    def to_df(self, output:bool=True) -> pd.DataFrame|str:
+        """
+        Convert the output from an MLLM reponse (from .loopImgChat) into a DataFrame.
+
+        Args:
+            output (bool): Whether to return a DataFrame. Defaults to True.
+        Returns:
+            pd.DataFrame: A DataFrame containing responses and associated metadata.
+            str: An error message if `.loopImgChat()` has not been run or if the format is unsupported.
+        """
+
+        if self.results is not None:
+            if 'from_loopImgChat' in self.results:
+                self.df = response2df(self.results['from_loopImgChat'])
+                if output:
+                    return self.df
+            else:
+                print("This method can only support the output of 'self.loopImgChat()' method")
     
     def to_gdf(self, output:bool=True) -> gpd.GeoDataFrame | str:
         """
@@ -429,9 +469,9 @@ class UrbanDataSet:
                 if output:
                     return self.geo_df
             else:
-                return "This method can only support the output of 'self.loopUnitChat()' method"
+                print("This method can only support the output of 'self.loopUnitChat()' method")
         else:
-            return "This method can only be called after running the 'self.loopUnitChat()' method"
+            print("This method can only be called after running the 'self.loopUnitChat()' method")
     
     def LLM_chat(self, model:str='gemma3:12b', system:str=None, prompt:str=None, 
                  img:list[str]=None, temp:float=None, top_k:float=None, top_p:float=None) -> Union["Response", list["QnA"]]:
@@ -466,6 +506,8 @@ class UrbanDataSet:
                     r = self.chat(model, system, prompt, img[i], temp, top_k, top_p)
                     res += [r.responses]
                 return res
+        else:
+            raise Exception("Prompt or image(s) is missing.")
 
     def chat(self, model:str='gemma3:12b', system:str=None, prompt:str=None, 
              img=None, temp=None, top_k:float=None, top_p:float=None) -> Response:
@@ -518,7 +560,7 @@ class UrbanDataSet:
     
     def dataAnalyst(self, 
                     prompt:str, 
-                    system:str='you are a data spatial data analyst.',
+                    system:str='you are a data analyst.',
                     model:str='gemma3') -> None:
         
         '''

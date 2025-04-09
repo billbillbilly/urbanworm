@@ -1,9 +1,6 @@
 import unittest
-# from unittest.mock import patch, MagicMock
 import geopandas as gpd
-# import pandas as pd
-# from shapely.geometry import Polygon
-
+import pandas as pd
 import os
 from urbanworm import UrbanDataSet
 
@@ -36,8 +33,8 @@ class TestUrbanWorm(unittest.TestCase):
         prompt = '''
             Is there any damage on the roof?
         '''
-        out = self.dataset.loopImgChat(system=system, prompt=prompt)
-        self.assertTrue(isinstance(out, list))
+        out = self.dataset.loopImgChat(system=system, prompt=prompt, output_df=True, saveImg=False)
+        self.assertTrue(isinstance(out, pd.DataFrame))
     def test_loopUnitChat(self):
         self.dataset.units = self.dataset.units.iloc[0:1]
 
