@@ -62,6 +62,12 @@ The package urabnworm can be installed with `pip`:
 pip install urban-worm 
 ```
 
+To install the develop version from this repo:
+``` sh
+pip install -e git+https://github.com/billbillbilly/urbanworm.git#egg=urban-worm
+```
+
+
 ## Usage
 #### single-image inference
 ```python

@@ -370,22 +370,57 @@ def filterBF(data, epsg, minm, maxm):
         gdf_proj = gdf_proj[gdf_proj["footprint_area"] <= maxm]  # Filter max area
     return gdf_proj
 
+def response2df(qna_dict):
+    """
+    Extracts filds from QnA objects as a single dictionary and convert it into a Dataframe.
+    """
+
+    import pandas as pd
+    import numpy as np
+
+    def renameKey(qna_list):
+        return [{f'{key}{i+1}': qna_list[i][key] for key in qna_list[i]} for i in range(len(qna_list))]
+
+    def extract_qna(qna, fs):
+        question_num = len(qna[0])
+        fs_ = [fs for i in range(question_num)]
+        fs_ = list(np.concatenate(fs_))
+        dic = {}
+        fields = []
+        for i in range(len(qna)):
+            qna_ = [dict(q) for q in qna[i]]
+            qna_ = renameKey(qna_)
+            qna_ = {k: v for d_ in qna_ for k, v in d_.items()}
+            if i == 0:
+                dic = {key:[] for key in qna_}
+                fields = list(dic.keys())
+            for field_i in range(len(fields)):
+                try:
+                    dic[fields[field_i]] += [qna_[fields[field_i]]]
+                except:
+                    pass
+        return dic
+        
+    qna_ = qna_dict['responses']
+    img_ = qna_dict['img']
+    
+    fields = list(vars(qna_[0][0]).keys())
+    df_ = pd.DataFrame(extract_qna(qna_, fields))
+    df_['img'] = [img_[i] for i in range(len(img_))]
+    if 'imgBase64' in qna_dict:
+        img_base64 = qna_dict['imgBase64']
+        df_['imgBase64'] = [img_base64[i] for i in range(len(img_base64))]
+    return df_
+
 def response2gdf(qna_dict):
     """
-    Extracts filds from QnA objects as a single dictionary.
+    Extracts filds from QnA objects as a single dictionary and convert it into a GeoDataframe.
     """
 
     import pandas as pd
     import numpy as np
     import geopandas as gpd
     from shapely.geometry import Point
-    # import math
-
-    # def findQgroup(num, groupSzie, totalSize):
-    #     if groupSzie == 1:
-    #         return 1
-    #     else:
-    #         return math.ceil((num/totalSize)/(groupSzie/totalSize))
         
     def renameKey(qna_list, t):
         return [{f'{t}_{key}{i+1}': qna_list[i][key] for key in qna_list[i]} for i in range(len(qna_list))]
@@ -398,7 +433,6 @@ def response2gdf(qna_dict):
             question_num = len(qna[0])
             fs_ = [fs for i in range(question_num)]
             fs_ = list(np.concatenate(fs_))
-            # size = len(fs_)
             dic = {}
             fields = []
             for i in range(len(qna)):
@@ -406,7 +440,6 @@ def response2gdf(qna_dict):
                 qna_ = renameKey(qna_, tag)
                 qna_ = {k: v for d_ in qna_ for k, v in d_.items()}
                 if i == 0:
-                    # dic = {f'{tag}_{fs_[idx]}{findQgroup(idx+1,question_num,size)}': [] for idx in range(size)}
                     dic = {key:[] for key in qna_}
                     fields = list(dic.keys())
                 for field_i in range(len(fields)):
@@ -426,9 +459,6 @@ def response2gdf(qna_dict):
         qna_top = qna_dict['top_view']
     if "street_view" in qna_dict:
         qna_street = qna_dict['street_view']
-    # if "top_view" in qna_dict and "street_view" in qna_dict:
-    #     qna_top = qna_dict['top_view']
-    #     qna_street = qna_dict['street_view']
     
     # Create dictionary for GeoDataFrame
     geo_data = {
