@@ -24,10 +24,9 @@ class TestUrbanWorm(unittest.TestCase):
         out = self.dataset.oneImgChat(system=system, prompt=prompt)
         self.assertTrue(isinstance(out, dict))
     def test_loopImgChat(self):
-        import base64
         imgs = [img for i in range(3)]
         self.dataset.imgs = imgs
-        self.dataset.base64Imgs = [base64.b64encode(open(img, 'rb').read()).decode('utf-8') for img in imgs]
+        self.dataset.base64Imgs = imgs
         system = '''
             Given a top view image, you are going to roughly estimate house conditions. Your answer should be based only on your observation. 
             The format of your response must include question, answer (yes or no), explaination (within 50 words)
