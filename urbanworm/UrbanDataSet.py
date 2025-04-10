@@ -228,6 +228,7 @@ class UrbanDataSet:
                      temp:float=0.0, top_k:float=1.0, top_p:float=0.8, 
                      type:str='top', epsg:int=None, multi:bool=False, 
                      sv_fov:int=80, sv_pitch:int=10, sv_size:list|tuple=(300,400),
+                     year:list|tuple=None, season:str=None, time_of_day:str=None,
                      saveImg:bool=True, output_gdf:bool=False, disableProgressBar:bool=False) -> dict:
         """
         Chat with the MLLM model for each spatial unit in the shapefile.
@@ -278,6 +279,9 @@ class UrbanDataSet:
             sv_fov (int, optional): Field of view for street view. Defaults to 80.
             sv_pitch (int, optional): Pitch angle for street view. Defaults to 10.
             sv_size (list, tuple, optional): Size (height, width) for street view images. Defaults to (300, 400).
+            year (list or tuple): The year ranges (e.g., (2018,2023)).
+            season (str): 'spring', 'summer', 'fall', 'winter'.
+            time_of_day (str): 'day' or 'night'.
             saveImg (bool, optional): Whether to save images (as base64 strings) in output. Defaults to True.
             output_gdf (bool, optional): Whether to return results as a GeoDataFrame. Defaults to False.
             disableProgressBar (bool, optional): Whether to show progress bar. Defaults to False.
@@ -319,7 +323,8 @@ class UrbanDataSet:
             # process street view image
             if (type == 'street' or type == 'both') and epsg != None and self.mapillary_key != None:
                 input_svis = getSV(centroid, epsg, self.mapillary_key, multi=multi, 
-                                   fov=sv_fov, pitch=sv_pitch, height=sv_size[0], width=sv_size[1])
+                                   fov=sv_fov, pitch=sv_pitch, height=sv_size[0], width=sv_size[1], 
+                                   year=year, season=season, time_of_day=time_of_day)
                 
                 if len(input_svis) != 0:
                     # save imgs

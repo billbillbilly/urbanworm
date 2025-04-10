@@ -12,6 +12,7 @@ from .pano2pers import Equirectangular
 import base64
 import cv2
 import matplotlib.pyplot as plt
+from datetime import datetime
 import re
 
 def is_base64(s):
@@ -76,7 +77,8 @@ def meters_to_degrees(meters, latitude):
 # Get street view images from Mapillary
 def getSV(centroid, epsg:int, key:str, multi:bool=False, 
           fov:int=80, heading:int=None, pitch:int=10, 
-          height:int=300, width:int=400) -> list[str]:
+          height:int=300, width:int=400,
+          year:list|tuple=None, season:str=None, time_of_day:str=None) -> list[str]:
     """
     getSV
 
@@ -98,13 +100,15 @@ def getSV(centroid, epsg:int, key:str, multi:bool=False,
     """
     bbox = projection(centroid, epsg)
     
-    url = f"https://graph.mapillary.com/images?access_token={key}&fields=id,compass_angle,thumb_2048_url,geometry&bbox={bbox}&is_pano=true"
+    url = f"https://graph.mapillary.com/images?access_token={key}&fields=id,compass_angle,thumb_2048_url,captured_at,geometry&bbox={bbox}&is_pano=true"
     svis = []
     try:
         response = retry_request(url)
         response = response.json()
         # find the closest image
-        response = closest(centroid, response, multi)
+        response = closest(centroid, response, multi, year, season, time_of_day)
+        if response is None:
+            return []
 
         for i in range(len(response)):
             # Extract Image ID, Compass Angle, image url, and coordinates
@@ -177,11 +181,49 @@ def degree2dis(pt, epsg):
     return x, y
 
 # find the closest image to the house
-def closest(centroid, response, multi=False):
+def closest(centroid, response, multi=False, year=None, season=None, time_of_day=None):
     c = [centroid.x, centroid.y]
     res_df = pd.DataFrame(response['data'])
+    # extract coordinates
     res_df[['point','coordinates']] = pd.DataFrame(res_df.geometry.tolist(), index= res_df.index)
     res_df[['lon','lat']] = pd.DataFrame(res_df.coordinates.tolist(), index= res_df.index)
+
+    # extract capture time
+    res_df['captured'] = res_df['captured_at'].apply(mapillary_timestamp_to_datetime)
+    res_df[['year','month','day','hour']] = pd.DataFrame(res_df.captured.to_list(), index= res_df.index)
+    # filter by time: year/season/time of day
+    year_start, year_end, season_, day_start, day_end = get_capture_time_range(year, season, time_of_day)
+
+    try:
+        if year_start is not None:
+            res_df = res_df[(res_df['year'] >= year_start) & (res_df['year'] <= year_end)]
+        if season_ is not None:
+            season_start, season_end = season_[season.lower()]
+            res_df1 = res_df[(res_df['month'] == season_start[0]) & (res_df['day'] >= season_start[1])]
+            res_df2 = res_df[(res_df['month'] == season_end[0]) & (res_df['day'] <= season_end[1])]
+            if 'winter' in season_:
+                res_df3 = res_df[(res_df['month'] <= 2)]
+                
+            if 'summer' in season_:
+                res_df3 = res_df[(res_df['month'] > 6) & (res_df['month'] < 9)]
+
+            if 'fall' in season_:
+                res_df3 = res_df[(res_df['month'] > 9) & (res_df['month'] < 12)]
+
+            if 'spring' in season_:
+                res_df3 = res_df[(res_df['month'] > 3) & (res_df['month'] < 6)]
+
+            res_df = pd.concat([res_df1, res_df2])
+            res_df = pd.concat([res_df, res_df3])
+        if day_start is not None:
+            res_df = res_df[(res_df['hour'] >= day_start) & (res_df['hour'] <= day_end)]
+
+        if len(res_df) == 0:
+            return None
+    except Exception as e:
+        print(f"Error in filtering street views by time: {e}")
+        return None
+    # filter by distance
     id_array = np.array(res_df['id'])
     lon_array = np.array(res_df['lon'])
     lat_array = np.array(res_df['lat'])
@@ -194,6 +236,43 @@ def closest(centroid, response, multi=False):
     return res_df.loc[res_df['id'] == id]
 
 # filter images by time and seasons
+def mapillary_timestamp_to_datetime(timestamp_ms):
+    timestamp_sec = timestamp_ms / 1000.0
+    dt_object = datetime.fromtimestamp(timestamp_sec)
+    return dt_object.year, dt_object.month, dt_object.day, dt_object.hour
+
+def get_capture_time_range(year:list|tuple=None, season:str=None, time_of_day:str=None):
+    """
+    Generate start and end time for filtering images by season and time of day.
+    """
+    year_start, year_end = None, None
+    season_ = None
+    day_start, day_end = None, None
+
+    if year is None:
+        year_start = year[0]
+        year_end = year[1]
+
+    if season is not None:
+        seasons = {
+            "spring": ((3,20), (6,20)),
+            "summer": ((6,21), (9,21)),
+            "fall": ((9,22), (12,22)),
+            "winter": ((12,21), (3,19))
+        }
+        season_ = {season.lower():seasons[season.lower()]}
+
+    if time_of_day is not None:
+        if time_of_day.lower() == "day":
+            day_start = 6
+            day_end = 18
+        elif time_of_day.lower() == "night":
+            day_start = 18
+            day_end = 6
+        else:
+            raise ValueError("time_of_day must be 'day' or 'night'")
+    
+    return year_start, year_end, season_, day_start, day_end
 
 # calculate bearing between two points
 def calculate_bearing(lat1, lon1, lat2, lon2):
