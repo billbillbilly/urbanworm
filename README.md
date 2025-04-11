@@ -122,6 +122,7 @@ data.to_gdf()
 More examples can be found [here](docs/example.ipynb).
 
 ## To do
+- [ ] Multiple images inference for pairwise comparison in terms of urban perceptions
 - [ ] Basic plot method in UrbanDataSet class
 - [ ] Improve the method dataAnalyst in UrbanDataSet class by adding fucntionality of feeding more meaningful introduction of data to LLMs
 - [ ] A webUI providing interactive operation and data visualization 
