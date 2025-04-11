@@ -104,6 +104,8 @@ def getSV(centroid, epsg:int, key:str, multi:bool=False,
     svis = []
     try:
         response = retry_request(url)
+        if response is None:
+            return []
         response = response.json()
         # find the closest image
         response = closest(centroid, response, multi, year, season, time_of_day)
@@ -114,7 +116,7 @@ def getSV(centroid, epsg:int, key:str, multi:bool=False,
             # Extract Image ID, Compass Angle, image url, and coordinates
             img_heading = float(response.iloc[i,1])
             img_url = response.iloc[i,2]
-            image_lon, image_lat = response.iloc[i,5]
+            image_lon, image_lat = response.iloc[i,6]
             if heading is None:
                 # calculate bearing to the house
                 bearing_to_house = calculate_bearing(image_lat, image_lon, centroid.y, centroid.x)
@@ -191,6 +193,7 @@ def closest(centroid, response, multi=False, year=None, season=None, time_of_day
     # extract capture time
     res_df['captured'] = res_df['captured_at'].apply(mapillary_timestamp_to_datetime)
     res_df[['year','month','day','hour']] = pd.DataFrame(res_df.captured.to_list(), index= res_df.index)
+    
     # filter by time: year/season/time of day
     year_start, year_end, season_, day_start, day_end = get_capture_time_range(year, season, time_of_day)
 
@@ -249,7 +252,7 @@ def get_capture_time_range(year:list|tuple=None, season:str=None, time_of_day:st
     season_ = None
     day_start, day_end = None, None
 
-    if year is None:
+    if year is not None:
         year_start = year[0]
         year_end = year[1]
 
@@ -561,7 +564,7 @@ def response2gdf(qna_dict):
     elif df_top is not None:
         return pd.concat([geo_df, df_top], axis=1)
     elif df_street is not None:
-        return pd.concat([geo_df, df_top], axis=1)
+        return pd.concat([geo_df, df_street], axis=1)
 
 def plot_base64_image(img_base64:str):
     """Decodes a Base64 image and plots it using Matplotlib."""
