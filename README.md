@@ -11,7 +11,7 @@
 # Urban-Worm
 
 ## Introduction
-Urban-Worm is a Python library that integrates remote sensing imagery, street view data, and multimodal model to assess urban units. Using APIs for data collection and vision-language models for inference, Urban-Worm is designed to support the automation of the evaluation for urban environments, including roof integrity, structural condition, landscape quality, and urban perception.
+Urban-Worm is a Python library that integrates remote sensing imagery, street view data, and vision-language models (VLMs) to assess urban units. Using APIs for data collection and VLMs for inference, Urban-Worm is designed to support the automation of the evaluation for urban environments, including roof integrity, structural condition, landscape quality, and urban perception.
 
 - Free software: MIT license
 - Website/Documentation: [https://land-info-lab.github.io/urbanworm/](https://land-info-lab.github.io/urbanworm/)
@@ -21,12 +21,13 @@ Urban-Worm is a Python library that integrates remote sensing imagery, street vi
 </picture>
 
 ## Features
-- run vision-lanuage models locally with local datasets and ensure information privacy
-- download building footprints from OSM and global building released by Bing map with options to filter building footprints by area
+- run VLMs locally with local datasets and ensure information privacy
+- download building footprints from OSM and global building data released by Bing Maps with options to filter building footprints by area
 - search and clip aerial and street view images (via APIs) based on urban units such as parcel and building footprint data
-- automatically calibrate the orientation of panorama street view and the extent of aerial image
+- automatically calibrate the orientation of the panorama street view and the extent of the aerial image
 
 ## Installation
+#### install Ollama client
 Please make sure [Ollama](https://ollama.com/) is installed before installing urban-worm
 
 For Linux, users can also install ollama by running in the terminal:
@@ -44,7 +45,7 @@ To install `brew`, run in the terminal:
 
 Windows users should directly install the [Ollama client](https://ollama.com/)
 
-#### install gdal first
+#### install GDAL first
 For macOS, Linux, and Windows users, `gdal` may need to be installed at very begining using `conda`. Please download and install [Anaconda](https://www.anaconda.com/download/success) to use `conda`.
 
 If the installation method above does not work, try to install with `conda`:
@@ -57,12 +58,13 @@ Mac users may install `gdal` (if the installation method below does not work, tr
  brew install gdal
 ```
 
+#### install the package
 The package urabnworm can be installed with `pip`:
 ```sh
 pip install urban-worm 
 ```
 
-To install the develop version from this repo:
+To install the development version from this repo:
 ``` sh
 pip install -e git+https://github.com/billbillbilly/urbanworm.git#egg=urban-worm
 ```
@@ -122,20 +124,21 @@ data.to_gdf()
 More examples can be found [here](docs/example.ipynb).
 
 ## To do
+- [ ] One-shot learning in each chat method to help the model get familiar with the questions and expected answers 
 - [ ] Multiple images inference for pairwise comparison in terms of urban perceptions
 - [ ] Basic plot method in UrbanDataSet class
-- [ ] Improve the method dataAnalyst in UrbanDataSet class by adding fucntionality of feeding more meaningful introduction of data to LLMs
-- [ ] A webUI providing interactive operation and data visualization 
+- [ ] Improve the method dataAnalyst in UrbanDataSet class by adding functionality of feeding a more meaningful introduction of data to LLMs
+- [ ] A web UI providing interactive operation and data visualization 
 
 The next version will have functionalities using Google APIs:
-- [ ] search for units with address
+- [ ] search for a unit with an address
 - [ ] find historical images
 
 ## Legal Notice
 This repository and its content are provided for educational purposes only. By using the information and code provided, users acknowledge that they are using the APIs and models at their own risk and agree to comply with any applicable laws and regulations. Users who intend to download a large number of image tiles from any basemap are advised to contact the basemap provider to obtain permission before doing so. Unauthorized use of the basemap or any of its components may be a violation of copyright laws or other applicable laws and regulations.
 
 ## Acknowledgements
-The package is heavily built on Ollama client and Ollama-python. Credit goes to the developers of these projects.
+The package is heavily built on the Ollama client and Ollama-python. Credit goes to the developers of these projects.
 - [ollama](https://github.com/ollama/ollama)
 - [ollama-python](https://github.com/ollama/ollama-python)
 
