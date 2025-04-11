@@ -14,7 +14,7 @@
 Urban-Worm is a Python library that integrates remote sensing imagery, street view data, and multimodal model to assess urban units. Using APIs for data collection and vision-language models for inference, Urban-Worm is designed to support the automation of the evaluation for urban environments, including roof integrity, structural condition, landscape quality, and urban perception.
 
 - Free software: MIT license
-- Website: [Documentation](https://billbillbilly.github.io/urbanworm/)
+- Website/Documentation: [https://land-info-lab.github.io/urbanworm/](https://land-info-lab.github.io/urbanworm/)
 
 <picture>
   <img alt="workflow" src="docs/images/urabn_worm_diagram.png" width="100%">
