@@ -1675,7 +1675,12 @@
 <span class="normal">669</span>
 <span class="normal">670</span>
 <span class="normal">671</span>
-<span class="normal">672</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">UrbanDataSet</span><span class="p">:</span>
+<span class="normal">672</span>
+<span class="normal">673</span>
+<span class="normal">674</span>
+<span class="normal">675</span>
+<span class="normal">676</span>
+<span class="normal">677</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">UrbanDataSet</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
 <span class="sd">    Dataset class for urban imagery inference using MLLMs.</span>
 <span class="sd">    &#39;&#39;&#39;</span>
@@ -1886,6 +1891,7 @@
                      <span class="n">temp</span><span class="p">:</span><span class="nb">float</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">top_k</span><span class="p">:</span><span class="nb">float</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">top_p</span><span class="p">:</span><span class="nb">float</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span> 
                      <span class="nb">type</span><span class="p">:</span><span class="nb">str</span><span class="o">=</span><span class="s1">&#39;top&#39;</span><span class="p">,</span> <span class="n">epsg</span><span class="p">:</span><span class="nb">int</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">multi</span><span class="p">:</span><span class="nb">bool</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> 
                      <span class="n">sv_fov</span><span class="p">:</span><span class="nb">int</span><span class="o">=</span><span class="mi">80</span><span class="p">,</span> <span class="n">sv_pitch</span><span class="p">:</span><span class="nb">int</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">sv_size</span><span class="p">:</span><span class="nb">list</span><span class="o">|</span><span class="nb">tuple</span><span class="o">=</span><span class="p">(</span><span class="mi">300</span><span class="p">,</span><span class="mi">400</span><span class="p">),</span>
+                     <span class="n">year</span><span class="p">:</span><span class="nb">list</span><span class="o">|</span><span class="nb">tuple</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">season</span><span class="p">:</span><span class="nb">str</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">time_of_day</span><span class="p">:</span><span class="nb">str</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                      <span class="n">saveImg</span><span class="p">:</span><span class="nb">bool</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">output_gdf</span><span class="p">:</span><span class="nb">bool</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">disableProgressBar</span><span class="p">:</span><span class="nb">bool</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Chat with the MLLM model for each spatial unit in the shapefile.</span>
@@ -1936,6 +1942,9 @@
 <span class="sd">            sv_fov (int, optional): Field of view for street view. Defaults to 80.</span>
 <span class="sd">            sv_pitch (int, optional): Pitch angle for street view. Defaults to 10.</span>
 <span class="sd">            sv_size (list, tuple, optional): Size (height, width) for street view images. Defaults to (300, 400).</span>
+<span class="sd">            year (list or tuple): The year ranges (e.g., (2018,2023)).</span>
+<span class="sd">            season (str): &#39;spring&#39;, &#39;summer&#39;, &#39;fall&#39;, &#39;winter&#39;.</span>
+<span class="sd">            time_of_day (str): &#39;day&#39; or &#39;night&#39;.</span>
 <span class="sd">            saveImg (bool, optional): Whether to save images (as base64 strings) in output. Defaults to True.</span>
 <span class="sd">            output_gdf (bool, optional): Whether to return results as a GeoDataFrame. Defaults to False.</span>
 <span class="sd">            disableProgressBar (bool, optional): Whether to show progress bar. Defaults to False.</span>
@@ -1977,7 +1986,8 @@
             <span class="c1"># process street view image</span>
             <span class="k">if</span> <span class="p">(</span><span class="nb">type</span> <span class="o">==</span> <span class="s1">&#39;street&#39;</span> <span class="ow">or</span> <span class="nb">type</span> <span class="o">==</span> <span class="s1">&#39;both&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">epsg</span> <span class="o">!=</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">mapillary_key</span> <span class="o">!=</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="n">input_svis</span> <span class="o">=</span> <span class="n">getSV</span><span class="p">(</span><span class="n">centroid</span><span class="p">,</span> <span class="n">epsg</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">mapillary_key</span><span class="p">,</span> <span class="n">multi</span><span class="o">=</span><span class="n">multi</span><span class="p">,</span> 
-                                   <span class="n">fov</span><span class="o">=</span><span class="n">sv_fov</span><span class="p">,</span> <span class="n">pitch</span><span class="o">=</span><span class="n">sv_pitch</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="n">sv_size</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">width</span><span class="o">=</span><span class="n">sv_size</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+                                   <span class="n">fov</span><span class="o">=</span><span class="n">sv_fov</span><span class="p">,</span> <span class="n">pitch</span><span class="o">=</span><span class="n">sv_pitch</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="n">sv_size</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">width</span><span class="o">=</span><span class="n">sv_size</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> 
+                                   <span class="n">year</span><span class="o">=</span><span class="n">year</span><span class="p">,</span> <span class="n">season</span><span class="o">=</span><span class="n">season</span><span class="p">,</span> <span class="n">time_of_day</span><span class="o">=</span><span class="n">time_of_day</span><span class="p">)</span>
 
                 <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">input_svis</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
                     <span class="c1"># save imgs</span>
@@ -2522,12 +2532,7 @@
 
             <details class="quote">
               <summary>Source code in <code>urbanworm/UrbanDataSet.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">476</span>
-<span class="normal">477</span>
-<span class="normal">478</span>
-<span class="normal">479</span>
-<span class="normal">480</span>
-<span class="normal">481</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">481</span>
 <span class="normal">482</span>
 <span class="normal">483</span>
 <span class="normal">484</span>
@@ -2556,7 +2561,12 @@
 <span class="normal">507</span>
 <span class="normal">508</span>
 <span class="normal">509</span>
-<span class="normal">510</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">LLM_chat</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span><span class="nb">str</span><span class="o">=</span><span class="s1">&#39;gemma3:12b&#39;</span><span class="p">,</span> <span class="n">system</span><span class="p">:</span><span class="nb">str</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">prompt</span><span class="p">:</span><span class="nb">str</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> 
+<span class="normal">510</span>
+<span class="normal">511</span>
+<span class="normal">512</span>
+<span class="normal">513</span>
+<span class="normal">514</span>
+<span class="normal">515</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">LLM_chat</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span><span class="nb">str</span><span class="o">=</span><span class="s1">&#39;gemma3:12b&#39;</span><span class="p">,</span> <span class="n">system</span><span class="p">:</span><span class="nb">str</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">prompt</span><span class="p">:</span><span class="nb">str</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> 
              <span class="n">img</span><span class="p">:</span><span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">temp</span><span class="p">:</span><span class="nb">float</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">top_k</span><span class="p">:</span><span class="nb">float</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">top_p</span><span class="p">:</span><span class="nb">float</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Union</span><span class="p">[</span><span class="s2">&quot;Response&quot;</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="s2">&quot;QnA&quot;</span><span class="p">]]:</span>
 <span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
 <span class="sd">    Chat with the LLM model with a list of images.</span>
@@ -3292,12 +3302,7 @@
 
             <details class="quote">
               <summary>Source code in <code>urbanworm/UrbanDataSet.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">512</span>
-<span class="normal">513</span>
-<span class="normal">514</span>
-<span class="normal">515</span>
-<span class="normal">516</span>
-<span class="normal">517</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">517</span>
 <span class="normal">518</span>
 <span class="normal">519</span>
 <span class="normal">520</span>
@@ -3339,7 +3344,12 @@
 <span class="normal">556</span>
 <span class="normal">557</span>
 <span class="normal">558</span>
-<span class="normal">559</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">chat</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span><span class="nb">str</span><span class="o">=</span><span class="s1">&#39;gemma3:12b&#39;</span><span class="p">,</span> <span class="n">system</span><span class="p">:</span><span class="nb">str</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">prompt</span><span class="p">:</span><span class="nb">str</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> 
+<span class="normal">559</span>
+<span class="normal">560</span>
+<span class="normal">561</span>
+<span class="normal">562</span>
+<span class="normal">563</span>
+<span class="normal">564</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">chat</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span><span class="nb">str</span><span class="o">=</span><span class="s1">&#39;gemma3:12b&#39;</span><span class="p">,</span> <span class="n">system</span><span class="p">:</span><span class="nb">str</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">prompt</span><span class="p">:</span><span class="nb">str</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> 
          <span class="n">img</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">temp</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">top_k</span><span class="p">:</span><span class="nb">float</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">top_p</span><span class="p">:</span><span class="nb">float</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Response</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
 <span class="sd">    Chat with the LLM model using a system message, prompt, and optional image.</span>
@@ -3498,12 +3508,7 @@ and manages the chat history for maintaining the continuity of analysis.</p>
 
             <details class="quote">
               <summary>Source code in <code>urbanworm/UrbanDataSet.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">561</span>
-<span class="normal">562</span>
-<span class="normal">563</span>
-<span class="normal">564</span>
-<span class="normal">565</span>
-<span class="normal">566</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">566</span>
 <span class="normal">567</span>
 <span class="normal">568</span>
 <span class="normal">569</span>
@@ -3569,7 +3574,12 @@ and manages the chat history for maintaining the continuity of analysis.</p>
 <span class="normal">629</span>
 <span class="normal">630</span>
 <span class="normal">631</span>
-<span class="normal">632</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">dataAnalyst</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> 
+<span class="normal">632</span>
+<span class="normal">633</span>
+<span class="normal">634</span>
+<span class="normal">635</span>
+<span class="normal">636</span>
+<span class="normal">637</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">dataAnalyst</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> 
                 <span class="n">prompt</span><span class="p">:</span><span class="nb">str</span><span class="p">,</span> 
                 <span class="n">system</span><span class="p">:</span><span class="nb">str</span><span class="o">=</span><span class="s1">&#39;you are a data analyst.&#39;</span><span class="p">,</span>
                 <span class="n">model</span><span class="p">:</span><span class="nb">str</span><span class="o">=</span><span class="s1">&#39;gemma3&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -3741,12 +3751,7 @@ If the GeoDataFrame is not yet initialized, it will attempt to convert the resul
 
             <details class="quote">
               <summary>Source code in <code>urbanworm/UrbanDataSet.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">643</span>
-<span class="normal">644</span>
-<span class="normal">645</span>
-<span class="normal">646</span>
-<span class="normal">647</span>
-<span class="normal">648</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">648</span>
 <span class="normal">649</span>
 <span class="normal">650</span>
 <span class="normal">651</span>
@@ -3770,7 +3775,12 @@ If the GeoDataFrame is not yet initialized, it will attempt to convert the resul
 <span class="normal">669</span>
 <span class="normal">670</span>
 <span class="normal">671</span>
-<span class="normal">672</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">export</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">out_type</span><span class="p">:</span><span class="nb">str</span><span class="p">,</span> <span class="n">file_name</span><span class="p">:</span><span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="normal">672</span>
+<span class="normal">673</span>
+<span class="normal">674</span>
+<span class="normal">675</span>
+<span class="normal">676</span>
+<span class="normal">677</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">export</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">out_type</span><span class="p">:</span><span class="nb">str</span><span class="p">,</span> <span class="n">file_name</span><span class="p">:</span><span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
 <span class="sd">    Exports the result to a specified spatial data format.</span>
 
@@ -4097,7 +4107,7 @@ If the GeoDataFrame is not yet initialized, it will attempt to convert the resul
 
 
 <h2 id="urbanworm.UrbanDataSet.UrbanDataSet.loopUnitChat" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">loopUnitChat</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s1">&#39;gemma3:12b&#39;</span><span class="p">,</span> <span class="n">system</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">prompt</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">temp</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">top_k</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">top_p</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="s1">&#39;top&#39;</span><span class="p">,</span> <span class="n">epsg</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">multi</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">sv_fov</span><span class="o">=</span><span class="mi">80</span><span class="p">,</span> <span class="n">sv_pitch</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">sv_size</span><span class="o">=</span><span class="p">(</span><span class="mi">300</span><span class="p">,</span> <span class="mi">400</span><span class="p">),</span> <span class="n">saveImg</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">output_gdf</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">disableProgressBar</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
+            <code class="highlight language-python"><span class="n">loopUnitChat</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s1">&#39;gemma3:12b&#39;</span><span class="p">,</span> <span class="n">system</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">prompt</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">temp</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">top_k</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">top_p</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="s1">&#39;top&#39;</span><span class="p">,</span> <span class="n">epsg</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">multi</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">sv_fov</span><span class="o">=</span><span class="mi">80</span><span class="p">,</span> <span class="n">sv_pitch</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">sv_size</span><span class="o">=</span><span class="p">(</span><span class="mi">300</span><span class="p">,</span> <span class="mi">400</span><span class="p">),</span> <span class="n">year</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">season</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">time_of_day</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">saveImg</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">output_gdf</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">disableProgressBar</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
 
 <a href="#urbanworm.UrbanDataSet.UrbanDataSet.loopUnitChat" class="headerlink" title="Permanent link">&para;</a></h2>
 
@@ -4336,6 +4346,54 @@ with custom messages. It stores results in <code>self.results</code>.</p>
             </td>
             <td>
                   <code>(300, 400)</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>year</code>
+            </td>
+            <td>
+                  <code><span title="list">list</span> or <span title="tuple">tuple</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The year ranges (e.g., (2018,2023)).</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>season</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>'spring', 'summer', 'fall', 'winter'.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>time_of_day</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>'day' or 'night'.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -4604,10 +4662,16 @@ with custom messages. It stores results in <code>self.results</code>.</p>
 <span class="normal">413</span>
 <span class="normal">414</span>
 <span class="normal">415</span>
-<span class="normal">416</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">loopUnitChat</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span><span class="nb">str</span><span class="o">=</span><span class="s1">&#39;gemma3:12b&#39;</span><span class="p">,</span> <span class="n">system</span><span class="p">:</span><span class="nb">str</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">prompt</span><span class="p">:</span><span class="nb">dict</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> 
+<span class="normal">416</span>
+<span class="normal">417</span>
+<span class="normal">418</span>
+<span class="normal">419</span>
+<span class="normal">420</span>
+<span class="normal">421</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">loopUnitChat</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span><span class="nb">str</span><span class="o">=</span><span class="s1">&#39;gemma3:12b&#39;</span><span class="p">,</span> <span class="n">system</span><span class="p">:</span><span class="nb">str</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">prompt</span><span class="p">:</span><span class="nb">dict</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> 
                  <span class="n">temp</span><span class="p">:</span><span class="nb">float</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">top_k</span><span class="p">:</span><span class="nb">float</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">top_p</span><span class="p">:</span><span class="nb">float</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span> 
                  <span class="nb">type</span><span class="p">:</span><span class="nb">str</span><span class="o">=</span><span class="s1">&#39;top&#39;</span><span class="p">,</span> <span class="n">epsg</span><span class="p">:</span><span class="nb">int</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">multi</span><span class="p">:</span><span class="nb">bool</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> 
                  <span class="n">sv_fov</span><span class="p">:</span><span class="nb">int</span><span class="o">=</span><span class="mi">80</span><span class="p">,</span> <span class="n">sv_pitch</span><span class="p">:</span><span class="nb">int</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">sv_size</span><span class="p">:</span><span class="nb">list</span><span class="o">|</span><span class="nb">tuple</span><span class="o">=</span><span class="p">(</span><span class="mi">300</span><span class="p">,</span><span class="mi">400</span><span class="p">),</span>
+                 <span class="n">year</span><span class="p">:</span><span class="nb">list</span><span class="o">|</span><span class="nb">tuple</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">season</span><span class="p">:</span><span class="nb">str</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">time_of_day</span><span class="p">:</span><span class="nb">str</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                  <span class="n">saveImg</span><span class="p">:</span><span class="nb">bool</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">output_gdf</span><span class="p">:</span><span class="nb">bool</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">disableProgressBar</span><span class="p">:</span><span class="nb">bool</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Chat with the MLLM model for each spatial unit in the shapefile.</span>
@@ -4658,6 +4722,9 @@ with custom messages. It stores results in <code>self.results</code>.</p>
 <span class="sd">        sv_fov (int, optional): Field of view for street view. Defaults to 80.</span>
 <span class="sd">        sv_pitch (int, optional): Pitch angle for street view. Defaults to 10.</span>
 <span class="sd">        sv_size (list, tuple, optional): Size (height, width) for street view images. Defaults to (300, 400).</span>
+<span class="sd">        year (list or tuple): The year ranges (e.g., (2018,2023)).</span>
+<span class="sd">        season (str): &#39;spring&#39;, &#39;summer&#39;, &#39;fall&#39;, &#39;winter&#39;.</span>
+<span class="sd">        time_of_day (str): &#39;day&#39; or &#39;night&#39;.</span>
 <span class="sd">        saveImg (bool, optional): Whether to save images (as base64 strings) in output. Defaults to True.</span>
 <span class="sd">        output_gdf (bool, optional): Whether to return results as a GeoDataFrame. Defaults to False.</span>
 <span class="sd">        disableProgressBar (bool, optional): Whether to show progress bar. Defaults to False.</span>
@@ -4699,7 +4766,8 @@ with custom messages. It stores results in <code>self.results</code>.</p>
         <span class="c1"># process street view image</span>
         <span class="k">if</span> <span class="p">(</span><span class="nb">type</span> <span class="o">==</span> <span class="s1">&#39;street&#39;</span> <span class="ow">or</span> <span class="nb">type</span> <span class="o">==</span> <span class="s1">&#39;both&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">epsg</span> <span class="o">!=</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">mapillary_key</span> <span class="o">!=</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">input_svis</span> <span class="o">=</span> <span class="n">getSV</span><span class="p">(</span><span class="n">centroid</span><span class="p">,</span> <span class="n">epsg</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">mapillary_key</span><span class="p">,</span> <span class="n">multi</span><span class="o">=</span><span class="n">multi</span><span class="p">,</span> 
-                               <span class="n">fov</span><span class="o">=</span><span class="n">sv_fov</span><span class="p">,</span> <span class="n">pitch</span><span class="o">=</span><span class="n">sv_pitch</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="n">sv_size</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">width</span><span class="o">=</span><span class="n">sv_size</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+                               <span class="n">fov</span><span class="o">=</span><span class="n">sv_fov</span><span class="p">,</span> <span class="n">pitch</span><span class="o">=</span><span class="n">sv_pitch</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="n">sv_size</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">width</span><span class="o">=</span><span class="n">sv_size</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> 
+                               <span class="n">year</span><span class="o">=</span><span class="n">year</span><span class="p">,</span> <span class="n">season</span><span class="o">=</span><span class="n">season</span><span class="p">,</span> <span class="n">time_of_day</span><span class="o">=</span><span class="n">time_of_day</span><span class="p">)</span>
 
             <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">input_svis</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
                 <span class="c1"># save imgs</span>
@@ -5096,14 +5164,14 @@ with custom messages. It stores results in <code>self.results</code>.</p>
 
             <details class="quote">
               <summary>Source code in <code>urbanworm/UrbanDataSet.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">634</span>
-<span class="normal">635</span>
-<span class="normal">636</span>
-<span class="normal">637</span>
-<span class="normal">638</span>
-<span class="normal">639</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">639</span>
 <span class="normal">640</span>
-<span class="normal">641</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">plotBase64</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">img</span><span class="p">:</span><span class="nb">str</span><span class="p">):</span>
+<span class="normal">641</span>
+<span class="normal">642</span>
+<span class="normal">643</span>
+<span class="normal">644</span>
+<span class="normal">645</span>
+<span class="normal">646</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">plotBase64</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">img</span><span class="p">:</span><span class="nb">str</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
 <span class="sd">    plot a single base64 image</span>
 
@@ -5254,12 +5322,7 @@ If not, it automatically pulls the model.</p>
 
             <details class="quote">
               <summary>Source code in <code>urbanworm/UrbanDataSet.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">418</span>
-<span class="normal">419</span>
-<span class="normal">420</span>
-<span class="normal">421</span>
-<span class="normal">422</span>
-<span class="normal">423</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">423</span>
 <span class="normal">424</span>
 <span class="normal">425</span>
 <span class="normal">426</span>
@@ -5271,7 +5334,12 @@ If not, it automatically pulls the model.</p>
 <span class="normal">432</span>
 <span class="normal">433</span>
 <span class="normal">434</span>
-<span class="normal">435</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">to_df</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">output</span><span class="p">:</span><span class="nb">bool</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="o">|</span><span class="nb">str</span><span class="p">:</span>
+<span class="normal">435</span>
+<span class="normal">436</span>
+<span class="normal">437</span>
+<span class="normal">438</span>
+<span class="normal">439</span>
+<span class="normal">440</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">to_df</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">output</span><span class="p">:</span><span class="nb">bool</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="o">|</span><span class="nb">str</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Convert the output from an MLLM reponse (from .loopImgChat) into a DataFrame.</span>
 
@@ -5377,12 +5445,7 @@ from the stored <code>self.results</code> object, and formats them into a struct
 
             <details class="quote">
               <summary>Source code in <code>urbanworm/UrbanDataSet.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">437</span>
-<span class="normal">438</span>
-<span class="normal">439</span>
-<span class="normal">440</span>
-<span class="normal">441</span>
-<span class="normal">442</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">442</span>
 <span class="normal">443</span>
 <span class="normal">444</span>
 <span class="normal">445</span>
@@ -5414,7 +5477,12 @@ from the stored <code>self.results</code> object, and formats them into a struct
 <span class="normal">471</span>
 <span class="normal">472</span>
 <span class="normal">473</span>
-<span class="normal">474</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">to_gdf</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">output</span><span class="p">:</span><span class="nb">bool</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span> <span class="o">|</span> <span class="nb">str</span><span class="p">:</span>
+<span class="normal">474</span>
+<span class="normal">475</span>
+<span class="normal">476</span>
+<span class="normal">477</span>
+<span class="normal">478</span>
+<span class="normal">479</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">to_gdf</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">output</span><span class="p">:</span><span class="nb">bool</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span> <span class="o">|</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Convert the output from an MLLM response (from .loopUnitChat) into a GeoDataFrame.</span>
 
