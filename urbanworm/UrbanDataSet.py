@@ -515,7 +515,7 @@ class UrbanDataSet:
             raise Exception("Prompt or image(s) is missing.")
 
     def chat(self, model:str='gemma3:12b', system:str=None, prompt:str=None, 
-             img=None, temp=None, top_k:float=None, top_p:float=None) -> Response:
+             img:str=None, temp:float=None, top_k:float=None, top_p:float=None) -> Response:
         '''
         Chat with the LLM model using a system message, prompt, and optional image.
 
@@ -523,7 +523,7 @@ class UrbanDataSet:
             model (str): Model name. Defaults to "gemma3:12b". ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'minicpm-v', 'mistral-small3.1']
             system (str): The system-level instruction for the model.
             prompt (str): The user message or question.
-            img (str): Path to a single image to be sent to the model.
+            img (str): Path to a single image or base64 to be sent to the model.
             temp (float, optional): Sampling temperature for generation (higher = more random).
             top_k (float, optional): Top-k sampling parameter.
             top_p (float, optional): Top-p (nucleus) sampling parameter.
@@ -562,6 +562,89 @@ class UrbanDataSet:
             }
         )
         return self.format.model_validate_json(res.message.content)
+    
+    def customized_chat(self, model:str='gemma3:12b', 
+                        system:str=None, prompt:str=None, img:str|list|tuple=None, 
+                        temp:float=None, top_k:float=None, top_p:float=None, 
+                        one_shot_lr:list=[]) -> Response:
+        '''
+        Chat with the LLM model using a system message, prompt, and optional image(s).
+        Args:
+            model (str): Model name. Defaults to "gemma3:12b". ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'minicpm-v', 'mistral-small3.1']
+            system (str): The system-level instruction for the model.
+            prompt (str): The user message or question.
+            img (str): Path to a single image or base64 to be sent to the model.
+            temp (float, optional): Sampling temperature for generation (higher = more random).
+            top_k (float, optional): Top-k sampling parameter.
+            top_p (float, optional): Top-p (nucleus) sampling parameter.
+            one_shot_lr (list): A list of dictionaries for one-shot learning. Each dictionary should contain 'role' and 'content' keys.
+
+        Returns:
+            Response: Parsed response from the LLM, returned as a `Response` object.
+        '''
+
+        if top_k > 100.0:
+            top_k = 100.0
+        elif top_k <= 0:
+            top_k = 1.0
+
+        if top_p > 1.0:
+            top_p = 1.0
+        elif top_p <= 0:
+            top_p = 0
+
+        if isinstance(one_shot_lr, list):
+            if isinstance(one_shot_lr[0], dict) == False:
+                raise Exception("Please provide a list of dictionaries.")
+
+        if img is not None:
+            if isinstance(img, str):
+                messages = [
+                    {
+                        'role': 'system',
+                        'content': system
+                    }] + one_shot_lr + [
+                    {
+                        'role': 'user',
+                        'content': prompt,
+                        'images': [img]
+                    }
+                ] 
+            elif isinstance(img, list) or isinstance(img, tuple):
+                th = ['st', 'nd', 'rd', 'th']
+                img_messages = [{'role': 'system','content': system}] + one_shot_lr + [{ 'role': 'user','content': f'{i+1}{th[i] if i < 3 else th[3]} image','images': [img[i]]} for i in range(len(img))]
+                messages = img_messages + [
+                    {
+                        'role': 'user',
+                        'content': 'You have to all questions based on all given images\n' + prompt,
+                    }
+                ]
+            else:
+                raise Exception("Please provide a valid image path or base64 string.")
+        else:
+            messages = [
+                {
+                    'role': 'system',
+                    'content': system
+                }] + one_shot_lr + [
+                {
+                    'role': 'user',
+                    'content': prompt,
+                }
+            ]
+        
+        res = ollama.chat(
+            model=model,
+            format=self.format.model_json_schema(),
+            messages=messages,
+            options={
+                "temperature":temp,
+                "top_k":top_k,
+                "top_p":top_p
+            }
+        )
+        return self.format.model_validate_json(res.message.content)
+        
     
     def dataAnalyst(self, 
                     prompt:str, 
