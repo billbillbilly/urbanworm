@@ -66,12 +66,12 @@ class UrbanDataSet:
 
     def __checkUnitsInputType(self, input:str|gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         match input:
-            case isinstance(input, str):
+            case str():
                 if ".shp" in input.lower() or ".geojson" in input.lower():
                     return loadSHP(input)
                 else:
                     raise("Wrong type for units input!")
-            case isinstance(input, gpd.GeoDataFrame):
+            case gpd.GeoDataFrame():
                 return input
             case _:
                 raise("Wrong type for units input!")
