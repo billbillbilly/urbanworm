@@ -340,7 +340,10 @@ class UrbanDataSet:
                                         img=input_svis, 
                                         temp=temp, 
                                         top_k=top_k, 
-                                        top_p=top_p)
+                                        top_p=top_p,
+                                        one_shot_lr=one_shot_lr,
+                                        multiImgInput=multiImgInput
+                                    )
                     # initialize the list
                     if i == 0:
                         dic['street_view'] = []
@@ -404,9 +407,7 @@ class UrbanDataSet:
                                     img=[clipped_image], 
                                     temp=temp, 
                                     top_k=top_k, 
-                                    top_p=top_p,
-                                    one_shot_lr=one_shot_lr,
-                                    multiImgInput=multiImgInput
+                                    top_p=top_p
                                     )
                 # initialize the list
                 if i == 0:
