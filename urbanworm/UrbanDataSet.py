@@ -229,6 +229,7 @@ class UrbanDataSet:
                      type:str='top', epsg:int=None, multi:bool=False, 
                      sv_fov:int=80, sv_pitch:int=10, sv_size:list|tuple=(300,400),
                      year:list|tuple=None, season:str=None, time_of_day:str=None,
+                     one_shot_lr:list|tuple=[], multiImgInput:bool=False,
                      saveImg:bool=True, output_gdf:bool=False, disableProgressBar:bool=False) -> dict:
         """
         Chat with the MLLM model for each spatial unit in the shapefile.
@@ -282,6 +283,8 @@ class UrbanDataSet:
             year (list or tuple): The year ranges (e.g., (2018,2023)).
             season (str): 'spring', 'summer', 'fall', 'winter'.
             time_of_day (str): 'day' or 'night'.
+            one_shot_lr (list, tuple): One-shot learning examples for the model.
+            multiImgInput (bool): Whether to use multiple images as input. Defaults to False.
             saveImg (bool, optional): Whether to save images (as base64 strings) in output. Defaults to True.
             output_gdf (bool, optional): Whether to return results as a GeoDataFrame. Defaults to False.
             disableProgressBar (bool, optional): Whether to show progress bar. Defaults to False.
@@ -401,7 +404,10 @@ class UrbanDataSet:
                                     img=[clipped_image], 
                                     temp=temp, 
                                     top_k=top_k, 
-                                    top_p=top_p)
+                                    top_p=top_p,
+                                    one_shot_lr=one_shot_lr,
+                                    multiImgInput=multiImgInput
+                                    )
                 # initialize the list
                 if i == 0:
                     dic['top_view'] = []
@@ -479,7 +485,8 @@ class UrbanDataSet:
             print("This method can only be called after running the 'self.loopUnitChat()' method")
     
     def LLM_chat(self, model:str='gemma3:12b', system:str=None, prompt:str=None, 
-                 img:list[str]=None, temp:float=None, top_k:float=None, top_p:float=None) -> Union["Response", list["QnA"]]:
+                 img:list[str]=None, temp:float=None, top_k:float=None, top_p:float=None, 
+                 one_shot_lr:list|tuple=[], multiImgInput:bool=False) -> Union["Response", list["QnA"]]:
         '''
         Chat with the LLM model with a list of images.
         
@@ -503,14 +510,19 @@ class UrbanDataSet:
 
         if prompt is not None and img is not None:
             if len(img) == 1:
-                return self.chat(model, system, prompt, img[0], temp, top_k, top_p)
+                self.customized_chat(model, system, prompt, img[0], temp, top_k, top_p, one_shot_lr)
             elif len(img) == 3:
-                res = []
                 system = f'You are analyzing aerial or street view images. For street view, you should just focus on the building and yard in the middle. {system}'
-                for i in range(len(img)):
-                    r = self.chat(model, system, prompt, img[i], temp, top_k, top_p)
-                    res += [r.responses]
-                return res
+                if multiImgInput:
+                    return self.customized_chat(model, system, prompt, img, temp, top_k, top_p, one_shot_lr)
+                else:
+                    res = []
+                    
+                    for i in range(len(img)):
+                        # r = self.chat(model, system, prompt, img[i], temp, top_k, top_p)
+                        r = self.customized_chat(model, system, prompt, img, temp, top_k, top_p, one_shot_lr)
+                        res += [r.responses]
+                    return res
         else:
             raise Exception("Prompt or image(s) is missing.")
 
