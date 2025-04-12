@@ -151,7 +151,7 @@ class UrbanDataSet:
     
     def oneImgChat(self, model:str='gemma3:12b',system:str=None, prompt:str=None, 
                    temp:float=0.0, top_k:float=1.0, top_p:float=0.8,
-                   saveImg:bool=True) -> dict:
+                   one_shot_lr:list|tuple=[], saveImg:bool=True) -> dict:
         
         '''
         Chat with MLLM model with one image.
@@ -175,15 +175,17 @@ class UrbanDataSet:
 
         print("Inference starts ...")
         r = self.LLM_chat(model=model, system=system, prompt=prompt, img=[self.img], 
-                          temp=temp, top_k=top_k, top_p=top_p)
+                          temp=temp, top_k=top_k, top_p=top_p,
+                          one_shot_lr=one_shot_lr)
         r = dict(r.responses[0])
         if saveImg:
             r['img'] = self.img
         return r
     
     def loopImgChat(self, model:str='gemma3:12b', system:str=None, prompt:str=None, 
-                    temp:float=0.0, top_k:float=1.0, top_p:float=0.8, saveImg:bool=False, 
-                    output_df:bool=False, disableProgressBar:bool=False) -> dict:
+                    temp:float=0.0, top_k:float=1.0, top_p:float=0.8, 
+                    one_shot_lr:list|tuple=[], multiImgInput:bool=False,
+                    saveImg:bool=False, output_df:bool=False, disableProgressBar:bool=False) -> dict:
         '''
         Chat with MLLM model for each image.
 
@@ -211,7 +213,8 @@ class UrbanDataSet:
         for i in tqdm(range(len(self.imgs)), desc="Processing...", ncols=75, disable=disableProgressBar):
             img = self.base64Imgs[i]
             r = self.LLM_chat(model=model, system=system, prompt=prompt, img=[img], 
-                              temp=temp, top_k=top_k, top_p=top_p)
+                              temp=temp, top_k=top_k, top_p=top_p, 
+                              one_shot_lr=one_shot_lr, multiImgInput=multiImgInput)
             r = r.responses
             if saveImg:
                 if i == 0:
