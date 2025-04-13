@@ -515,7 +515,8 @@ def response2df(qna_dict):
 
 def response2gdf(qna_dict):
     """
-    Extracts filds from QnA objects as a single dictionary and convert it into a GeoDataframe.
+    Extract fields from QnA objects and convert them into a GeoDataFrame.
+    Ensures consistency in array lengths to avoid concat errors.
     """
 
     import pandas as pd
@@ -532,12 +533,12 @@ def response2gdf(qna_dict):
             return out
         else:
             question_num = len(qna[0])
-            fs_ = [fs for i in range(question_num)]
+            fs_ = [fs for _ in range(question_num)]
             fs_ = list(np.concatenate(fs_))
             dic = {}
             fields = []
             for i in range(len(qna)):
-                qna_ = [dict(q) for q in qna[i]]
+                qna_ = [vars(q) for q in qna[i]]
                 qna_ = renameKey(qna_, tag)
                 qna_ = {k: v for d_ in qna_ for k, v in d_.items()}
                 if i == 0:
@@ -545,45 +546,57 @@ def response2gdf(qna_dict):
                     fields = list(dic.keys())
                 for field_i in range(len(fields)):
                     try:
-                        dic[fields[field_i]] += [qna_[fields[field_i]]]
+                        dic[fields[field_i]].append(qna_.get(fields[field_i], None))  # pad with None
                     except:
-                        pass
+                        dic[fields[field_i]].append(None)
             return dic
 
     fields, qna_top, qna_street = None, None, None
     df_top, df_street = None, None
 
     if "top_view" not in qna_dict and "street_view" not in qna_dict:
-        raise ValueError("no response in the input data.")
+        raise ValueError("No response found in the input dictionary.")
 
     if "top_view" in qna_dict:
         qna_top = qna_dict['top_view']
     if "street_view" in qna_dict:
         qna_street = qna_dict['street_view']
 
-    # Create dictionary for GeoDataFrame
+    # Create geometry GeoDataFrame
     geo_data = {
         "geometry": [Point(lon, lat) for lon, lat in zip(qna_dict["lon"], qna_dict["lat"])]
     }
     geo_df = gpd.GeoDataFrame(geo_data, crs="EPSG:4326")
 
     if qna_top:
-        fields = list(vars(qna_dict["top_view"][0][0]).keys())
-        df_top = pd.DataFrame(extract_qna(qna_top, 'top_view', fields))
+        fields = list(vars(qna_top[0][0]).keys())
+        top_dict = extract_qna(qna_top, 'top_view', fields)
+        min_len_top = min(len(v) for v in top_dict.values())
+        top_dict = {k: v[:min_len_top] for k, v in top_dict.items()}
+        df_top = pd.DataFrame(top_dict)
+
     if qna_street:
         try:
-            fields = list(vars(qna_dict["street_view"][0][0]).keys())
+            fields = list(vars(qna_street[0][0]).keys())
         except:
-            fields = list(vars(qna_dict["street_view"][0][0][0]).keys())
-        df_street = pd.DataFrame(extract_qna(qna_street, 'street_view', fields))
+            fields = list(vars(qna_street[0][0][0]).keys())
+        street_dict = extract_qna(qna_street, 'street_view', fields)
+        min_len_street = min(len(v) for v in street_dict.values())
+        street_dict = {k: v[:min_len_street] for k, v in street_dict.items()}
+        df_street = pd.DataFrame(street_dict)
 
+    # Final safe concat
     if df_top is not None and df_street is not None:
-        df_temp = pd.concat([df_top, df_street], axis=1)
-        return pd.concat([geo_df, df_temp], axis=1)
+        min_len = min(len(df_top), len(df_street), len(geo_df))
+        df_temp = pd.concat([df_top[:min_len], df_street[:min_len]], axis=1)
+        return pd.concat([geo_df[:min_len], df_temp], axis=1)
     elif df_top is not None:
-        return pd.concat([geo_df, df_top], axis=1)
+        min_len = min(len(df_top), len(geo_df))
+        return pd.concat([geo_df[:min_len], df_top[:min_len]], axis=1)
     elif df_street is not None:
-        return pd.concat([geo_df, df_street], axis=1)
+        min_len = min(len(df_street), len(geo_df))
+        return pd.concat([geo_df[:min_len], df_street[:min_len]], axis=1)
+
 
 
 def plot_base64_image(img_base64: str):
