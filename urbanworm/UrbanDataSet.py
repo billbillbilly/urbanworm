@@ -26,7 +26,7 @@ class UrbanDataSet:
     '''
 
     def __init__(self, image=None, images: list = None, units: str | gpd.GeoDataFrame = None,
-                 format: Response = None, mapillary_key: int = None, random_sample: int = None):
+                 format: Response = None, mapillary_key: str = None, random_sample: int = None):
         '''
         Add data or api key
 
