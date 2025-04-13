@@ -568,66 +568,102 @@ class UrbanDataSet:
         )
         return self.format.model_validate_json(res.message.content)
 
-    def dataAnalyst(self,
-                    prompt: str,
-                    system: str = 'you are a data analyst.',
-                    model: str = 'gemma3') -> None:
-
-        '''
-        Facilitates a conversation-based geospatial data analysis using a language model.
-
-        This method prepares and sends a prompt to a conversational language model to analyze or interpret 
-        a spatial dataset stored in the class's GeoDataFrame. It sets up the context with system instructions 
-        and manages the chat history for maintaining the continuity of analysis.
+    def __summarize_geo_df(self, max_rows: int = 2) -> tuple[str, list[dict]]:
+        """
+        Summarize key characteristics of self.geo_df for LLM context.
 
         Args:
-            prompt (str): A user-defined instruction or query related to the spatial data analysis.
-            system (str, optional): A system message used to define the behavior or persona of the assistant (default is a spatial data analyst).
-            model (str, optional): The name of the language model to be used for processing the conversation (default is 'gemma3').
+            max_rows (int): Number of sample rows to return.
 
         Returns:
-            None: The response is stored internally in `self.messageHistory`.
-        '''
+            tuple[str, list]: (summary string, example row list)
+        """
+        import pandas as pd
 
-        import json
+        if self.geo_df is None or self.geo_df.empty:
+            return "The dataset is empty.", []
+
+        df = self.geo_df.copy()
+        summary = []
+
+        # Basic dataset stats
+        summary.append(f"- Number of spatial units: {len(df)}")
+
+        # Bounding box
+        bounds = df.total_bounds  # [minx, miny, maxx, maxy]
+        summary.append(
+            f"- Bounding box: lon [{bounds[0]:.4f}, {bounds[2]:.4f}], "
+            f"lat [{bounds[1]:.4f}, {bounds[3]:.4f}]"
+        )
+
+        # Non-geometry columns
+        non_geom_cols = [col for col in df.columns if col != 'geometry']
+        summary.append(f"- Number of data fields (excluding geometry): {len(non_geom_cols)}")
+        summary.append(f"- Field names: {', '.join(non_geom_cols)}")
+
+        # Sample rows
+        example_rows = df[non_geom_cols].head(max_rows).to_dict(orient='records')
+        for idx, row in enumerate(example_rows):
+            summary.append(f"  Sample {idx + 1}: {row}")
+
+        # Yes/No statistics for answer fields
+        answer_cols = [col for col in df.columns if 'answer' in col.lower()]
+        for col in answer_cols:
+            col_series = df[col].astype(str).str.lower().fillna("unknown")
+            val_counts = col_series.value_counts()
+            yes = val_counts.get('yes', 0)
+            no = val_counts.get('no', 0)
+            unknown = val_counts.get('unknown', 0)
+            summary.append(f"- In '{col}': {yes} answered yes, {no} answered no, {unknown} unknown")
+
+            # Add sample values
+            sample_vals = col_series.tolist()[:5]
+            summary.append(f"  Sample values from '{col}': {sample_vals}")
+
+        return "\n".join(summary), example_rows
+
+    def dataAnalyst(self,
+                    prompt: str,
+                    system: str = 'You are a spatial data analyst.',
+                    model: str = 'gemma3') -> None:
+        """
+        Conversational spatial data analysis using a language model, with context-aware initialization.
+
+        Args:
+            prompt (str): User query related to spatial analysis.
+            system (str): Base system prompt for the assistant.
+            model (str): LLM model name to use.
+
+        Returns:
+            None
+        """
         import copy
-
-        def format_geo_dict(dic):
-            dic['id'] = int(dic['id']) + 1
-            dic['coordinates'] = dic['geometry']['coordinates']
-            dic.pop('geometry')
-            return dic
 
         self.preload_model(model)
 
         if self.messageHistory == []:
-            # convert geodataframe into geo_dict
             if self.geo_df is None:
                 print("Start to convert results to GeoDataFrame ...")
                 self.to_gdf(output=False)
+
+            # Clean up columns not relevant for reasoning
             data = copy.deepcopy(self.geo_df)
-            colnames = list(data.columns)
-            if 'top_view_base64' in colnames:
-                data.pop('top_view_base64')
-            if 'street_view_base64' in colnames:
-                data.pop('street_view_base64')
-            data = data.to_geo_dict()
-            # format data structure
-            data.pop('type', None)
-            data['locations'] = data.pop('features')
-            data['locations'] = [format_geo_dict(each) for each in data['locations']]
-            # inialize message log
-            self.messageHistory += [
-                {
-                    'role': "system",
-                    'content': f'{system} \nData: {json.dumps(data)}'
-                },
-                {
-                    'role': 'user',
-                    'content': f'{prompt} \nPlease just answer my question.',
-                }
-            ]
-        else:
+            for col in ['top_view_base64', 'street_view_base64']:
+                if col in data.columns:
+                    data.pop(col)
+
+            # Generate natural language summary and samples
+            summary_str, _ = self.__summarize_geo_df()
+
+            user_prompt = f"""
+            Please summarize the yes/no answer counts for each answer column.
+
+            Dataset summary:
+            {summary_str}
+
+            Use the information above to complete the analysis.
+            """
+
             self.messageHistory += [
                 {
                     'role': "system",
@@ -635,9 +671,10 @@ class UrbanDataSet:
                 },
                 {
                     'role': 'user',
-                    'content': prompt,
+                    'content': user_prompt.strip(),
                 }
             ]
+
         conversations = chatpd(self.messageHistory, model)
         self.messageHistory = conversations
 
