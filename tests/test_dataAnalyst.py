@@ -36,7 +36,7 @@ def main():
 
     print("\n--- Message history preview ---")
     for msg in data.messageHistory:
-        print(f"[{msg['role'].upper()}] {msg['content'][:300]}...\n")  # Print partial content
+        print(f"[{msg['role'].upper()}] {msg['content']}...\n")  # Print partial content
 
 
 if __name__ == "__main__":
