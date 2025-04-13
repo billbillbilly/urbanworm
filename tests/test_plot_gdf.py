@@ -5,7 +5,7 @@ def main():
     # Smaller bounding box for quicker testing
     bbox = (-82.92575, 42.441675, -82.92525, 42.442025)
     data = UrbanDataSet()
-    result = data.bbox2Buildings(bbox, source='osm')
+    result = data.bbox2Buildings(bbox, source='osm', random_sample=5)
     print(result)
     print(f"Loaded {len(data.units)} buildings")
 
