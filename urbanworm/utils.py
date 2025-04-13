@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 import re
 
+
 def is_base64(s):
     """Checks if a string is base64 encoded."""
     import io
@@ -29,10 +30,12 @@ def is_base64(s):
     except Exception:
         return False
 
+
 def is_image_path(s):
     """Checks if a string is a valid path and if a file exists at that path, and if it is an image."""
     image_extensions = ('.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp')
     return os.path.isfile(s) and s.lower().endswith(image_extensions)
+
 
 def detect_input_type(input_string):
     """Detects if the input string is an image path or base64 encoded."""
@@ -43,10 +46,12 @@ def detect_input_type(input_string):
     else:
         return "unknown"
 
+
 def encode_image_to_base64(image_path):
     """Encodes an image file to a Base64 string."""
     with open(image_path, "rb") as image_file:
         return base64.b64encode(image_file.read()).decode("utf-8")
+
 
 # Load shapefile
 def loadSHP(file):
@@ -67,6 +72,7 @@ def loadSHP(file):
         print(f"Error reading or displaying Shapefile: {e}")
         return None
 
+
 # offset polygon by distance
 def meters_to_degrees(meters, latitude):
     """Convert meters to degrees dynamically based on latitude."""
@@ -74,11 +80,12 @@ def meters_to_degrees(meters, latitude):
     meters_per_degree = 111320 * (1 - 0.000022 * abs(latitude))
     return meters / meters_per_degree
 
+
 # Get street view images from Mapillary
-def getSV(centroid, epsg:int, key:str, multi:bool=False, 
-          fov:int=80, heading:int=None, pitch:int=10, 
-          height:int=300, width:int=400,
-          year:list|tuple=None, season:str=None, time_of_day:str=None) -> list[str]:
+def getSV(centroid, epsg: int, key: str, multi: bool = False,
+          fov: int = 80, heading: int = None, pitch: int = 10,
+          height: int = 300, width: int = 400,
+          year: list | tuple = None, season: str = None, time_of_day: str = None) -> list[str]:
     """
     getSV
 
@@ -99,7 +106,7 @@ def getSV(centroid, epsg:int, key:str, multi:bool=False,
         list[str]: A list of images in base64 format
     """
     bbox = projection(centroid, epsg)
-    
+
     url = f"https://graph.mapillary.com/images?access_token={key}&fields=id,compass_angle,thumb_2048_url,captured_at,geometry&bbox={bbox}&is_pano=true"
     svis = []
     try:
@@ -114,9 +121,9 @@ def getSV(centroid, epsg:int, key:str, multi:bool=False,
 
         for i in range(len(response)):
             # Extract Image ID, Compass Angle, image url, and coordinates
-            img_heading = float(response.iloc[i,1])
-            img_url = response.iloc[i,2]
-            image_lon, image_lat = response.iloc[i,6]
+            img_heading = float(response.iloc[i, 1])
+            img_url = response.iloc[i, 2]
+            image_lon, image_lat = response.iloc[i, 6]
             if heading is None:
                 # calculate bearing to the house
                 bearing_to_house = calculate_bearing(image_lat, image_lon, centroid.y, centroid.x)
@@ -131,6 +138,7 @@ def getSV(centroid, epsg:int, key:str, multi:bool=False,
     except Exception as e:
         print(f"Error in getSV: {e}")
         return []
+
 
 # Reproject the point to the desired EPSG
 def projection(centroid, epsg):
@@ -155,6 +163,7 @@ def projection(centroid, epsg):
     x_max, y_max = dis2degree(x_max, y_max, epsg)
     return f'{x_min},{y_min},{x_max},{y_max}'
 
+
 def retry_request(url, retries=3):
     response = None
     for _ in range(retries):
@@ -170,11 +179,13 @@ def retry_request(url, retries=3):
             pass
     return response
 
+
 # Convert distance to degree
 def dis2degree(ptx, pty, epsg):
     transformer = Transformer.from_crs(f"EPSG:{epsg}", "EPSG:4326", always_xy=True)
     x, y = transformer.transform(ptx, pty)
     return x, y
+
 
 # Convert degree to distance
 def degree2dis(pt, epsg):
@@ -182,18 +193,19 @@ def degree2dis(pt, epsg):
     x, y = transformer.transform(pt.x, pt.y)
     return x, y
 
+
 # find the closest image to the house
 def closest(centroid, response, multi=False, year=None, season=None, time_of_day=None):
     c = [centroid.x, centroid.y]
     res_df = pd.DataFrame(response['data'])
     # extract coordinates
-    res_df[['point','coordinates']] = pd.DataFrame(res_df.geometry.tolist(), index= res_df.index)
-    res_df[['lon','lat']] = pd.DataFrame(res_df.coordinates.tolist(), index= res_df.index)
+    res_df[['point', 'coordinates']] = pd.DataFrame(res_df.geometry.tolist(), index=res_df.index)
+    res_df[['lon', 'lat']] = pd.DataFrame(res_df.coordinates.tolist(), index=res_df.index)
 
     # extract capture time
     res_df['captured'] = res_df['captured_at'].apply(mapillary_timestamp_to_datetime)
-    res_df[['year','month','day','hour']] = pd.DataFrame(res_df.captured.to_list(), index= res_df.index)
-    
+    res_df[['year', 'month', 'day', 'hour']] = pd.DataFrame(res_df.captured.to_list(), index=res_df.index)
+
     # filter by time: year/season/time of day
     year_start, year_end, season_, day_start, day_end = get_capture_time_range(year, season, time_of_day)
 
@@ -206,7 +218,7 @@ def closest(centroid, response, multi=False, year=None, season=None, time_of_day
             res_df2 = res_df[(res_df['month'] == season_end[0]) & (res_df['day'] <= season_end[1])]
             if 'winter' in season_:
                 res_df3 = res_df[(res_df['month'] <= 2)]
-                
+
             if 'summer' in season_:
                 res_df3 = res_df[(res_df['month'] > 6) & (res_df['month'] < 9)]
 
@@ -230,7 +242,7 @@ def closest(centroid, response, multi=False, year=None, season=None, time_of_day
     id_array = np.array(res_df['id'])
     lon_array = np.array(res_df['lon'])
     lat_array = np.array(res_df['lat'])
-    dis_array = (lon_array-c[0])*(lon_array-c[0]) + (lat_array-c[1])*(lat_array-c[1])
+    dis_array = (lon_array - c[0]) * (lon_array - c[0]) + (lat_array - c[1]) * (lat_array - c[1])
     if multi == True and len(dis_array) > 3:
         smallest_indices = np.argsort(dis_array)[:3]
         return res_df.loc[res_df['id'].isin(id_array[smallest_indices])]
@@ -238,13 +250,15 @@ def closest(centroid, response, multi=False, year=None, season=None, time_of_day
     id = id_array[ind][0]
     return res_df.loc[res_df['id'] == id]
 
+
 # filter images by time and seasons
 def mapillary_timestamp_to_datetime(timestamp_ms):
     timestamp_sec = timestamp_ms / 1000.0
     dt_object = datetime.fromtimestamp(timestamp_sec)
     return dt_object.year, dt_object.month, dt_object.day, dt_object.hour
 
-def get_capture_time_range(year:list|tuple=None, season:str=None, time_of_day:str=None):
+
+def get_capture_time_range(year: list | tuple = None, season: str = None, time_of_day: str = None):
     """
     Generate start and end time for filtering images by season and time of day.
     """
@@ -258,12 +272,12 @@ def get_capture_time_range(year:list|tuple=None, season:str=None, time_of_day:st
 
     if season is not None:
         seasons = {
-            "spring": ((3,20), (6,20)),
-            "summer": ((6,21), (9,21)),
-            "fall": ((9,22), (12,22)),
-            "winter": ((12,21), (3,19))
+            "spring": ((3, 20), (6, 20)),
+            "summer": ((6, 21), (9, 21)),
+            "fall": ((9, 22), (12, 22)),
+            "winter": ((12, 21), (3, 19))
         }
-        season_ = {season.lower():seasons[season.lower()]}
+        season_ = {season.lower(): seasons[season.lower()]}
 
     if time_of_day is not None:
         if time_of_day.lower() == "day":
@@ -274,8 +288,9 @@ def get_capture_time_range(year:list|tuple=None, season:str=None, time_of_day:st
             day_end = 6
         else:
             raise ValueError("time_of_day must be 'day' or 'night'")
-    
+
     return year_start, year_end, season_, day_start, day_end
+
 
 # calculate bearing between two points
 def calculate_bearing(lat1, lon1, lat2, lon2):
@@ -288,8 +303,10 @@ def calculate_bearing(lat1, lon1, lat2, lon2):
     bearing = math.degrees(math.atan2(x, y))
     return (bearing + 360) % 360  # Normalize to 0-360
 
+
 # get building footprints from OSM uing bbox
-def getOSMbuildings(bbox:tuple|list, min_area:float|int=0, max_area:float|int=None) -> gpd.GeoDataFrame | None:
+def getOSMbuildings(bbox: tuple | list, min_area: float | int = 0,
+                    max_area: float | int = None) -> gpd.GeoDataFrame | None:
     """
     getOSMbuildings
 
@@ -326,10 +343,10 @@ def getOSMbuildings(bbox:tuple|list, min_area:float|int=0, max_area:float|int=No
     for element in data.get("elements", []):
         if "geometry" in element:
             coords = [(node["lon"], node["lat"]) for node in element["geometry"]]
-            if len(coords) > 2:  
+            if len(coords) > 2:
                 polygon = Polygon(coords)
                 # Approx. conversion to square meters
-                area_m2 = polygon.area * (111320 ** 2)  
+                area_m2 = polygon.area * (111320 ** 2)
                 # Filter buildings by area
                 if area_m2 >= min_area and (max_area is None or area_m2 <= max_area):
                     buildings.append(polygon)
@@ -340,10 +357,12 @@ def getOSMbuildings(bbox:tuple|list, min_area:float|int=0, max_area:float|int=No
     gdf = gpd.GeoDataFrame(geometry=buildings, crs="EPSG:4326")
     return gdf
 
+
 # get building footprints from open building footprints released by Bing Maps using a bbox
 # Adopted code is originally from https://github.com/microsoft/GlobalMLBuildingFootprints.git
 # Credits to contributors @GlobalMLBuildingFootprints.
-def getGlobalMLBuilding(bbox:tuple | list, epsg:int=None, min_area:float|int=0.0, max_area:float|int=None) -> gpd.GeoDataFrame:
+def getGlobalMLBuilding(bbox: tuple | list, epsg: int = None, min_area: float | int = 0.0,
+                        max_area: float | int = None) -> gpd.GeoDataFrame:
     """
     getGlobalMLBuilding
     
@@ -388,7 +407,7 @@ def getGlobalMLBuilding(bbox:tuple | list, epsg:int=None, min_area:float|int=0.0
     df = pd.read_csv(
         "https://minedbuildings.z5.web.core.windows.net/global-buildings/dataset-links.csv", dtype=str
     )
-    
+
     idx = 0
     combined_gdf = gpd.GeoDataFrame()
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -405,7 +424,7 @@ def getGlobalMLBuilding(bbox:tuple | list, epsg:int=None, min_area:float|int=0.0
                 gdf = gpd.GeoDataFrame(df2, crs=4326)
                 fn = os.path.join(tmpdir, f"{quad_key}.geojson")
                 tmp_fns.append(fn)
-                if not os.path.exists(fn): # Skip if file already exists
+                if not os.path.exists(fn):  # Skip if file already exists
                     gdf.to_file(fn, driver="GeoJSON")
             elif rows.shape[0] > 1:
                 print(f"Warning: Multiple rows found for QuadKey: {quad_key}. Processing all entries.")
@@ -426,8 +445,8 @@ def getGlobalMLBuilding(bbox:tuple | list, epsg:int=None, min_area:float|int=0.0
             gdf = gdf[gdf.geometry.within(aoi_shape)]  # Filter geometries within the AOI
             gdf['id'] = range(idx, idx + len(gdf))  # Update 'id' based on idx
             idx += len(gdf)
-            combined_gdf = pd.concat([combined_gdf,gdf],ignore_index=True)
-    
+            combined_gdf = pd.concat([combined_gdf, gdf], ignore_index=True)
+
     # # Reproject to a UTM CRS for accurate area measurement
     # utm_crs = combined_gdf.estimate_utm_crs()  
     # # Compute area and filter buildings by area
@@ -442,6 +461,7 @@ def getGlobalMLBuilding(bbox:tuple | list, epsg:int=None, min_area:float|int=0.0
     combined_gdf = combined_gdf.to_crs('EPSG:4326')
     return combined_gdf
 
+
 def filterBF(data, epsg, minm, maxm):
     # Reproject to a CRS for accurate area measurement
     gdf_proj = data.units.to_crs(epsg)
@@ -452,6 +472,7 @@ def filterBF(data, epsg, minm, maxm):
         gdf_proj = gdf_proj[gdf_proj["footprint_area"] <= maxm]  # Filter max area
     return gdf_proj
 
+
 def response2df(qna_dict):
     """
     Extracts filds from QnA objects as a single dictionary and convert it into a Dataframe.
@@ -461,38 +482,36 @@ def response2df(qna_dict):
     import numpy as np
 
     def renameKey(qna_list):
-        return [{f'{key}{i+1}': qna_list[i][key] for key in qna_list[i]} for i in range(len(qna_list))]
+        return [{f'{key}{i + 1}': qna_list[i][key] for key in qna_list[i]} for i in range(len(qna_list))]
 
     def extract_qna(qna, fs):
         question_num = len(qna[0])
-        fs_ = [fs for i in range(question_num)]
-        fs_ = list(np.concatenate(fs_))
-        dic = {}
-        fields = []
+        fs_ = fs * question_num
+        dic = {field: [] for field in fs_}
         for i in range(len(qna)):
-            qna_ = [dict(q) for q in qna[i]]
-            qna_ = renameKey(qna_)
-            qna_ = {k: v for d_ in qna_ for k, v in d_.items()}
-            if i == 0:
-                dic = {key:[] for key in qna_}
-                fields = list(dic.keys())
-            for field_i in range(len(fields)):
-                try:
-                    dic[fields[field_i]] += [qna_[fields[field_i]]]
-                except:
-                    pass
+            qna_ = [vars(q) for q in qna[i]]
+            flat_qna = {}
+            for j, q in enumerate(qna_):
+                for key, val in q.items():
+                    flat_qna[f"{key}{j+1}"] = val
+            for field in fs_:
+                dic[field].append(flat_qna.get(field, None))  # 填充 None 保持长度一致
         return dic
-        
+
     qna_ = qna_dict['responses']
     img_ = qna_dict['img']
-    
-    fields = list(vars(qna_[0][0]).keys())
-    df_ = pd.DataFrame(extract_qna(qna_, fields))
-    df_['img'] = [img_[i] for i in range(len(img_))]
+    fields = [f"{k}1" for k in vars(qna_[0][0]).keys()]
+
+    data_dict = extract_qna(qna_, fields)
+    min_len = min(len(v) for v in data_dict.values())
+    data_dict = {k: v[:min_len] for k, v in data_dict.items()}
+
+    df_ = pd.DataFrame(data_dict)
+    df_['img'] = img_[:min_len]
     if 'imgBase64' in qna_dict:
-        img_base64 = qna_dict['imgBase64']
-        df_['imgBase64'] = [img_base64[i] for i in range(len(img_base64))]
+        df_['imgBase64'] = qna_dict['imgBase64'][:min_len]
     return df_
+
 
 def response2gdf(qna_dict):
     """
@@ -503,9 +522,9 @@ def response2gdf(qna_dict):
     import numpy as np
     import geopandas as gpd
     from shapely.geometry import Point
-        
+
     def renameKey(qna_list, t):
-        return [{f'{t}_{key}{i+1}': qna_list[i][key] for key in qna_list[i]} for i in range(len(qna_list))]
+        return [{f'{t}_{key}{i + 1}': qna_list[i][key] for key in qna_list[i]} for i in range(len(qna_list))]
 
     def extract_qna(qna, tag, fs):
         if 'QnA' not in str(type(qna[0][0])) and tag == 'street_view':
@@ -522,7 +541,7 @@ def response2gdf(qna_dict):
                 qna_ = renameKey(qna_, tag)
                 qna_ = {k: v for d_ in qna_ for k, v in d_.items()}
                 if i == 0:
-                    dic = {key:[] for key in qna_}
+                    dic = {key: [] for key in qna_}
                     fields = list(dic.keys())
                 for field_i in range(len(fields)):
                     try:
@@ -530,18 +549,18 @@ def response2gdf(qna_dict):
                     except:
                         pass
             return dic
-    
+
     fields, qna_top, qna_street = None, None, None
     df_top, df_street = None, None
 
     if "top_view" not in qna_dict and "street_view" not in qna_dict:
         raise ValueError("no response in the input data.")
-    
+
     if "top_view" in qna_dict:
         qna_top = qna_dict['top_view']
     if "street_view" in qna_dict:
         qna_street = qna_dict['street_view']
-    
+
     # Create dictionary for GeoDataFrame
     geo_data = {
         "geometry": [Point(lon, lat) for lon, lat in zip(qna_dict["lon"], qna_dict["lat"])]
@@ -554,10 +573,10 @@ def response2gdf(qna_dict):
     if qna_street:
         try:
             fields = list(vars(qna_dict["street_view"][0][0]).keys())
-        except: 
+        except:
             fields = list(vars(qna_dict["street_view"][0][0][0]).keys())
         df_street = pd.DataFrame(extract_qna(qna_street, 'street_view', fields))
-    
+
     if df_top is not None and df_street is not None:
         df_temp = pd.concat([df_top, df_street], axis=1)
         return pd.concat([geo_df, df_temp], axis=1)
@@ -566,32 +585,34 @@ def response2gdf(qna_dict):
     elif df_street is not None:
         return pd.concat([geo_df, df_street], axis=1)
 
-def plot_base64_image(img_base64:str):
+
+def plot_base64_image(img_base64: str):
     """Decodes a Base64 image and plots it using Matplotlib."""
 
     import matplotlib.pyplot as plt
 
     # Decode Base64 to bytes
     img_data = base64.b64decode(img_base64)
-    
+
     # Convert to NumPy array
     np_arr = np.frombuffer(img_data, np.uint8)
-    
+
     # Decode image from memory
     img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
-    
+
     # Convert BGR to RGB (Matplotlib expects RGB format)
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
     # Plot the image
-    plt.figure(figsize=(6,6))
+    plt.figure(figsize=(6, 6))
     plt.imshow(img)
     plt.axis("off")  # Hide axes
     plt.show()
 
+
 # chat with model to analyze/summarize results
-def chatpd(messages:list,
-           model:str) -> list:
+def chatpd(messages: list,
+           model: str) -> list:
     import ollama
 
     # chat with model
@@ -600,9 +621,9 @@ def chatpd(messages:list,
         model=model,
         messages=messages,
         options={
-            "temperature":0.2,
-            "top_k":0.8,
-            "top_p":0.8
+            "temperature": 0.2,
+            "top_k": 0.8,
+            "top_p": 0.8
         },
         stream=True
     )
@@ -615,26 +636,27 @@ def chatpd(messages:list,
     })
     return messages
 
-#----------------------- To Do -----------------------
+
+# ----------------------- To Do -----------------------
 
 # function to plot/visualize results (images + questions + answer + explanation + ...)
 
-#-----------------------------------------------------
+# -----------------------------------------------------
 
 # The adapted function is from geosam and originally from https://github.com/gumblex/tms2geotiff. 
 # Credits to Dr.Qiusheng Wu and the GitHub user @gumblex.
 def tms_to_geotiff(
-    output,
-    bbox,
-    zoom=None,
-    resolution=None,
-    source="OpenStreetMap",
-    crs="EPSG:3857",
-    to_cog=False,
-    return_image=False,
-    overwrite=False,
-    quiet=True,
-    **kwargs,
+        output,
+        bbox,
+        zoom=None,
+        resolution=None,
+        source="OpenStreetMap",
+        crs="EPSG:3857",
+        to_cog=False,
+        return_image=False,
+        overwrite=False,
+        quiet=True,
+        **kwargs,
 ):
     """Download TMS tiles and convert them to a GeoTIFF. The source is adapted from https://github.com/gumblex/tms2geotiff.
         Credits to the GitHub user @gumblex.
@@ -756,13 +778,13 @@ def tms_to_geotiff(
     def from4326_to3857(lat, lon):
         xtile = math.radians(lon) * EARTH_EQUATORIAL_RADIUS
         ytile = (
-            math.log(math.tan(math.radians(45 + lat / 2.0))) * EARTH_EQUATORIAL_RADIUS
+                math.log(math.tan(math.radians(45 + lat / 2.0))) * EARTH_EQUATORIAL_RADIUS
         )
         return (xtile, ytile)
 
     def deg2num(lat, lon, zoom):
         lat_r = math.radians(lat)
-        n = 2**zoom
+        n = 2 ** zoom
         xtile = (lon + 180) / 360 * n
         ytile = (1 - math.log(math.tan(lat_r) + 1 / math.cos(lat_r)) / math.pi) / 2 * n
         return (xtile, ytile)
@@ -838,7 +860,7 @@ def tms_to_geotiff(
         return r.content
 
     def draw_tile(
-        source, lat0, lon0, lat1, lon1, zoom, filename, quiet=False, **kwargs
+            source, lat0, lon0, lat1, lon1, zoom, filename, quiet=False, **kwargs
     ):
         x0, y0 = deg2num(lat0, lon0, zoom)
         x1, y1 = deg2num(lat1, lon1, zoom)
@@ -919,6 +941,7 @@ def tms_to_geotiff(
     except Exception as e:
         raise Exception(e)
 
+
 # The function is from geosam. Credits to Dr.Qiusheng Wu.
 def get_basemaps(free_only=True):
     """Returns a dictionary of xyz basemaps.
@@ -938,6 +961,7 @@ def get_basemaps(free_only=True):
         basemaps[name] = url
 
     return basemaps
+
 
 # The function is from geosam. Credits to Dr.Qiusheng Wu.
 def get_xyz_dict(free_only=True):
@@ -986,9 +1010,10 @@ def get_xyz_dict(free_only=True):
     xyz_dict = collections.OrderedDict(sorted(xyz_dict.items()))
     return xyz_dict
 
+
 # The function is from geosam. Credits to Dr.Qiusheng Wu.
 def reproject(
-    image, output, dst_crs="EPSG:4326", resampling="nearest", to_cog=True, **kwargs
+        image, output, dst_crs="EPSG:4326", resampling="nearest", to_cog=True, **kwargs
 ):
     """Reprojects an image.
 
@@ -1043,6 +1068,7 @@ def reproject(
     if to_cog:
         image_to_cog(output, output)
 
+
 # The function is from geosam. Credits to Dr.Qiusheng Wu.
 def image_to_cog(source, dst_path=None, profile="deflate", **kwargs):
     """Converts an image to a COG file.
@@ -1082,6 +1108,7 @@ def image_to_cog(source, dst_path=None, profile="deflate", **kwargs):
     dst_profile = cog_profiles.get(profile)
     cog_translate(source, dst_path, dst_profile, **kwargs)
 
+
 # The function is from geosam. Credits to Dr.Qiusheng Wu.
 def check_file_path(file_path, make_dirs=True):
     """Gets the absolute file path.
@@ -1111,7 +1138,8 @@ def check_file_path(file_path, make_dirs=True):
 
     else:
         raise TypeError("The provided file path must be a string.")
-    
+
+
 # The function is from geosam. Credits to Dr.Qiusheng Wu.
 def temp_file_path(extension):
     """Returns a temporary file path.
