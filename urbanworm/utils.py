@@ -495,7 +495,7 @@ def response2df(qna_dict):
                 for key, val in q.items():
                     flat_qna[f"{key}{j+1}"] = val
             for field in fs_:
-                dic[field].append(flat_qna.get(field, None))  # 填充 None 保持长度一致
+                dic[field].append(flat_qna.get(field, None))  # infill None to keep the same length
         return dic
 
     qna_ = qna_dict['responses']

@@ -667,7 +667,6 @@ class UrbanDataSet:
                             For shapefiles, provide a `.shp` file path.
                             For GeoJSON, use `.geojson`.
                             For GeoPackage, use `.gpkg`.
-
         Returns: 
             None
         '''
