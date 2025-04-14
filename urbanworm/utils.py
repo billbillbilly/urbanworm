@@ -474,6 +474,9 @@ def filterBF(data, epsg, minm, maxm):
 
 
 def response2df(qna_dict):
+    """
+    Extracts filds from QnA objects as a single dictionary and convert it into a Dataframe.
+    """
     import pandas as pd
     import numpy as np
 
@@ -595,7 +598,6 @@ def response2gdf(qna_dict):
         parts.append(df_street.iloc[:n])
 
     return pd.concat(parts, axis=1)
-
 
 
 def plot_base64_image(img_base64: str):
