@@ -26,7 +26,7 @@ class UrbanDataSet:
     '''
 
     def __init__(self, image=None, images: list = None, units: str | gpd.GeoDataFrame = None,
-                 format: Response = None, mapillary_key: int = None, random_sample: int = None):
+                 format: Response = None, mapillary_key: str = None, random_sample: int = None):
         '''
         Add data or api key
 
@@ -568,66 +568,123 @@ class UrbanDataSet:
         )
         return self.format.model_validate_json(res.message.content)
 
-    def dataAnalyst(self,
-                    prompt: str,
-                    system: str = 'you are a data analyst.',
-                    model: str = 'gemma3') -> None:
-
-        '''
-        Facilitates a conversation-based geospatial data analysis using a language model.
-
-        This method prepares and sends a prompt to a conversational language model to analyze or interpret 
-        a spatial dataset stored in the class's GeoDataFrame. It sets up the context with system instructions 
-        and manages the chat history for maintaining the continuity of analysis.
+    def __summarize_geo_df(self, max_rows: int = 2) -> tuple[str, list[dict]]:
+        """
+        Summarize key characteristics of self.geo_df for LLM context.
 
         Args:
-            prompt (str): A user-defined instruction or query related to the spatial data analysis.
-            system (str, optional): A system message used to define the behavior or persona of the assistant (default is a spatial data analyst).
-            model (str, optional): The name of the language model to be used for processing the conversation (default is 'gemma3').
+            max_rows (int): Number of sample rows to return.
 
         Returns:
-            None: The response is stored internally in `self.messageHistory`.
-        '''
+            tuple[str, list]: (summary string, example row list)
+        """
+        import pandas as pd
 
-        import json
+        if self.geo_df is None or self.geo_df.empty:
+            return "The dataset is empty.", []
+
+        df = self.geo_df.copy()
+        summary = []
+
+        # Columns to exclude from summary (usually large/unnecessary for LLM)
+        exclude_cols = ['geometry', 'top_view_base64', 'street_view_base64']
+        non_geom_cols = [col for col in df.columns if col not in exclude_cols]
+
+        # Basic dataset stats
+        summary.append(f"- Number of spatial units: {len(df)}")
+
+        # Bounding box
+        bounds = df.total_bounds  # [minx, miny, maxx, maxy]
+        summary.append(
+            f"- Bounding box: lon [{bounds[0]:.4f}, {bounds[2]:.4f}], "
+            f"lat [{bounds[1]:.4f}, {bounds[3]:.4f}]"
+        )
+
+        summary.append(f"- Number of data fields (excluding geometry and large fields): {len(non_geom_cols)}")
+        summary.append(f"- Field names: {', '.join(non_geom_cols)}")
+
+        # Sample rows
+        example_rows = df[non_geom_cols].head(max_rows).to_dict(orient='records')
+        for idx, row in enumerate(example_rows):
+            summary.append(f"  Sample {idx + 1}: {row}")
+
+        # Adaptive statistics for answer columns
+        answer_cols = [col for col in df.columns if 'answer' in col.lower()]
+        for col in answer_cols:
+            if col in df.columns:
+                series = df[col]
+                col_type = pd.api.types.infer_dtype(series, skipna=True)
+
+                summary.append(f"- Field '{col}' type: {col_type}")
+
+                if pd.api.types.is_numeric_dtype(series):
+                    summary.append(
+                        f"  Value range: min={series.min():.2f}, max={series.max():.2f}, mean={series.mean():.2f}")
+                elif pd.api.types.is_string_dtype(series) or pd.api.types.is_bool_dtype(series):
+                    counts = series.astype(str).str.lower().value_counts()
+                    formatted = ', '.join([f"{k}: {v}" for k, v in counts.items()])
+                    summary.append(f"  Value distribution: {formatted}")
+                else:
+                    unique_vals = series.dropna().unique().tolist()
+                    summary.append(f"  Unique values: {unique_vals[:5]}")
+
+        # Q/A field pairing
+        q_cols = [col for col in df.columns if 'question' in col.lower()]
+        a_cols = [col for col in df.columns if 'answer' in col.lower()]
+        qa_pairs = list(zip(q_cols, a_cols))
+        if qa_pairs:
+            summary.append("- Example Q&A Pairs:")
+            for q, a in qa_pairs:
+                if q in df.columns and a in df.columns:
+                    q_sample = str(df[q].iloc[0])
+                    a_sample = str(df[a].iloc[0])
+                    summary.append(f"    * Q: '{q_sample}' → A: '{a_sample}'")
+
+        return "\n".join(summary), example_rows
+
+    def dataAnalyst(self,
+                    prompt: str,
+                    system: str = 'You are a spatial data analyst.',
+                    model: str = 'gemma3') -> None:
+        """
+        Conversational spatial data analysis using a language model, with context-aware initialization.
+
+        Args:
+            prompt (str): User query related to spatial analysis.
+            system (str): Base system prompt for the assistant.
+            model (str): LLM model name to use.
+
+        Returns:
+            None
+        """
         import copy
-
-        def format_geo_dict(dic):
-            dic['id'] = int(dic['id']) + 1
-            dic['coordinates'] = dic['geometry']['coordinates']
-            dic.pop('geometry')
-            return dic
 
         self.preload_model(model)
 
         if self.messageHistory == []:
-            # convert geodataframe into geo_dict
             if self.geo_df is None:
                 print("Start to convert results to GeoDataFrame ...")
                 self.to_gdf(output=False)
+
+            # Clean up columns not relevant for reasoning
             data = copy.deepcopy(self.geo_df)
-            colnames = list(data.columns)
-            if 'top_view_base64' in colnames:
-                data.pop('top_view_base64')
-            if 'street_view_base64' in colnames:
-                data.pop('street_view_base64')
-            data = data.to_geo_dict()
-            # format data structure
-            data.pop('type', None)
-            data['locations'] = data.pop('features')
-            data['locations'] = [format_geo_dict(each) for each in data['locations']]
-            # inialize message log
-            self.messageHistory += [
-                {
-                    'role': "system",
-                    'content': f'{system} \nData: {json.dumps(data)}'
-                },
-                {
-                    'role': 'user',
-                    'content': f'{prompt} \nPlease just answer my question.',
-                }
-            ]
-        else:
+            for col in ['top_view_base64', 'street_view_base64']:
+                if col in data.columns:
+                    data.pop(col)
+
+            # Generate natural language summary and samples
+            summary_str, _ = self.__summarize_geo_df()
+
+            user_prompt = f"""
+            Please analyze and summarize the main patterns found in the answer columns of this dataset.
+            Consider the value types (e.g., numeric or categorical), and also consider the relationship between question and answer fields when interpreting the values.
+
+            Dataset summary:
+            {summary_str}
+
+            Use the information above to complete the analysis.
+            """
+
             self.messageHistory += [
                 {
                     'role': "system",
@@ -635,9 +692,10 @@ class UrbanDataSet:
                 },
                 {
                     'role': 'user',
-                    'content': prompt,
+                    'content': user_prompt.strip(),
                 }
             ]
+
         conversations = chatpd(self.messageHistory, model)
         self.messageHistory = conversations
 
@@ -682,18 +740,16 @@ class UrbanDataSet:
 
     def plot_gdf(self, figsize=(12, 10), summary_func=None, show_table: bool = True):
         """
-        Visualize all Q&A pairs from geo_df as separate maps with answer tables.
+        Visualize all Q&A pairs from geo_df as separate maps with optional answer tables.
 
-        Each question-answer pair will be visualized in its own map, showing:
-        - Points colored by yes (red) / no (gray)
-        - Building footprints if available
-        - Point index annotations
-        - Optional answer table highlighting 'yes'
+        - Automatically adjusts color scheme based on answer data type:
+            * Numeric answers → gradient cmap (viridis)
+            * Categorical answers (string/bool) → color-coded groups (case-insensitive)
 
         Args:
-            figsize (tuple): Figure size (width, height).
-            summary_func (callable): Function to reduce list-type fields.
-            show_table (bool): Whether to include an answer table alongside the map.
+            figsize (tuple): Figure size.
+            summary_func (callable): Function to reduce list-type fields (e.g., lambda x: x[0]).
+            show_table (bool): Whether to include an answer table.
         """
         import matplotlib.pyplot as plt
         import pandas as pd
@@ -703,14 +759,9 @@ class UrbanDataSet:
             print("GeoDataFrame not available. Run .to_gdf() first.")
             return
 
-        gdf = self.geo_df.to_crs(epsg=4326).copy()
-        gdf = gdf.reset_index(drop=True)
+        gdf = self.geo_df.to_crs(epsg=4326).copy().reset_index(drop=True)
         gdf["PointID"] = gdf.index + 1
-
-        if self.units is not None:
-            gdf_units = self.units.to_crs(epsg=4326).copy()
-        else:
-            gdf_units = None
+        gdf_units = self.units.to_crs(epsg=4326) if self.units is not None else None
 
         q_cols = [col for col in gdf.columns if 'question' in col.lower()]
         a_cols = [col for col in gdf.columns if 'answer' in col.lower()]
@@ -723,27 +774,34 @@ class UrbanDataSet:
         for question_col, answer_col in q_a_pairs:
             df_plot = gdf.copy()
 
-            # Process answers
+            # Reduce list answers if needed
             if summary_func and df_plot[answer_col].apply(lambda x: isinstance(x, list)).any():
                 df_plot[answer_col] = df_plot[answer_col].apply(summary_func)
-            df_plot[answer_col] = df_plot[answer_col].astype(str).str.lower()
 
-            # Use fixed color map
-            color_map = df_plot[answer_col].map({'yes': 'red', 'no': 'gray'})
-            color_map.fillna('black', inplace=True)
+            answer_data = df_plot[answer_col]
+            is_numeric = pd.api.types.is_numeric_dtype(answer_data)
 
-            # Create figure and subplots
+            if is_numeric:
+                color_kwargs = {'column': answer_col, 'cmap': 'viridis', 'legend': True}
+            else:
+                # Normalize to lowercase and use as color group
+                df_plot["_answer_norm"] = answer_data.astype(str).str.lower()
+                categories = df_plot["_answer_norm"].unique()
+                cmap = plt.get_cmap('tab10')
+                category_colors = {cat: cmap(i) for i, cat in enumerate(categories)}
+                df_plot["_color"] = df_plot["_answer_norm"].map(category_colors)
+                color_kwargs = {'color': df_plot["_color"]}
+
+            # Figure and layout
             if show_table:
                 fig, (ax_map, ax_table) = plt.subplots(1, 2, figsize=(figsize[0] * 1.6, figsize[1]))
             else:
                 fig, ax_map = plt.subplots(figsize=figsize)
 
-            # Plot building footprints
             if gdf_units is not None:
                 gdf_units.plot(ax=ax_map, facecolor='#f0f0f0', edgecolor='black', linewidth=1)
 
-            # Plot points
-            df_plot.plot(ax=ax_map, color=color_map, markersize=60, edgecolor='black')
+            df_plot.plot(ax=ax_map, markersize=60, edgecolor='black', **color_kwargs)
 
             # Annotate point IDs
             for _, row in df_plot.iterrows():
@@ -754,7 +812,13 @@ class UrbanDataSet:
                                 fontsize=9,
                                 color='black')
 
-            # Title and axis
+            # Show legend for categorical values
+            if not is_numeric:
+                import matplotlib.patches as mpatches
+                legend_handles = [mpatches.Patch(color=category_colors[cat], label=cat) for cat in categories]
+                ax_map.legend(handles=legend_handles, title="Answer", loc='upper right', frameon=True)
+
+            # Title and labels
             question_text = df_plot[question_col].iloc[0] if question_col in df_plot else "Question"
             ax_map.set_title(question_text, fontsize=14)
             ax_map.set_xlabel("Longitude", fontsize=12)
@@ -767,17 +831,11 @@ class UrbanDataSet:
                 ax_table.axis("off")
                 table_df = df_plot[["PointID", answer_col]].copy()
                 table_df.columns = ["ID", "Answer"]
-                highlight_rows = table_df["Answer"].str.lower() == "yes"
-
                 tbl = table(ax_table, table_df, loc="upper center", colWidths=[0.15, 0.3])
                 tbl.auto_set_font_size(False)
                 tbl.set_fontsize(10)
                 tbl.scale(1, 1.2)
 
-                for i, is_highlight in enumerate(highlight_rows):
-                    if is_highlight:
-                        for j in range(len(table_df.columns)):
-                            tbl[(i + 1, j)].set_facecolor("#fca8a8")
-
             plt.tight_layout()
             plt.show()
+

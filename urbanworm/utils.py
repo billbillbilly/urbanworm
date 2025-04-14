@@ -477,12 +477,8 @@ def response2df(qna_dict):
     """
     Extracts filds from QnA objects as a single dictionary and convert it into a Dataframe.
     """
-
     import pandas as pd
     import numpy as np
-
-    def renameKey(qna_list):
-        return [{f'{key}{i + 1}': qna_list[i][key] for key in qna_list[i]} for i in range(len(qna_list))]
 
     def extract_qna(qna, fs):
         question_num = len(qna[0])
@@ -493,29 +489,35 @@ def response2df(qna_dict):
             flat_qna = {}
             for j, q in enumerate(qna_):
                 for key, val in q.items():
-                    flat_qna[f"{key}{j+1}"] = val
+                    flat_qna[f"{key}{j + 1}"] = val
             for field in fs_:
-                dic[field].append(flat_qna.get(field, None))  # infill None to keep the same length
+                dic[field].append(flat_qna.get(field, None))
         return dic
 
     qna_ = qna_dict['responses']
-    img_ = qna_dict['img']
+    img_ = qna_dict.get('img', [])
+    imgBase64_ = qna_dict.get('imgBase64', [])
+
+    num_images = len(qna_)
+    num_questions = len(qna_[0])
     fields = [f"{k}1" for k in vars(qna_[0][0]).keys()]
 
     data_dict = extract_qna(qna_, fields)
-    min_len = min(len(v) for v in data_dict.values())
-    data_dict = {k: v[:min_len] for k, v in data_dict.items()}
 
-    df_ = pd.DataFrame(data_dict)
-    df_['img'] = img_[:min_len]
-    if 'imgBase64' in qna_dict:
-        df_['imgBase64'] = qna_dict['imgBase64'][:min_len]
+    df_ = pd.DataFrame(data_dict).explode(list(data_dict.keys()), ignore_index=True)
+
+    if img_:
+        df_['img'] = np.repeat(img_, num_questions)
+    if imgBase64_:
+        df_['imgBase64'] = np.repeat(imgBase64_, num_questions)
+
     return df_
 
 
 def response2gdf(qna_dict):
     """
-    Extracts filds from QnA objects as a single dictionary and convert it into a GeoDataframe.
+    Extract fields from QnA objects and convert them into a GeoDataFrame.
+    Ensures consistency in array lengths to avoid concat errors.
     """
 
     import pandas as pd
@@ -527,63 +529,75 @@ def response2gdf(qna_dict):
         return [{f'{t}_{key}{i + 1}': qna_list[i][key] for key in qna_list[i]} for i in range(len(qna_list))]
 
     def extract_qna(qna, tag, fs):
-        if 'QnA' not in str(type(qna[0][0])) and tag == 'street_view':
-            out = [extract_qna(qna[i], tag, fs) for i in range(len(qna))]
-            return out
+        # Recursive case for multiple street views per unit (e.g., 3 views for one location)
+        if isinstance(qna[0][0], list) and tag == 'street_view':
+            merged = {}
+            for i in range(len(qna)):
+                # qna[i] 是该 unit 的多个视角
+                merged_i = extract_qna(qna[i], tag, fs)
+                for k, v in merged_i.items():
+                    merged.setdefault(k, []).append(" | ".join(map(str, v)))  # 多视角用 " | " 拼接
+            return merged
         else:
             question_num = len(qna[0])
-            fs_ = [fs for i in range(question_num)]
+            fs_ = [fs for _ in range(question_num)]
             fs_ = list(np.concatenate(fs_))
             dic = {}
             fields = []
             for i in range(len(qna)):
-                qna_ = [dict(q) for q in qna[i]]
+                qna_ = [vars(q) for q in qna[i]]
                 qna_ = renameKey(qna_, tag)
                 qna_ = {k: v for d_ in qna_ for k, v in d_.items()}
                 if i == 0:
                     dic = {key: [] for key in qna_}
                     fields = list(dic.keys())
                 for field_i in range(len(fields)):
-                    try:
-                        dic[fields[field_i]] += [qna_[fields[field_i]]]
-                    except:
-                        pass
+                    dic[fields[field_i]].append(qna_.get(fields[field_i], None))  # pad with None
             return dic
 
-    fields, qna_top, qna_street = None, None, None
-    df_top, df_street = None, None
-
     if "top_view" not in qna_dict and "street_view" not in qna_dict:
-        raise ValueError("no response in the input data.")
+        raise ValueError("No response found in the input dictionary.")
 
-    if "top_view" in qna_dict:
-        qna_top = qna_dict['top_view']
-    if "street_view" in qna_dict:
-        qna_street = qna_dict['street_view']
+    qna_top = qna_dict.get('top_view', None)
+    qna_street = qna_dict.get('street_view', None)
 
-    # Create dictionary for GeoDataFrame
-    geo_data = {
-        "geometry": [Point(lon, lat) for lon, lat in zip(qna_dict["lon"], qna_dict["lat"])]
-    }
-    geo_df = gpd.GeoDataFrame(geo_data, crs="EPSG:4326")
+    # Create geometry
+    lon = qna_dict.get("lon", [])
+    lat = qna_dict.get("lat", [])
+    geometry = [Point(xy) for xy in zip(lon, lat)]
+    geo_df = gpd.GeoDataFrame(geometry=geometry, crs="EPSG:4326")
+
+    df_top = None
+    df_street = None
 
     if qna_top:
-        fields = list(vars(qna_dict["top_view"][0][0]).keys())
-        df_top = pd.DataFrame(extract_qna(qna_top, 'top_view', fields))
+        fields = list(vars(qna_top[0][0]).keys())
+        top_dict = extract_qna(qna_top, 'top_view', fields)
+        df_top = pd.DataFrame(top_dict)
+
     if qna_street:
         try:
-            fields = list(vars(qna_dict["street_view"][0][0]).keys())
+            fields = list(vars(qna_street[0][0]).keys())
         except:
-            fields = list(vars(qna_dict["street_view"][0][0][0]).keys())
-        df_street = pd.DataFrame(extract_qna(qna_street, 'street_view', fields))
+            fields = list(vars(qna_street[0][0][0]).keys())
+        street_dict = extract_qna(qna_street, 'street_view', fields)
+        df_street = pd.DataFrame(street_dict)
 
-    if df_top is not None and df_street is not None:
-        df_temp = pd.concat([df_top, df_street], axis=1)
-        return pd.concat([geo_df, df_temp], axis=1)
-    elif df_top is not None:
-        return pd.concat([geo_df, df_top], axis=1)
-    elif df_street is not None:
-        return pd.concat([geo_df, df_street], axis=1)
+    # Determine common minimum length
+    n = min(
+        len(geo_df),
+        len(df_top) if df_top is not None else float('inf'),
+        len(df_street) if df_street is not None else float('inf'),
+    )
+
+    # Safe concat
+    parts = [geo_df.iloc[:n]]
+    if df_top is not None:
+        parts.append(df_top.iloc[:n])
+    if df_street is not None:
+        parts.append(df_street.iloc[:n])
+
+    return pd.concat(parts, axis=1)
 
 
 def plot_base64_image(img_base64: str):
