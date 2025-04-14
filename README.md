@@ -21,10 +21,12 @@ Urban-Worm is a Python library that integrates remote sensing imagery, street vi
 </picture>
 
 ## Features
-- run VLMs locally with local datasets and ensure information privacy
-- download building footprints from OSM and global building data released by Bing Maps with options to filter building footprints by area
-- search and clip aerial and street view images (via APIs) based on urban units such as parcel and building footprint data
-- automatically calibrate the orientation of the panorama street view and the extent of the aerial image
+- Run VLMs locally with local datasets and ensure information privacy
+- Download building footprints from OSM and global building data released by Bing Maps, with options to filter building footprints by area
+- Search and clip aerial and street view images (via APIs) based on urban units such as parcel and building footprint data
+- Automatically calibrate the orientation of the panorama street view and the extent of the aerial image
+- Visualize results on maps and in tables
+- Interact with LLMs through a streaming chat interface to analyze and interpret results
 
 ## Installation
 #### install Ollama client
@@ -125,14 +127,15 @@ More examples can be found [here](docs/example.ipynb).
 
 ## To do
 - [ ] One-shot learning in each chat method to help the model get familiar with the questions and expected answers 
-- [ ] Multiple images inference for pairwise comparison in terms of urban perceptions
-- [ ] Basic plot method in UrbanDataSet class
-- [ ] Improve the method dataAnalyst in UrbanDataSet class by adding functionality of feeding a more meaningful introduction of data to LLMs
+- [ ] Multiple images inference for pairwise comparison and more
+- [x] Basic plot method in UrbanDataSet class
+- [x] Improve the method dataAnalyst in UrbanDataSet class by adding functionality of feeding a more meaningful introduction of data to LLMs
 - [ ] A web UI providing interactive operation and data visualization 
 
-The next version will have functionalities using Google APIs:
-- [ ] search for a unit with an address
-- [ ] find historical images
+The next version (v0.2.0) will have:
+- [ ] agent-based city walk simulation
+- [ ] search for a unit with an address (using Google APIs)
+- [ ] find historical images (using Google APIs)
 
 ## Legal Notice
 This repository and its content are provided for educational purposes only. By using the information and code provided, users acknowledge that they are using the APIs and models at their own risk and agree to comply with any applicable laws and regulations. Users who intend to download a large number of image tiles from any basemap are advised to contact the basemap provider to obtain permission before doing so. Unauthorized use of the basemap or any of its components may be a violation of copyright laws or other applicable laws and regulations.
