@@ -9,20 +9,24 @@ from typing import Union
 from typing import List
 from .utils import *
 
+
 class QnA(BaseModel):
     question: str
     answer: str
     explanation: str
 
+
 class Response(BaseModel):
     responses: List[QnA] = []
+
 
 class UrbanDataSet:
     '''
     Dataset class for urban imagery inference using MLLMs.
     '''
-    def __init__(self, image=None, images:list=None, units:str|gpd.GeoDataFrame=None, 
-                 format:Response=None, mapillary_key:int=None, random_sample:int=None):
+
+    def __init__(self, image=None, images: list = None, units: str | gpd.GeoDataFrame = None,
+                 format: Response = None, mapillary_key: str = None, random_sample: int = None):
         '''
         Add data or api key
 
@@ -64,19 +68,19 @@ class UrbanDataSet:
         self.results, self.geo_df, self.df = None, None, None
         self.messageHistory = []
 
-    def __checkUnitsInputType(self, input:str|gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    def __checkUnitsInputType(self, input: str | gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         match input:
-            case isinstance(input, str):
+            case str():
                 if ".shp" in input.lower() or ".geojson" in input.lower():
                     return loadSHP(input)
                 else:
-                    raise("Wrong type for units input!")
-            case isinstance(input, gpd.GeoDataFrame):
+                    raise ("Wrong type for units input!")
+            case gpd.GeoDataFrame():
                 return input
             case _:
-                raise("Wrong type for units input!")
-            
-    def __checkModel(self, model:str) -> None:
+                raise ("Wrong type for units input!")
+
+    def __checkModel(self, model: str) -> None:
         '''
         Check if the model is available.
 
@@ -84,17 +88,17 @@ class UrbanDataSet:
             model (str): The model name.
         '''
 
-        if model not in ['granite3.2-vision', 
-                         'llama3.2-vision', 
-                         'gemma3', 
-                         'gemma3:1b', 
-                         'gemma3:12b', 
+        if model not in ['granite3.2-vision',
+                         'llama3.2-vision',
+                         'gemma3',
+                         'gemma3:1b',
+                         'gemma3:12b',
                          'gemma3:27b',
-                         'minicpm-v', 
+                         'minicpm-v',
                          'mistral-small3.1']:
             raise Exception(f'{model} is not supported')
 
-    def preload_model(self, model_name:str):
+    def preload_model(self, model_name: str):
         """
         Ensures that the required Ollama model is available.
         If not, it automatically pulls the model.
@@ -112,9 +116,9 @@ class UrbanDataSet:
             print("Please install Ollama client: https://github.com/ollama/ollama/tree/main")
             raise RuntimeError("Ollama not available. Install it before running.")
 
-    def bbox2Buildings(self, bbox:list|tuple, source:str='osm', epsg:int=None,
-                       min_area:float|int=0, max_area:float|int=None, 
-                       random_sample:int=None) -> str:
+    def bbox2Buildings(self, bbox: list | tuple, source: str = 'osm', epsg: int = None,
+                       min_area: float | int = 0, max_area: float | int = None,
+                       random_sample: int = None) -> str:
         '''
         Extract buildings from OpenStreetMap using the bbox.
 
@@ -148,11 +152,11 @@ class UrbanDataSet:
             buildings = buildings.sample(random_sample)
         self.units = buildings
         return f"{len(buildings)} buildings found in the bounding box."
-    
-    def oneImgChat(self, model:str='gemma3:12b',system:str=None, prompt:str=None, 
-                   temp:float=0.0, top_k:float=1.0, top_p:float=0.8,
-                   one_shot_lr:list|tuple=[], saveImg:bool=True) -> dict:
         
+    def oneImgChat(self, model: str = 'gemma3:12b', system: str = None, prompt: str = None,
+                   temp: float = 0.0, top_k: float = 1.0, top_p: float = 0.8,
+                   one_shot_lr:list|tuple=[], saveImg: bool = True) -> dict:
+
         '''
         Chat with MLLM model with one image.
 
@@ -181,11 +185,11 @@ class UrbanDataSet:
         if saveImg:
             r['img'] = self.img
         return r
-    
-    def loopImgChat(self, model:str='gemma3:12b', system:str=None, prompt:str=None, 
-                    temp:float=0.0, top_k:float=1.0, top_p:float=0.8, 
+
+    def loopImgChat(self, model: str = 'gemma3:12b', system: str = None, prompt: str = None,
+                    temp: float = 0.0, top_k: float = 1.0, top_p: float = 0.8, 
                     one_shot_lr:list|tuple=[], multiImgInput:bool=False,
-                    saveImg:bool=False, output_df:bool=False, disableProgressBar:bool=False) -> dict:
+                    saveImg: bool = False, output_df: bool = False, disableProgressBar: bool = False) -> dict:
         '''
         Chat with MLLM model for each image.
 
@@ -222,7 +226,7 @@ class UrbanDataSet:
                 dic['imgBase64'] += [img]
             dic['responses'] += [r]
             dic['img'] += [self.imgs[i]]
-        self.results = {'from_loopImgChat':dic}
+        self.results = {'from_loopImgChat': dic}
         if output_df:
             return self.to_df(output=True)
         return dic
@@ -302,7 +306,7 @@ class UrbanDataSet:
         from tqdm import tqdm
 
         if type == 'top' and 'top' not in prompt:
-            print("Please provide prompt for top view images when type='top'") 
+            print("Please provide prompt for top view images when type='top'")
         if type == 'street' and 'street' not in prompt:
             print("Please provide prompt for street view images when type='street'")
         if type == 'both' and 'top' not in prompt and 'street' not in prompt:
@@ -315,23 +319,23 @@ class UrbanDataSet:
             "lat": [],
         }
 
-        top_view_imgs = {'top_view_base64':[]}
-        street_view_imgs = {'street_view_base64':[]}
+        top_view_imgs = {'top_view_base64': []}
+        street_view_imgs = {'street_view_base64': []}
 
         for i in tqdm(range(len(self.units)), desc="Processing...", ncols=75, disable=disableProgressBar):
             # Get the extent of one polygon from the filtered GeoDataFrame
             polygon = self.units.geometry.iloc[i]
             centroid = polygon.centroid
-            
+
             dic['lon'].append(centroid.x)
             dic['lat'].append(centroid.y)
 
             # process street view image
             if (type == 'street' or type == 'both') and epsg != None and self.mapillary_key != None:
-                input_svis = getSV(centroid, epsg, self.mapillary_key, multi=multi, 
-                                   fov=sv_fov, pitch=sv_pitch, height=sv_size[0], width=sv_size[1], 
+                input_svis = getSV(centroid, epsg, self.mapillary_key, multi=multi,
+                                   fov=sv_fov, pitch=sv_pitch, height=sv_size[0], width=sv_size[1],
                                    year=year, season=season, time_of_day=time_of_day)
-                
+
                 if len(input_svis) != 0:
                     # save imgs
                     if saveImg:
@@ -373,8 +377,8 @@ class UrbanDataSet:
                 with tempfile.NamedTemporaryFile(suffix=".tif", delete=False) as temp_file:
                     image = temp_file.name
                 # Download data using tms_to_geotiff
-                tms_to_geotiff(output=image, bbox=bbox, zoom=22, 
-                               source="SATELLITE", 
+                tms_to_geotiff(output=image, bbox=bbox, zoom=22,
+                               source="SATELLITE",
                                overwrite=True)
                 # Clip the image with the polygon
                 with rasterio.open(image) as src:
@@ -405,23 +409,22 @@ class UrbanDataSet:
 
                 # process aerial image
                 top_res = self.LLM_chat(model=model,
-                                    system=system, 
-                                    prompt=prompt["top"], 
-                                    img=[clipped_image], 
-                                    temp=temp, 
-                                    top_k=top_k, 
-                                    top_p=top_p
-                                    )
+                                        system=system,
+                                        prompt=prompt["top"],
+                                        img=[clipped_image],
+                                        temp=temp,
+                                        top_k=top_k,
+                                        top_p=top_p)
                 # initialize the list
                 if i == 0:
                     dic['top_view'] = []
                 if saveImg:
                     dic['top_view'].append(top_res.responses)
-                
+
                 # clean up temp file
                 os.remove(clipped_image)
-        
-        self.results = {'from_loopUnitChat':dic, 'base64_imgs':{**top_view_imgs, **street_view_imgs}}
+
+        self.results = {'from_loopUnitChat': dic, 'base64_imgs': {**top_view_imgs, **street_view_imgs}}
         # reset message history
         if self.messageHistory != []:
             self.messageHistory = []
@@ -429,8 +432,8 @@ class UrbanDataSet:
         if output_gdf:
             return self.to_gdf(output=True)
         return dic
-    
-    def to_df(self, output:bool=True) -> pd.DataFrame|str:
+
+    def to_df(self, output: bool = True) -> pd.DataFrame | str:
         """
         Convert the output from an MLLM reponse (from .loopImgChat) into a DataFrame.
 
@@ -448,8 +451,8 @@ class UrbanDataSet:
                     return self.df
             else:
                 print("This method can only support the output of 'self.loopImgChat()' method")
-    
-    def to_gdf(self, output:bool=True) -> gpd.GeoDataFrame | str:
+
+    def to_gdf(self, output: bool = True) -> gpd.GeoDataFrame | str:
         """
         Convert the output from an MLLM response (from .loopUnitChat) into a GeoDataFrame.
 
@@ -514,8 +517,8 @@ class UrbanDataSet:
 
         if prompt is not None and img is not None:
             if len(img) == 1:
-                self.customized_chat(model, system, prompt, img[0], temp, top_k, top_p, one_shot_lr)
-            elif len(img) == 3:
+                return self.customized_chat(model, system, prompt, img[0], temp, top_k, top_p, one_shot_lr)
+            elif len(img) >= 2:
                 system = f'You are analyzing aerial or street view images. For street view, you should just focus on the building and yard in the middle. {system}'
                 if multiImgInput:
                     return self.customized_chat(model, system, prompt, img, temp, top_k, top_p, one_shot_lr)
@@ -530,8 +533,8 @@ class UrbanDataSet:
         else:
             raise Exception("Prompt or image(s) is missing.")
 
-    def chat(self, model:str='gemma3:12b', system:str=None, prompt:str=None, 
-             img:str=None, temp:float=None, top_k:float=None, top_p:float=None) -> Response:
+    def chat(self, model: str = 'gemma3:12b', system: str = None, prompt: str = None,
+             img=None, temp=None, top_k: float = None, top_p: float = None) -> Response:
         '''
         Chat with the LLM model using a system message, prompt, and optional image.
 
@@ -556,7 +559,7 @@ class UrbanDataSet:
             top_p = 1.0
         elif top_p <= 0:
             top_p = 0
-            
+
         res = ollama.chat(
             model=model,
             format=self.format.model_json_schema(),
@@ -572,9 +575,9 @@ class UrbanDataSet:
                 }
             ],
             options={
-                "temperature":temp,
-                "top_k":top_k,
-                "top_p":top_p
+                "temperature": temp,
+                "top_k": top_k,
+                "top_p": top_p
             }
         )
         return self.format.model_validate_json(res.message.content)
@@ -610,8 +613,11 @@ class UrbanDataSet:
             top_p = 0
 
         if isinstance(one_shot_lr, list):
-            if isinstance(one_shot_lr[0], dict) == False:
-                raise Exception("Please provide a list of dictionaries.")
+            if len(one_shot_lr) > 0:
+                if isinstance(one_shot_lr[0], dict) == False:
+                    raise Exception("Please provide a list of dictionaries.")
+        else:
+            raise Exception("Please provide a list of dictionaries.")
 
         if img is not None:
             if isinstance(img, str):
@@ -660,68 +666,124 @@ class UrbanDataSet:
             }
         )
         return self.format.model_validate_json(res.message.content)
-        
-    
-    def dataAnalyst(self, 
-                    prompt:str, 
-                    system:str='you are a data analyst.',
-                    model:str='gemma3') -> None:
-        
-        '''
-        Facilitates a conversation-based geospatial data analysis using a language model.
 
-        This method prepares and sends a prompt to a conversational language model to analyze or interpret 
-        a spatial dataset stored in the class's GeoDataFrame. It sets up the context with system instructions 
-        and manages the chat history for maintaining the continuity of analysis.
+    def __summarize_geo_df(self, max_rows: int = 2) -> tuple[str, list[dict]]:
+        """
+        Summarize key characteristics of self.geo_df for LLM context.
 
         Args:
-            prompt (str): A user-defined instruction or query related to the spatial data analysis.
-            system (str, optional): A system message used to define the behavior or persona of the assistant (default is a spatial data analyst).
-            model (str, optional): The name of the language model to be used for processing the conversation (default is 'gemma3').
+            max_rows (int): Number of sample rows to return.
 
         Returns:
-            None: The response is stored internally in `self.messageHistory`.
-        '''
+            tuple[str, list]: (summary string, example row list)
+        """
+        import pandas as pd
 
-        import json
+        if self.geo_df is None or self.geo_df.empty:
+            return "The dataset is empty.", []
+
+        df = self.geo_df.copy()
+        summary = []
+
+        # Columns to exclude from summary (usually large/unnecessary for LLM)
+        exclude_cols = ['geometry', 'top_view_base64', 'street_view_base64']
+        non_geom_cols = [col for col in df.columns if col not in exclude_cols]
+
+        # Basic dataset stats
+        summary.append(f"- Number of spatial units: {len(df)}")
+
+        # Bounding box
+        bounds = df.total_bounds  # [minx, miny, maxx, maxy]
+        summary.append(
+            f"- Bounding box: lon [{bounds[0]:.4f}, {bounds[2]:.4f}], "
+            f"lat [{bounds[1]:.4f}, {bounds[3]:.4f}]"
+        )
+
+        summary.append(f"- Number of data fields (excluding geometry and large fields): {len(non_geom_cols)}")
+        summary.append(f"- Field names: {', '.join(non_geom_cols)}")
+
+        # Sample rows
+        example_rows = df[non_geom_cols].head(max_rows).to_dict(orient='records')
+        for idx, row in enumerate(example_rows):
+            summary.append(f"  Sample {idx + 1}: {row}")
+
+        # Adaptive statistics for answer columns
+        answer_cols = [col for col in df.columns if 'answer' in col.lower()]
+        for col in answer_cols:
+            if col in df.columns:
+                series = df[col]
+                col_type = pd.api.types.infer_dtype(series, skipna=True)
+
+                summary.append(f"- Field '{col}' type: {col_type}")
+
+                if pd.api.types.is_numeric_dtype(series):
+                    summary.append(
+                        f"  Value range: min={series.min():.2f}, max={series.max():.2f}, mean={series.mean():.2f}")
+                elif pd.api.types.is_string_dtype(series) or pd.api.types.is_bool_dtype(series):
+                    counts = series.astype(str).str.lower().value_counts()
+                    formatted = ', '.join([f"{k}: {v}" for k, v in counts.items()])
+                    summary.append(f"  Value distribution: {formatted}")
+                else:
+                    unique_vals = series.dropna().unique().tolist()
+                    summary.append(f"  Unique values: {unique_vals[:5]}")
+
+        # Q/A field pairing
+        q_cols = [col for col in df.columns if 'question' in col.lower()]
+        a_cols = [col for col in df.columns if 'answer' in col.lower()]
+        qa_pairs = list(zip(q_cols, a_cols))
+        if qa_pairs:
+            summary.append("- Example Q&A Pairs:")
+            for q, a in qa_pairs:
+                if q in df.columns and a in df.columns:
+                    q_sample = str(df[q].iloc[0])
+                    a_sample = str(df[a].iloc[0])
+                    summary.append(f"    * Q: '{q_sample}' → A: '{a_sample}'")
+
+        return "\n".join(summary), example_rows
+
+    def dataAnalyst(self,
+                    prompt: str,
+                    system: str = 'You are a spatial data analyst.',
+                    model: str = 'gemma3') -> None:
+        """
+        Conversational spatial data analysis using a language model, with context-aware initialization.
+
+        Args:
+            prompt (str): User query related to spatial analysis.
+            system (str): Base system prompt for the assistant.
+            model (str): LLM model name to use.
+
+        Returns:
+            None
+        """
         import copy
 
-        def format_geo_dict(dic):
-            dic['id'] = int(dic['id']) + 1
-            dic['coordinates'] = dic['geometry']['coordinates']
-            dic.pop('geometry')
-            return dic
-
         self.preload_model(model)
-        
+
         if self.messageHistory == []:
-            # convert geodataframe into geo_dict
             if self.geo_df is None:
                 print("Start to convert results to GeoDataFrame ...")
                 self.to_gdf(output=False)
+
+            # Clean up columns not relevant for reasoning
             data = copy.deepcopy(self.geo_df)
-            colnames = list(data.columns)
-            if 'top_view_base64' in colnames:
-                data.pop('top_view_base64')
-            if 'street_view_base64' in colnames:
-                data.pop('street_view_base64')
-            data = data.to_geo_dict()
-            # format data structure
-            data.pop('type', None)
-            data['locations'] = data.pop('features')
-            data['locations'] = [format_geo_dict(each) for each in data['locations']]
-            # inialize message log
-            self.messageHistory += [
-                {
-                    'role': "system",
-                    'content': f'{system} \nData: {json.dumps(data)}'
-                },
-                {
-                    'role': 'user',
-                    'content': f'{prompt} \nPlease just answer my question.',
-                }
-            ]
-        else:
+            for col in ['top_view_base64', 'street_view_base64']:
+                if col in data.columns:
+                    data.pop(col)
+
+            # Generate natural language summary and samples
+            summary_str, _ = self.__summarize_geo_df()
+
+            user_prompt = f"""
+            Please analyze and summarize the main patterns found in the answer columns of this dataset.
+            Consider the value types (e.g., numeric or categorical), and also consider the relationship between question and answer fields when interpreting the values.
+
+            Dataset summary:
+            {summary_str}
+
+            Use the information above to complete the analysis.
+            """
+
             self.messageHistory += [
                 {
                     'role': "system",
@@ -729,13 +791,14 @@ class UrbanDataSet:
                 },
                 {
                     'role': 'user',
-                    'content': prompt,
+                    'content': user_prompt.strip(),
                 }
             ]
+
         conversations = chatpd(self.messageHistory, model)
         self.messageHistory = conversations
-    
-    def plotBase64(self, img:str):
+
+    def plotBase64(self, img: str):
         '''
         plot a single base64 image
 
@@ -744,7 +807,7 @@ class UrbanDataSet:
         '''
         plot_base64_image(img)
 
-    def export(self, out_type:str, file_name:str) -> None:
+    def export(self, out_type: str, file_name: str) -> None:
         '''
         Exports the result to a specified spatial data format.
 
@@ -761,7 +824,6 @@ class UrbanDataSet:
                             For shapefiles, provide a `.shp` file path.
                             For GeoJSON, use `.geojson`.
                             For GeoPackage, use `.gpkg`.
-
         Returns: 
             None
         '''
@@ -774,5 +836,105 @@ class UrbanDataSet:
             self.geo_df.to_file(out_type)
         elif out_type == 'seopackage':
             self.geo_df.to_file(file_name, layer='data', driver="GPKG")
-        
-        
+
+    def plot_gdf(self, figsize=(12, 10), summary_func=None, show_table: bool = True):
+        """
+        Visualize all Q&A pairs from geo_df as separate maps with optional answer tables.
+
+        - Automatically adjusts color scheme based on answer data type:
+            * Numeric answers → gradient cmap (viridis)
+            * Categorical answers (string/bool) → color-coded groups (case-insensitive)
+
+        Args:
+            figsize (tuple): Figure size.
+            summary_func (callable): Function to reduce list-type fields (e.g., lambda x: x[0]).
+            show_table (bool): Whether to include an answer table.
+        """
+        import matplotlib.pyplot as plt
+        import pandas as pd
+        from pandas.plotting import table
+
+        if self.geo_df is None:
+            print("GeoDataFrame not available. Run .to_gdf() first.")
+            return
+
+        gdf = self.geo_df.to_crs(epsg=4326).copy().reset_index(drop=True)
+        gdf["PointID"] = gdf.index + 1
+        gdf_units = self.units.to_crs(epsg=4326) if self.units is not None else None
+
+        q_cols = [col for col in gdf.columns if 'question' in col.lower()]
+        a_cols = [col for col in gdf.columns if 'answer' in col.lower()]
+        q_a_pairs = list(zip(q_cols, a_cols))
+
+        if not q_a_pairs:
+            print("No question/answer pairs found.")
+            return
+
+        for question_col, answer_col in q_a_pairs:
+            df_plot = gdf.copy()
+
+            # Reduce list answers if needed
+            if summary_func and df_plot[answer_col].apply(lambda x: isinstance(x, list)).any():
+                df_plot[answer_col] = df_plot[answer_col].apply(summary_func)
+
+            answer_data = df_plot[answer_col]
+            is_numeric = pd.api.types.is_numeric_dtype(answer_data)
+
+            if is_numeric:
+                color_kwargs = {'column': answer_col, 'cmap': 'viridis', 'legend': True}
+            else:
+                # Normalize to lowercase and use as color group
+                df_plot["_answer_norm"] = answer_data.astype(str).str.lower()
+                categories = df_plot["_answer_norm"].unique()
+                cmap = plt.get_cmap('tab10')
+                category_colors = {cat: cmap(i) for i, cat in enumerate(categories)}
+                df_plot["_color"] = df_plot["_answer_norm"].map(category_colors)
+                color_kwargs = {'color': df_plot["_color"]}
+
+            # Figure and layout
+            if show_table:
+                fig, (ax_map, ax_table) = plt.subplots(1, 2, figsize=(figsize[0] * 1.6, figsize[1]))
+            else:
+                fig, ax_map = plt.subplots(figsize=figsize)
+
+            if gdf_units is not None:
+                gdf_units.plot(ax=ax_map, facecolor='#f0f0f0', edgecolor='black', linewidth=1)
+
+            df_plot.plot(ax=ax_map, markersize=60, edgecolor='black', **color_kwargs)
+
+            # Annotate point IDs
+            for _, row in df_plot.iterrows():
+                ax_map.annotate(str(row["PointID"]),
+                                xy=(row.geometry.x, row.geometry.y),
+                                xytext=(3, 3),
+                                textcoords="offset points",
+                                fontsize=9,
+                                color='black')
+
+            # Show legend for categorical values
+            if not is_numeric:
+                import matplotlib.patches as mpatches
+                legend_handles = [mpatches.Patch(color=category_colors[cat], label=cat) for cat in categories]
+                ax_map.legend(handles=legend_handles, title="Answer", loc='upper right', frameon=True)
+
+            # Title and labels
+            question_text = df_plot[question_col].iloc[0] if question_col in df_plot else "Question"
+            ax_map.set_title(question_text, fontsize=14)
+            ax_map.set_xlabel("Longitude", fontsize=12)
+            ax_map.set_ylabel("Latitude", fontsize=12)
+            ax_map.grid(True, linestyle='--', linewidth=0.5, alpha=0.5)
+            ax_map.set_aspect('equal')
+
+            # Answer table
+            if show_table:
+                ax_table.axis("off")
+                table_df = df_plot[["PointID", answer_col]].copy()
+                table_df.columns = ["ID", "Answer"]
+                tbl = table(ax_table, table_df, loc="upper center", colWidths=[0.15, 0.3])
+                tbl.auto_set_font_size(False)
+                tbl.set_fontsize(10)
+                tbl.scale(1, 1.2)
+
+            plt.tight_layout()
+            plt.show()
+
