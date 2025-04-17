@@ -447,15 +447,6 @@ def getGlobalMLBuilding(bbox: tuple | list, epsg: int = None, min_area: float | 
             idx += len(gdf)
             combined_gdf = pd.concat([combined_gdf, gdf], ignore_index=True)
 
-    # # Reproject to a UTM CRS for accurate area measurement
-    # utm_crs = combined_gdf.estimate_utm_crs()  
-    # # Compute area and filter buildings by area
-    # combined_gdf = combined_gdf.to_crs(utm_crs)
-    # combined_gdf["area_"] = combined_gdf.geometry.area
-    # combined_gdf = combined_gdf[combined_gdf["area_"] >= min_area]  # Filter min area
-    # if max_area:
-    #     combined_gdf = combined_gdf[combined_gdf["area_"] <= max_area]  # Filter max area
-
     combined_gdf = filterBF(combined_gdf, epsg, min_area, max_area)
     # Reproject back to WGS84
     combined_gdf = combined_gdf.to_crs('EPSG:4326')
@@ -480,37 +471,38 @@ def response2df(qna_dict):
     import pandas as pd
     import numpy as np
 
+    def renameKey(qna_list):
+        return [{f'{key}{i+1}': qna_list[i][key] for key in qna_list[i]} for i in range(len(qna_list))]
+    
     def extract_qna(qna, fs):
         question_num = len(qna[0])
-        fs_ = fs * question_num
-        dic = {field: [] for field in fs_}
+        fs_ = [fs for i in range(question_num)]
+        fs_ = list(np.concatenate(fs_))
+        dic = {}
+        fields = []
         for i in range(len(qna)):
-            qna_ = [vars(q) for q in qna[i]]
-            flat_qna = {}
-            for j, q in enumerate(qna_):
-                for key, val in q.items():
-                    flat_qna[f"{key}{j + 1}"] = val
-            for field in fs_:
-                dic[field].append(flat_qna.get(field, None))
+            qna_ = [dict(q) for q in qna[i]]
+            qna_ = renameKey(qna_)
+            qna_ = {k: v for d_ in qna_ for k, v in d_.items()}
+            if i == 0:
+                dic = {key:[] for key in qna_}
+                fields = list(dic.keys())
+            for field_i in range(len(fields)):
+                try:
+                    dic[fields[field_i]] += [qna_[fields[field_i]]]
+                except:
+                    pass
         return dic
 
     qna_ = qna_dict['responses']
-    img_ = qna_dict.get('img', [])
-    imgBase64_ = qna_dict.get('imgBase64', [])
+    img_ = qna_dict['img']
 
-    num_images = len(qna_)
-    num_questions = len(qna_[0])
-    fields = [f"{k}1" for k in vars(qna_[0][0]).keys()]
-
-    data_dict = extract_qna(qna_, fields)
-
-    df_ = pd.DataFrame(data_dict).explode(list(data_dict.keys()), ignore_index=True)
-
-    if img_:
-        df_['img'] = np.repeat(img_, num_questions)
-    if imgBase64_:
-        df_['imgBase64'] = np.repeat(imgBase64_, num_questions)
-
+    fields = list(vars(qna_[0][0]).keys())
+    df_ = pd.DataFrame(extract_qna(qna_, fields))
+    df_['img'] = [img_[i] for i in range(len(img_))]
+    if 'imgBase64' in qna_dict:
+        img_base64 = qna_dict['imgBase64']
+        df_['imgBase64'] = [img_base64[i] for i in range(len(img_base64))]
     return df_
 
 
@@ -533,10 +525,9 @@ def response2gdf(qna_dict):
         if isinstance(qna[0][0], list) and tag == 'street_view':
             merged = {}
             for i in range(len(qna)):
-                # qna[i] 是该 unit 的多个视角
                 merged_i = extract_qna(qna[i], tag, fs)
                 for k, v in merged_i.items():
-                    merged.setdefault(k, []).append(" | ".join(map(str, v)))  # 多视角用 " | " 拼接
+                    merged.setdefault(k, []).append(" | ".join(map(str, v)))
             return merged
         else:
             question_num = len(qna[0])
