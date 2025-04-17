@@ -306,11 +306,11 @@ class UrbanDataSet:
         from tqdm import tqdm
 
         if type == 'top' and 'top' not in prompt:
-            print("Please provide prompt for top view images when type='top'")
+            raise Exception("Please provide prompt for top view images when type='top'")
         if type == 'street' and 'street' not in prompt:
-            print("Please provide prompt for street view images when type='street'")
+            raise Exception("Please provide prompt for street view images when type='street'")
         if type == 'both' and 'top' not in prompt and 'street' not in prompt:
-            print("Please provide prompt for both top and street view images when type='both'")
+            raise Exception("Please provide prompt for both top and street view images when type='both'")
         if (type == 'both' or type == 'street') and self.mapillary_key is None:
             print("API key is missing. The program will process with type='top'")
 
@@ -355,7 +355,10 @@ class UrbanDataSet:
                     if i == 0:
                         dic['street_view'] = []
                     if multi:
-                        dic['street_view'] += [res]
+                        if multiImgInput:
+                            dic['street_view'] += [res.responses]
+                        else:
+                            dic['street_view'] += [res]
                     else:
                         dic['street_view'] += [res.responses]
                 else:
