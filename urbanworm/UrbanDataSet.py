@@ -745,7 +745,7 @@ class UrbanDataSet:
         return "\n".join(summary), example_rows
 
     def dataAnalyst(self,
-                    prompt: str,
+                    prompt: str = '',
                     system: str = 'You are a spatial data analyst.',
                     model: str = 'gemma3') -> None:
         """
@@ -764,10 +764,9 @@ class UrbanDataSet:
         self.preload_model(model)
 
         if self.messageHistory == []:
-            if self.geo_df is None:
-                print("Start to convert results to GeoDataFrame ...")
-                self.to_gdf(output=False)
-
+            print("Start to convert results to GeoDataFrame ...")
+            print("Chatbot will analyze and summarize the data first ...")
+            self.to_gdf(output=False)
             # Clean up columns not relevant for reasoning
             data = copy.deepcopy(self.geo_df)
             for col in ['top_view_base64', 'street_view_base64']:
@@ -784,7 +783,7 @@ class UrbanDataSet:
             Dataset summary:
             {summary_str}
 
-            Use the information above to complete the analysis.
+            Use the information above to complete the analysis. Your response should be no more than 200 words.
             """
 
             self.messageHistory += [
@@ -797,7 +796,15 @@ class UrbanDataSet:
                     'content': user_prompt.strip(),
                 }
             ]
+            conversations = chatpd(self.messageHistory, model)
+            self.messageHistory = conversations
 
+        self.messageHistory += [
+            {
+                'role': "user",
+                'content': prompt.strip(),
+            }
+        ]
         conversations = chatpd(self.messageHistory, model)
         self.messageHistory = conversations
 
@@ -830,9 +837,9 @@ class UrbanDataSet:
         Returns: 
             None
         '''
-        if self.geo_df is None:
-            print("Start to convert results to GeoDataFrame ...")
-            self.to_gdf(output=False)
+
+        print("Start to convert results to GeoDataFrame ...")
+        self.to_gdf(output=False)
         if out_type == 'geojson':
             self.geo_df.to_file(file_name, driver='GeoJSON')
         elif out_type == 'shapefile':

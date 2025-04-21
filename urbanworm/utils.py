@@ -627,7 +627,7 @@ def chatpd(messages: list,
         messages=messages,
         options={
             "temperature": 0.2,
-            "top_k": 0.8,
+            "top_k": 1.0,
             "top_p": 0.8
         },
         stream=True
