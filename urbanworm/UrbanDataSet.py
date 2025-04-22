@@ -844,7 +844,7 @@ class UrbanDataSet:
             self.geo_df.to_file(file_name, driver='GeoJSON')
         elif out_type == 'shapefile':
             self.geo_df.to_file(out_type)
-        elif out_type == 'seopackage':
+        elif out_type == 'geopackage':
             self.geo_df.to_file(file_name, layer='data', driver="GPKG")
 
     def plot_gdf(self, figsize=(12, 10), summary_func=None, show_table: bool = True):
