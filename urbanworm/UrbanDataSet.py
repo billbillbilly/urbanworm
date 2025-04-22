@@ -161,7 +161,7 @@ class UrbanDataSet:
         Chat with MLLM model with one image.
 
         Args:
-            model (str): Model name. Defaults to "gemma3:12b". ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'minicpm-v', 'mistral-small3.1']
+            model (str): Model name. Defaults to "gemma3:12b". ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'gemma3:27b', 'minicpm-v', 'mistral-small3.1']
             system (optinal): The system message.
             prompt (str): The prompt message.
             img (str): The image path.
@@ -194,7 +194,7 @@ class UrbanDataSet:
         Chat with MLLM model for each image.
 
         Args:
-            model (str): Model name. Defaults to "gemma3:12b". ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'minicpm-v', 'mistral-small3.1']
+            model (str): Model name. Defaults to "gemma3:12b". ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'gemma3:27b', 'minicpm-v', 'mistral-small3.1']
             system (str, optinal): The system message.
             prompt (str): The prompt message.
             temp (float): The temperature value.
@@ -542,7 +542,7 @@ class UrbanDataSet:
         Chat with the LLM model using a system message, prompt, and optional image.
 
         Args:
-            model (str): Model name. Defaults to "gemma3:12b". ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'minicpm-v', 'mistral-small3.1']
+            model (str): Model name. Defaults to "gemma3:12b". ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'gemma3:27b', 'minicpm-v', 'mistral-small3.1']
             system (str): The system-level instruction for the model.
             prompt (str): The user message or question.
             img (str): Path to a single image or base64 to be sent to the model.
@@ -592,7 +592,7 @@ class UrbanDataSet:
         '''
         Chat with the LLM model using a system message, prompt, and optional image(s).
         Args:
-            model (str): Model name. Defaults to "gemma3:12b". ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'minicpm-v', 'mistral-small3.1']
+            model (str): Model name. Defaults to "gemma3:12b". ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'gemma3:27b', 'minicpm-v', 'mistral-small3.1']
             system (str): The system-level instruction for the model.
             prompt (str): The user message or question.
             img (str): Path to a single image or base64 to be sent to the model.
