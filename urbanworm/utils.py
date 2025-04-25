@@ -238,6 +238,19 @@ def closest(centroid, response, multi=False, year=None, season=None, time_of_day
     except Exception as e:
         print(f"Error in filtering street views by time: {e}")
         return None
+    
+    # when year is not None, subset the latest year
+    if year is not None:
+        # sort by year
+        res_df_ = res_df[res_df['year'] == res_df['year'].max()]
+        if multi == True:
+            yearList = sorted(list(set(res_df.sort_values(by='year')['year'].to_list())), reverse=True)
+            count = 1
+            while len(res_df_) < 3:
+                res_df_ = res_df[res_df['year'] >= yearList[count]]
+                count += 1
+        res_df = res_df_
+
     # filter by distance
     id_array = np.array(res_df['id'])
     lon_array = np.array(res_df['lon'])
