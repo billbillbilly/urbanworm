@@ -1,0 +1,18 @@
+cff-version: 0.0.1
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Yang"
+  given-names: "Xiaohao"
+  orcid: "https://orcid.org/0000-0003-2030-6624"
+- family-names: "Tian"
+  given-names: "Aohua"
+- family-names: "Van Berkel"
+  given-names: "Derek"
+- family-names: "Lindquist"
+  given-names: "Mark"
+
+title: "urban-worm"
+version: 0.0.16
+doi: 10.5281/zenodo.15285331
+date-released: 2025-03-19
+url: "https://github.com/land-info-lab/urbanworm"
