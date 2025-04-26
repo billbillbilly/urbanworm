@@ -239,8 +239,8 @@ def closest(centroid, response, multi=False, year=None, season=None, time_of_day
         print(f"Error in filtering street views by time: {e}")
         return None
     
-    # when year is not None, subset the latest year
-    if year is not None:
+    # when year is None, select the street views captured in the latest year
+    if year is None:
         # sort by year
         res_df_ = res_df[res_df['year'] == res_df['year'].max()]
         if multi == True:
