@@ -6,7 +6,7 @@ from urbanworm.utils import getSV
 from urbanworm.utils import calculate_bearing
 
 # Mapillary API Key
-MAPILLARY_KEY = "MLYATeA2wLvIqBVnUyP41955Mzz2RelHW9jMdHMitd2tyLZBC5WVkMfZBae72LGARBhbsg8n8R14WsVAEx328rDnV6pXvZAFLd61tmvriVapmJXh4lOC4AxJZCHKV9GMgZDZD"
+MAPILLARY_KEY = ""
 
 CSV_PATH = r"C:\Users\L1ght\OneDrive\Umich-School\Xiaohao-Project\Urban-Worm\ground_truth\groundtruth_1_labeled.csv"
 
