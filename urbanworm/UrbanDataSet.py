@@ -152,10 +152,10 @@ class UrbanDataSet:
             buildings = buildings.sample(random_sample)
         self.units = buildings
         return f"{len(buildings)} buildings found in the bounding box."
-        
+
     def oneImgChat(self, model: str = 'gemma3:12b', system: str = None, prompt: str = None,
                    temp: float = 0.0, top_k: float = 1.0, top_p: float = 0.8,
-                   one_shot_lr:list|tuple=[], saveImg: bool = True) -> dict:
+                   one_shot_lr: list | tuple = [], saveImg: bool = True) -> dict:
 
         '''
         Chat with MLLM model with one image.
@@ -178,7 +178,7 @@ class UrbanDataSet:
         self.preload_model(model)
 
         print("Inference starts ...")
-        r = self.LLM_chat(model=model, system=system, prompt=prompt, img=[self.img], 
+        r = self.LLM_chat(model=model, system=system, prompt=prompt, img=[self.img],
                           temp=temp, top_k=top_k, top_p=top_p,
                           one_shot_lr=one_shot_lr)
         r = dict(r.responses[0])
@@ -187,8 +187,8 @@ class UrbanDataSet:
         return r
 
     def loopImgChat(self, model: str = 'gemma3:12b', system: str = None, prompt: str = None,
-                    temp: float = 0.0, top_k: float = 1.0, top_p: float = 0.8, 
-                    one_shot_lr:list|tuple=[], multiImgInput:bool=False,
+                    temp: float = 0.0, top_k: float = 1.0, top_p: float = 0.8,
+                    one_shot_lr: list | tuple = [], multiImgInput: bool = False,
                     saveImg: bool = False, output_df: bool = False, disableProgressBar: bool = False) -> dict:
         '''
         Chat with MLLM model for each image.
@@ -216,8 +216,8 @@ class UrbanDataSet:
         dic = {'responses': [], 'img': []}
         for i in tqdm(range(len(self.imgs)), desc="Processing...", ncols=75, disable=disableProgressBar):
             img = self.base64Imgs[i]
-            r = self.LLM_chat(model=model, system=system, prompt=prompt, img=[img], 
-                              temp=temp, top_k=top_k, top_p=top_p, 
+            r = self.LLM_chat(model=model, system=system, prompt=prompt, img=[img],
+                              temp=temp, top_k=top_k, top_p=top_p,
                               one_shot_lr=one_shot_lr, multiImgInput=multiImgInput)
             r = r.responses
             if saveImg:
@@ -230,14 +230,14 @@ class UrbanDataSet:
         if output_df:
             return self.to_df(output=True)
         return dic
-            
-    def loopUnitChat(self, model:str='gemma3:12b', system:str=None, prompt:dict=None, 
-                     temp:float=0.0, top_k:float=1.0, top_p:float=0.8, 
-                     type:str='top', epsg:int=None, multi:bool=False, 
-                     sv_fov:int=80, sv_pitch:int=10, sv_size:list|tuple=(300,400),
-                     year:list|tuple=None, season:str=None, time_of_day:str=None,
-                     one_shot_lr:list|tuple=[], multiImgInput:bool=False,
-                     saveImg:bool=True, output_gdf:bool=False, disableProgressBar:bool=False) -> dict:
+
+    def loopUnitChat(self, model: str = 'gemma3:12b', system: str = None, prompt: dict = None,
+                     temp: float = 0.0, top_k: float = 1.0, top_p: float = 0.8,
+                     type: str = 'top', epsg: int = None, multi: bool = False,
+                     sv_fov: int = 80, sv_pitch: int = 10, sv_size: list | tuple = (300, 400),
+                     year: list | tuple = None, season: str = None, time_of_day: str = None,
+                     one_shot_lr: list | tuple = [], multiImgInput: bool = False,
+                     saveImg: bool = True, output_gdf: bool = False, disableProgressBar: bool = False) -> dict:
         """
         Chat with the MLLM model for each spatial unit in the shapefile.
 
@@ -342,29 +342,44 @@ class UrbanDataSet:
                         street_view_imgs['street_view_base64'] += [input_svis]
                     # inference
                     res = self.LLM_chat(model=model,
-                                        system=system, 
-                                        prompt=prompt["street"], 
-                                        img=input_svis, 
-                                        temp=temp, 
-                                        top_k=top_k, 
+                                        system=system,
+                                        prompt=prompt["street"],
+                                        img=input_svis,
+                                        temp=temp,
+                                        top_k=top_k,
                                         top_p=top_p,
                                         one_shot_lr=one_shot_lr,
                                         multiImgInput=multiImgInput
-                                    )
+                                        )
                     # initialize the list
                     if i == 0:
                         dic['street_view'] = []
+
                     if multi:
                         if multiImgInput:
-                            dic['street_view'] += [res.responses]
+                            if res.responses and isinstance(res.responses, list):
+                                dic['street_view'].append(res.responses)
+                            else:
+                                print(f"Empty multi-response at index {i}, skipping")
+                                dic['lon'].pop()
+                                dic['lat'].pop()
+                                continue
                         else:
-                            dic['street_view'] += [res]
+                            if res and isinstance(res, list):
+                                dic['street_view'].append(res)
+                            else:
+                                print(f"Empty res at index {i}, skipping")
+                                dic['lon'].pop()
+                                dic['lat'].pop()
+                                continue
                     else:
-                        dic['street_view'] += [res.responses]
-                else:
-                    dic['lon'].pop()
-                    dic['lat'].pop()
-                    continue
+                        if res.responses and isinstance(res.responses, list):
+                            dic['street_view'].append(res.responses)
+                        else:
+                            print(f"Empty response at index {i}, skipping")
+                            dic['lon'].pop()
+                            dic['lat'].pop()
+                            continue
 
             # process aerial image
             if type == 'top' or type == 'both':
@@ -493,10 +508,10 @@ class UrbanDataSet:
                 print("This method can only support the output of 'self.loopUnitChat()' method")
         else:
             print("This method can only be called after running the 'self.loopUnitChat()' method")
-    
-    def LLM_chat(self, model:str='gemma3:12b', system:str=None, prompt:str=None, 
-                 img:list[str]=None, temp:float=None, top_k:float=None, top_p:float=None, 
-                 one_shot_lr:list|tuple=[], multiImgInput:bool=False) -> Union["Response", list["QnA"]]:
+
+    def LLM_chat(self, model: str = 'gemma3:12b', system: str = None, prompt: str = None,
+                 img: list[str] = None, temp: float = None, top_k: float = None, top_p: float = None,
+                 one_shot_lr: list | tuple = [], multiImgInput: bool = False) -> Union["Response", list["QnA"]]:
         '''
         Chat with the LLM model with a list of images.
         
@@ -527,7 +542,7 @@ class UrbanDataSet:
                     return self.customized_chat(model, system, prompt, img, temp, top_k, top_p, one_shot_lr)
                 else:
                     res = []
-                    
+
                     for i in range(len(img)):
                         # r = self.chat(model, system, prompt, img[i], temp, top_k, top_p)
                         r = self.customized_chat(model, system, prompt, img, temp, top_k, top_p, one_shot_lr)
@@ -584,11 +599,11 @@ class UrbanDataSet:
             }
         )
         return self.format.model_validate_json(res.message.content)
-    
-    def customized_chat(self, model:str='gemma3:12b', 
-                        system:str=None, prompt:str=None, img:str|list|tuple=None, 
-                        temp:float=None, top_k:float=None, top_p:float=None, 
-                        one_shot_lr:list=[]) -> Response:
+
+    def customized_chat(self, model: str = 'gemma3:12b',
+                        system: str = None, prompt: str = None, img: str | list | tuple = None,
+                        temp: float = None, top_k: float = None, top_p: float = None,
+                        one_shot_lr: list = []) -> Response:
         '''
         Chat with the LLM model using a system message, prompt, and optional image(s).
         Args:
@@ -625,19 +640,21 @@ class UrbanDataSet:
         if img is not None:
             if isinstance(img, str):
                 messages = [
-                    {
-                        'role': 'system',
-                        'content': system
-                    }] + one_shot_lr + [
-                    {
-                        'role': 'user',
-                        'content': prompt,
-                        'images': [img]
-                    }
-                ] 
+                               {
+                                   'role': 'system',
+                                   'content': system
+                               }] + one_shot_lr + [
+                               {
+                                   'role': 'user',
+                                   'content': prompt,
+                                   'images': [img]
+                               }
+                           ]
             elif isinstance(img, list) or isinstance(img, tuple):
                 th = ['st', 'nd', 'rd', 'th']
-                img_messages = [{'role': 'system','content': system}] + one_shot_lr + [{ 'role': 'user','content': f'{i+1}{th[i] if i < 3 else th[3]} image','images': [img[i]]} for i in range(len(img))]
+                img_messages = [{'role': 'system', 'content': system}] + one_shot_lr + [
+                    {'role': 'user', 'content': f'{i + 1}{th[i] if i < 3 else th[3]} image', 'images': [img[i]]} for i
+                    in range(len(img))]
                 messages = img_messages + [
                     {
                         'role': 'user',
@@ -648,24 +665,24 @@ class UrbanDataSet:
                 raise Exception("Please provide a valid image path or base64 string.")
         else:
             messages = [
-                {
-                    'role': 'system',
-                    'content': system
-                }] + one_shot_lr + [
-                {
-                    'role': 'user',
-                    'content': prompt,
-                }
-            ]
-        
+                           {
+                               'role': 'system',
+                               'content': system
+                           }] + one_shot_lr + [
+                           {
+                               'role': 'user',
+                               'content': prompt,
+                           }
+                       ]
+
         res = ollama.chat(
             model=model,
             format=self.format.model_json_schema(),
             messages=messages,
             options={
-                "temperature":temp,
-                "top_k":top_k,
-                "top_p":top_p
+                "temperature": temp,
+                "top_k": top_k,
+                "top_p": top_p
             }
         )
         return self.format.model_validate_json(res.message.content)
@@ -947,4 +964,3 @@ class UrbanDataSet:
 
             plt.tight_layout()
             plt.show()
-
