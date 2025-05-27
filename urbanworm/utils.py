@@ -107,7 +107,8 @@ def getSV(centroid, epsg: int, key: str, multi: bool = False,
     """
     bbox = projection(centroid, epsg)
 
-    url = f"https://graph.mapillary.com/images?access_token={key}&fields=id,compass_angle,thumb_2048_url,captured_at,geometry&bbox={bbox}&is_pano=true"
+    # 2048 -> original to get higher resolution
+    url = f"https://graph.mapillary.com/images?access_token={key}&fields=id,compass_angle,thumb_original_url,captured_at,geometry&bbox={bbox}&is_pano=true"
     svis = []
     try:
         response = retry_request(url)
