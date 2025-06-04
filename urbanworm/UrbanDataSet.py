@@ -234,7 +234,7 @@ class UrbanDataSet:
     def loopUnitChat(self, model: str = 'gemma3:12b', system: str = None, prompt: dict = None,
                      temp: float = 0.0, top_k: float = 1.0, top_p: float = 0.8,
                      type: str = 'top', epsg: int = None, multi: bool = False,
-                     sv_fov: int = 80, sv_pitch: int = 10, sv_size: list | tuple = (300, 400),
+                     sv_fov: int = 45, sv_pitch: int = 5, sv_size: list | tuple = (480, 640),
                      year: list | tuple = None, season: str = None, time_of_day: str = None,
                      one_shot_lr: list | tuple = [], multiImgInput: bool = False,
                      saveImg: bool = True, output_gdf: bool = False, disableProgressBar: bool = False) -> dict:

@@ -83,8 +83,8 @@ def meters_to_degrees(meters, latitude):
 
 # Get street view images from Mapillary
 def getSV(centroid, epsg: int, key: str, multi: bool = False,
-          fov: int = 80, heading: int = None, pitch: int = 10,
-          height: int = 300, width: int = 400,
+          fov: int = 45, heading: int = None, pitch: int = 5,
+          height: int = 480, width: int = 640,
           year: list | tuple = None, season: str = None, time_of_day: str = None) -> list[str]:
     """
     getSV

@@ -10,7 +10,7 @@ MAPILLARY_KEY = ""
 
 CSV_PATH = r"C:\Users\L1ght\OneDrive\Umich-School\Xiaohao-Project\Urban-Worm\ground_truth\groundtruth_1_labeled.csv"
 
-TEST_INDEX = 97
+TEST_INDEX = 155
 NUM_TRIALS = 1
 
 OUTPUT_DIR = "testGetSV"
@@ -59,7 +59,7 @@ def test_getsv_focus_on_house():
             key=MAPILLARY_KEY,
             multi=True,
             heading=None,
-            pitch=10,
+            pitch=5,
             fov=45,
             width=640,
             height=480
@@ -79,7 +79,40 @@ def test_getsv_focus_on_house():
     except Exception as e:
         print(f"Error in focused getSV test: {e}")
 
+def test_getsv_pitch():
+    df = pd.read_csv(CSV_PATH)
+    lon, lat = eval(df.loc[TEST_INDEX, "geometry_coordinates"])
+    centroid = Point(lon, lat)
+
+    print(f"\n=== Testing focused getSV at index {TEST_INDEX} ===")
+    try:
+        images = getSV(
+            centroid=centroid,
+            epsg=3857,
+            key=MAPILLARY_KEY,
+            multi=True,
+            heading=None,
+            pitch=5,
+            fov=30,
+            width=640,
+            height=480
+        )
+        if not images:
+            print("No image returned.")
+        else:
+            print(f"Returned {len(images)} focused image(s).")
+            for j, img in enumerate(images):
+                out_path = os.path.join(
+                    OUTPUT_DIR,
+                    f"pitch_sv_index{TEST_INDEX}_img{j + 1}.jpg"
+                )
+                with open(out_path, "wb") as f:
+                    f.write(base64.b64decode(img))
+                print(f"Saved focused image {j + 1} to: {out_path}")
+    except Exception as e:
+        print(f"Error in focused getSV test: {e}")
 
 if __name__ == "__main__":
     # test_getsv_consistency()
     test_getsv_focus_on_house()
+    test_getsv_pitch()
