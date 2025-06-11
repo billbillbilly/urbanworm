@@ -83,8 +83,8 @@ def meters_to_degrees(meters, latitude):
 
 # Get street view images from Mapillary
 def getSV(centroid, epsg: int, key: str, multi: bool = False,
-          fov: int = 80, heading: int = None, pitch: int = 10,
-          height: int = 300, width: int = 400,
+          fov: int = 45, heading: int = None, pitch: int = 5,
+          height: int = 480, width: int = 640,
           year: list | tuple = None, season: str = None, time_of_day: str = None) -> list[str]:
     """
     getSV
@@ -107,7 +107,8 @@ def getSV(centroid, epsg: int, key: str, multi: bool = False,
     """
     bbox = projection(centroid, epsg)
 
-    url = f"https://graph.mapillary.com/images?access_token={key}&fields=id,compass_angle,thumb_2048_url,captured_at,geometry&bbox={bbox}&is_pano=true"
+    # 2048 -> original to get higher resolution
+    url = f"https://graph.mapillary.com/images?access_token={key}&fields=id,compass_angle,thumb_original_url,captured_at,geometry&bbox={bbox}&is_pano=true"
     svis = []
     try:
         response = retry_request(url)
@@ -238,7 +239,7 @@ def closest(centroid, response, multi=False, year=None, season=None, time_of_day
     except Exception as e:
         print(f"Error in filtering street views by time: {e}")
         return None
-    
+
     # when year is None, select the street views captured in the latest year
     if year is None:
         # sort by year
@@ -485,8 +486,8 @@ def response2df(qna_dict):
     import numpy as np
 
     def renameKey(qna_list):
-        return [{f'{key}{i+1}': qna_list[i][key] for key in qna_list[i]} for i in range(len(qna_list))]
-    
+        return [{f'{key}{i + 1}': qna_list[i][key] for key in qna_list[i]} for i in range(len(qna_list))]
+
     def extract_qna(qna, fs):
         question_num = len(qna[0])
         fs_ = [fs for i in range(question_num)]
@@ -498,7 +499,7 @@ def response2df(qna_dict):
             qna_ = renameKey(qna_)
             qna_ = {k: v for d_ in qna_ for k, v in d_.items()}
             if i == 0:
-                dic = {key:[] for key in qna_}
+                dic = {key: [] for key in qna_}
                 fields = list(dic.keys())
             for field_i in range(len(fields)):
                 try:
@@ -535,7 +536,14 @@ def response2gdf(qna_dict):
 
     def extract_qna(qna, tag, fs):
         # Recursive case for multiple street views per unit (e.g., 3 views for one location)
-        if isinstance(qna[0][0], list) and tag == 'street_view':
+        if (
+                tag == 'street_view'
+                and isinstance(qna, list)
+                and len(qna) > 0
+                and isinstance(qna[0], list)
+                and len(qna[0]) > 0
+                and isinstance(qna[0][0], list)
+        ):
             merged = {}
             for i in range(len(qna)):
                 merged_i = extract_qna(qna[i], tag, fs)
@@ -579,13 +587,22 @@ def response2gdf(qna_dict):
         top_dict = extract_qna(qna_top, 'top_view', fields)
         df_top = pd.DataFrame(top_dict)
 
-    if qna_street:
+    if qna_street and isinstance(qna_street, list) and len(qna_street) > 0:
         try:
-            fields = list(vars(qna_street[0][0]).keys())
-        except:
-            fields = list(vars(qna_street[0][0][0]).keys())
-        street_dict = extract_qna(qna_street, 'street_view', fields)
-        df_street = pd.DataFrame(street_dict)
+            if isinstance(qna_street[0], list) and len(qna_street[0]) > 0 and isinstance(qna_street[0][0], list):
+                fields = list(vars(qna_street[0][0][0]).keys())
+            elif isinstance(qna_street[0], list) and len(qna_street[0]) > 0:
+                fields = list(vars(qna_street[0][0]).keys())
+            else:
+                print("Empty or malformed street_view skipped.")
+                fields = []
+        except Exception as e:
+            print(f"Skipping street_view due to structure error: {e}")
+            fields = []
+
+        if fields:
+            street_dict = extract_qna(qna_street, 'street_view', fields)
+            df_street = pd.DataFrame(street_dict)
 
     # Determine common minimum length
     n = min(
