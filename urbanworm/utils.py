@@ -620,30 +620,39 @@ def response2gdf(qna_dict):
 
     return pd.concat(parts, axis=1)
 
-
-def plot_base64_image(img_base64: str):
-    """Decodes a Base64 image and plots it using Matplotlib."""
-
-    import matplotlib.pyplot as plt
-
-    # Decode Base64 to bytes
+def base64_to_image(img_base64: str):
+    """Converts a Base64-encoded string to an RGB image (NumPy array)."""
     img_data = base64.b64decode(img_base64)
-
-    # Convert to NumPy array
     np_arr = np.frombuffer(img_data, np.uint8)
-
-    # Decode image from memory
     img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
-
-    # Convert BGR to RGB (Matplotlib expects RGB format)
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    return img
 
-    # Plot the image
-    plt.figure(figsize=(6, 6))
-    plt.imshow(img)
-    plt.axis("off")  # Hide axes
+def plot_base64_image(img_base64: str | list[str], caption: str | list[str] = None):
+    """Decodes and plots one or multiple Base64 images, with optional bottom caption."""
+    
+    if isinstance(img_base64, list):
+        fig, axs = plt.subplots(1, len(img_base64), figsize=(5 * len(img_base64), 5))
+        if len(img_base64) == 1:
+            axs = [axs]  # make it iterable
+        
+        for i, im in enumerate(img_base64):
+            img = base64_to_image(im)
+            axs[i].imshow(img)
+            axs[i].axis("off")
+            if caption is not None:
+                axs[i].set_xlabel(caption, fontsize=12)
+        
+    else:
+        img = base64_to_image(img_base64)
+        fig, ax = plt.subplots(figsize=(6, 6))
+        ax.imshow(img)
+        ax.axis("off")
+        if caption is not None:
+            ax.set_xlabel(caption, fontsize=12)
+
+    plt.tight_layout()
     plt.show()
-
 
 # chat with model to analyze/summarize results
 def chatpd(messages: list,
@@ -671,12 +680,12 @@ def chatpd(messages: list,
     })
     return messages
 
-
-# ----------------------- To Do -----------------------
-
 # function to plot/visualize results (images + questions + answer + explanation + ...)
+def showInference(image, result):
+    plot_base64_image(image)
 
-# -----------------------------------------------------
+
+# -------------------------------------------------------------------------------------------------------------------
 
 # The adapted function is from geosam and originally from https://github.com/gumblex/tms2geotiff. 
 # Credits to Dr.Qiusheng Wu and the GitHub user @gumblex.

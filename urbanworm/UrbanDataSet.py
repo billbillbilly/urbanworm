@@ -80,24 +80,6 @@ class UrbanDataSet:
             case _:
                 raise ("Wrong type for units input!")
 
-    def __checkModel(self, model: str) -> None:
-        '''
-        Check if the model is available.
-
-        Args:
-            model (str): The model name.
-        '''
-
-        if model not in ['granite3.2-vision',
-                         'llama3.2-vision',
-                         'gemma3',
-                         'gemma3:1b',
-                         'gemma3:12b',
-                         'gemma3:27b',
-                         'minicpm-v',
-                         'mistral-small3.1']:
-            raise Exception(f'{model} is not supported')
-
     def preload_model(self, model_name: str):
         """
         Ensures that the required Ollama model is available.
@@ -155,7 +137,7 @@ class UrbanDataSet:
 
     def oneImgChat(self, model: str = 'gemma3:12b', system: str = None, prompt: str = None,
                    temp: float = 0.0, top_k: float = 1.0, top_p: float = 0.8,
-                   one_shot_lr: list | tuple = [], saveImg: bool = True) -> dict:
+                   one_shot_lr:list|tuple=[], saveImg: bool = True, verbose: bool = False) -> dict:
 
         '''
         Chat with MLLM model with one image.
@@ -174,7 +156,6 @@ class UrbanDataSet:
             dict: A dictionary includes questions/messages, responses/answers, and image base64 (if required) 
         '''
 
-        self.__checkModel(model)
         self.preload_model(model)
 
         print("Inference starts ...")
@@ -184,17 +165,20 @@ class UrbanDataSet:
         r = dict(r.responses[0])
         if saveImg:
             r['img'] = self.img
+        if verbose:
+            plot_base64_image(r['img'])
         return r
 
     def loopImgChat(self, model: str = 'gemma3:12b', system: str = None, prompt: str = None,
-                    temp: float = 0.0, top_k: float = 1.0, top_p: float = 0.8,
-                    one_shot_lr: list | tuple = [], multiImgInput: bool = False,
-                    saveImg: bool = False, output_df: bool = False, disableProgressBar: bool = False) -> dict:
+                    temp: float = 0.0, top_k: float = 1.0, top_p: float = 0.8, 
+                    one_shot_lr:list|tuple=[], multiImgInput:bool=False,
+                    saveImg: bool = False, output_df: bool = False, disableProgressBar: bool = False,
+                    verbose: bool = False) -> dict:
         '''
         Chat with MLLM model for each image.
 
         Args:
-            model (str): Model name. Defaults to "gemma3:12b". ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'gemma3:27b', 'minicpm-v', 'mistral-small3.1']
+            model (str): Model name. Defaults to "gemma3:12b". ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'gemma3:27b', 'minicpm-v', 'mistral-small3.1', ...]
             system (str, optinal): The system message.
             prompt (str): The prompt message.
             temp (float): The temperature value.
@@ -202,13 +186,13 @@ class UrbanDataSet:
             top_p (float): The top_p value.
             saveImg (bool): The saveImg for saving each image in base64 format in the output.
             output_df (bool): The output_df for saving the result in a pandas DataFrame. Defaults to False.
-            disableProgressBar (bool): The progress bar for showing the progress of data analysis over the units
+            disableProgressBar (bool): The progress bar for showing the progress of data analysis over the units.
+            verbose (bool): The verbose for showing the image in the output.
 
         Returns:
             list A list of dictionaries. Each dict includes questions/messages, responses/answers, and image base64 (if required)
         '''
 
-        self.__checkModel(model)
         self.preload_model(model)
 
         from tqdm import tqdm
@@ -226,18 +210,21 @@ class UrbanDataSet:
                 dic['imgBase64'] += [img]
             dic['responses'] += [r]
             dic['img'] += [self.imgs[i]]
+            if verbose:
+                plot_base64_image(r['img'])
         self.results = {'from_loopImgChat': dic}
         if output_df:
             return self.to_df(output=True)
         return dic
-
-    def loopUnitChat(self, model: str = 'gemma3:12b', system: str = None, prompt: dict = None,
-                     temp: float = 0.0, top_k: float = 1.0, top_p: float = 0.8,
-                     type: str = 'top', epsg: int = None, multi: bool = False,
-                     sv_fov: int = 45, sv_pitch: int = 5, sv_size: list | tuple = (480, 640),
-                     year: list | tuple = None, season: str = None, time_of_day: str = None,
-                     one_shot_lr: list | tuple = [], multiImgInput: bool = False,
-                     saveImg: bool = True, output_gdf: bool = False, disableProgressBar: bool = False) -> dict:
+            
+    def loopUnitChat(self, model:str='gemma3:12b', system:str=None, prompt:dict=None, 
+                     temp:float=0.0, top_k:float=1.0, top_p:float=0.8, 
+                     type:str='top', epsg:int=None, multi:bool=False, 
+                     sv_fov:int=45, sv_pitch:int=5, sv_size:list|tuple=(480, 640),
+                     year:list|tuple=None, season:str=None, time_of_day:str=None,
+                     one_shot_lr:list|tuple=[], multiImgInput:bool=False,
+                     saveImg:bool=True, output_gdf:bool=False, disableProgressBar:bool=False,
+                     verbose: bool = False) -> dict:
         """
         Chat with the MLLM model for each spatial unit in the shapefile.
 
@@ -275,7 +262,7 @@ class UrbanDataSet:
         ```
 
         Args:
-            model (str): Model name. Defaults to "gemma3:12b". ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'gemma3:27b', 'minicpm-v', 'mistral-small3.1]
+            model (str): Model name. Defaults to "gemma3:12b". ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'gemma3:27b', 'minicpm-v', 'mistral-small3.1, ...]
             system (str, optional): System message to guide the LLM behavior.
             prompt (dict): Dictionary containing the prompts for 'top' and/or 'street' views.
             temp (float, optional): Temperature for generation randomness. Defaults to 0.0.
@@ -295,12 +282,12 @@ class UrbanDataSet:
             saveImg (bool, optional): Whether to save images (as base64 strings) in output. Defaults to True.
             output_gdf (bool, optional): Whether to return results as a GeoDataFrame. Defaults to False.
             disableProgressBar (bool, optional): Whether to show progress bar. Defaults to False.
+            verbose (bool, optional): Whether to plot the base64 image. Defaults to False.
 
         Returns:
             dict: A dictionary containing prompts, responses, and (optionally) image data for each unit.
         """
 
-        self.__checkModel(model)
         self.preload_model(model)
 
         from tqdm import tqdm
@@ -329,6 +316,10 @@ class UrbanDataSet:
 
             dic['lon'].append(centroid.x)
             dic['lat'].append(centroid.y)
+
+            if verbose:
+                img_previews = []
+                captions = []
 
             # process street view image
             if (type == 'street' or type == 'both') and epsg != None and self.mapillary_key != None:
@@ -438,11 +429,21 @@ class UrbanDataSet:
                     dic['top_view'] = []
                 if saveImg:
                     dic['top_view'].append(top_res.responses)
+                
+                if verbose:
+                    img_previews += [clipped_image_base64]
+                    captions.append(f"Top view image {i+1}")
 
                 # clean up temp file
                 os.remove(clipped_image)
 
+            if verbose:
+                # Plot the image with caption
+                for img, caption in zip(img_previews, captions):
+                    plot_base64_image(img, caption=caption)
+
         self.results = {'from_loopUnitChat': dic, 'base64_imgs': {**top_view_imgs, **street_view_imgs}}
+
         # reset message history
         if self.messageHistory != []:
             self.messageHistory = []
@@ -557,7 +558,7 @@ class UrbanDataSet:
         Chat with the LLM model using a system message, prompt, and optional image.
 
         Args:
-            model (str): Model name. Defaults to "gemma3:12b". ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'gemma3:27b', 'minicpm-v', 'mistral-small3.1']
+            model (str): Model name. Defaults to "gemma3:12b". ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'gemma3:27b', 'minicpm-v', 'mistral-small3.1', ...]
             system (str): The system-level instruction for the model.
             prompt (str): The user message or question.
             img (str): Path to a single image or base64 to be sent to the model.
