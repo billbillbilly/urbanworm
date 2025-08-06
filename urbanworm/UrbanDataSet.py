@@ -8,6 +8,7 @@ import os
 from typing import Union
 from typing import List
 from .utils import *
+from pydantic import ValidationError
 
 
 class QnA(BaseModel):
@@ -599,7 +600,18 @@ class UrbanDataSet:
                 "top_p": top_p
             }
         )
-        return self.format.model_validate_json(res.message.content)
+
+        try:
+            # Try to directly validate the response as a Python dictionary
+            return self.format.model_validate(res)
+        except ValidationError:
+            # If that fails, try parsing it as a JSON string from message content
+            try:
+                return self.format.model_validate_json(res['message']['content'])
+            except Exception as e:
+                print("Failed to parse response – unexpected output structure!")
+                print("Raw response:", res)
+                raise e
 
     def customized_chat(self, model: str = 'gemma3:12b',
                         system: str = None, prompt: str = None, img: str | list | tuple = None,
