@@ -1,6 +1,6 @@
 import ollama
 import datetime
-from utils import sanitize_json_text, extract_json_from_text
+from .utils import sanitize_json_text, extract_json_from_text
 from pydantic import BaseModel
 import rasterio
 import geopandas as gpd
@@ -615,7 +615,7 @@ class UrbanDataSet:
     #             print("Raw response:", res)
     #             raise e
 
-    def _customized_chat_original(self, model: str = 'gemma3:12b',
+    def customized_chat(self, model: str = 'gemma3:12b',
                         system: str = None, prompt: str = None, img: str | list | tuple = None,
                         temp: float = None, top_k: float = None, top_p: float = None,
                         one_shot_lr: list = []) -> Response:
@@ -702,7 +702,7 @@ class UrbanDataSet:
         )
         return self.self._validate_response_json_with_repair(res.message.content, format)
 
-    def __summarize_geo_df(self, max_rows: int = 2) -> tuple[str, list[dict]]:
+    def def __summarize_geo_df(self, max_rows: int = 2) -> tuple[str, list[dict]]:
         """
         Summarize key characteristics of self.geo_df for LLM context.
 

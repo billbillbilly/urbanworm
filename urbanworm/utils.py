@@ -1206,7 +1206,7 @@ def temp_file_path(extension):
     return file_path
 
 
-# --- Added by patch: robust JSON cleanup for model outputs + shared helpers ---
+# --- Added by patch: robust JSON cleanup for model outputs ---
 import re
 from typing import Optional
 
@@ -1219,13 +1219,14 @@ def sanitize_json_text(text: str) -> str:
     """
     if text is None:
         return ""
+    # Remove code fences
     text = re.sub(r"^```(?:json)?\s*", "", text.strip(), flags=re.IGNORECASE)
     text = re.sub(r"\s*```$", "", text.strip())
+    # Replace NBSP and similar
     text = text.replace("\xa0", " ").replace("\u00A0", " ")
-    # Remove zero-width
-    text = text.replace("\u200b", "").replace("\u200c", "").replace("\u200d", "")
-    # Collapse whitespace
-    text = re.sub(r"[ \t\r\n]+", " ", text)
+    # Collapse weird whitespace
+    text = re.sub(r"[ \t\u200b\u200c\u200d]+", " ", text)
+    # Strip leading/trailing non-json chars
     return text.strip()
 
 def extract_json_from_text(text: str) -> Optional[str]:
@@ -1236,6 +1237,7 @@ def extract_json_from_text(text: str) -> Optional[str]:
     if not text:
         return None
     start = text.find("{")
+    best = None
     while start != -1:
         depth = 0
         for i in range(start, len(text)):
@@ -1246,8 +1248,11 @@ def extract_json_from_text(text: str) -> Optional[str]:
                 depth -= 1
                 if depth == 0:
                     candidate = text[start:i+1]
+                    # quick sanity check: looks like JSON
                     if candidate.count("{") == candidate.count("}"):
-                        return candidate
+                        best = candidate
+                        return best
+        # not balanced; try next open brace
         start = text.find("{", start+1)
-    return None
+    return best
 # --- End patch helpers ---
