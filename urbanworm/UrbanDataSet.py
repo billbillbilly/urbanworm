@@ -1,6 +1,5 @@
 import ollama
 import datetime
-from .utils import sanitize_json_text, extract_json_from_text
 from pydantic import BaseModel
 import rasterio
 import geopandas as gpd
@@ -702,7 +701,7 @@ class UrbanDataSet:
         )
         return self.self._validate_response_json_with_repair(res.message.content, format)
 
-    def def __summarize_geo_df(self, max_rows: int = 2) -> tuple[str, list[dict]]:
+    def __summarize_geo_df(self, max_rows: int = 2) -> tuple[str, list[dict]]:
         """
         Summarize key characteristics of self.geo_df for LLM context.
 
