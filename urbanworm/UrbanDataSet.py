@@ -10,6 +10,7 @@ from typing import Union
 from typing import List
 from .utils import *
 from pydantic import ValidationError
+import logging
 
 
 class QnA(BaseModel):
@@ -69,6 +70,7 @@ class UrbanDataSet:
 
         self.results, self.geo_df, self.df = None, None, None
         self.messageHistory = []
+        self.logger = logging.getLogger("urbanworm")
 
     def __checkUnitsInputType(self, input: str | gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         match input:
@@ -202,18 +204,27 @@ class UrbanDataSet:
         dic = {'responses': [], 'img': []}
         for i in tqdm(range(len(self.imgs)), desc="Processing...", ncols=75, disable=disableProgressBar):
             img = self.base64Imgs[i]
-            r = self.LLM_chat(model=model, system=system, prompt=prompt, img=[img],
-                              temp=temp, top_k=top_k, top_p=top_p,
-                              one_shot_lr=one_shot_lr, multiImgInput=multiImgInput)
-            r = r.responses
+            try:
+                r = self.LLM_chat(model=model, system=system, prompt=prompt, img=[img],
+                                  temp=temp, top_k=top_k, top_p=top_p,
+                                  one_shot_lr=one_shot_lr, multiImgInput=multiImgInput)
+                rr = r.responses
+            except Exception as e:
+                # Log and continue; capture an error stub so downstream stays consistent
+                self.logger.warning("loopImgChat: image %d failed (%s). Continuing.", i, e)
+                rr = {'error': str(e), 'img': None}
             if saveImg:
                 if i == 0:
                     dic['imgBase64'] = []
                 dic['imgBase64'] += [img]
-            dic['responses'] += [r]
+            dic['responses'] += [rr]
             dic['img'] += [self.imgs[i]]
             if verbose:
-                plot_base64_image(r['img'])
+                try:
+                    if isinstance(rr, dict) and rr.get('img') is not None:
+                        plot_base64_image(rr['img'])
+                except Exception as pe:
+                    self.logger.debug("loopImgChat: verbose plot failed for image %d: %s", i, pe)
         self.results = {'from_loopImgChat': dic}
         if output_df:
             return self.to_df(output=True)
@@ -699,7 +710,33 @@ class UrbanDataSet:
                 "top_p": top_p
             }
         )
-        return self.self._validate_response_json_with_repair(res.message.content, format)
+        return self._validate_response_json_with_repair(res.message.content, self.format)
+
+    def _validate_response_json_with_repair(self, raw_text, model_class):
+        """Strict JSON -> sanitize -> extract balanced -> strict again.
+        Saves raw on final failure for debugging.
+        """
+        try:
+            return model_class.model_validate_json(raw_text)
+        except Exception:
+            pass
+        repaired = sanitize_json_text(str(raw_text))
+        try:
+            return model_class.model_validate_json(repaired)
+        except Exception:
+            pass
+        extracted = extract_json_from_text(repaired) or repaired
+        try:
+            return model_class.model_validate_json(extracted)
+        except Exception as e2:
+            # Log & re-raise (no file writes)
+            text = str(raw_text)
+            preview_len = 4000
+            self.logger.warning(
+                "[urbanworm] JSON parse failed after repair: %s | output_len=%d | preview=%r",
+                e2, len(text), text[:preview_len]
+            )
+            raise
 
     def __summarize_geo_df(self, max_rows: int = 2) -> tuple[str, list[dict]]:
         """
