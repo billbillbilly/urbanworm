@@ -1204,3 +1204,50 @@ def temp_file_path(extension):
     file_path = os.path.join(tempfile.gettempdir(), f"{file_id}{extension}")
 
     return file_path
+
+
+# --- Added by patch: robust JSON cleanup for model outputs + shared helpers ---
+import re
+from typing import Optional
+
+def sanitize_json_text(text: str) -> str:
+    """
+    Make LLM JSON-ish output more parseable:
+    - strip code fences ```json ... ```
+    - replace non-breaking spaces and odd whitespace with regular spaces
+    - trim obvious junk before/after
+    """
+    if text is None:
+        return ""
+    text = re.sub(r"^```(?:json)?\s*", "", text.strip(), flags=re.IGNORECASE)
+    text = re.sub(r"\s*```$", "", text.strip())
+    text = text.replace("\xa0", " ").replace("\u00A0", " ")
+    # Remove zero-width
+    text = text.replace("\u200b", "").replace("\u200c", "").replace("\u200d", "")
+    # Collapse whitespace
+    text = re.sub(r"[ \t\r\n]+", " ", text)
+    return text.strip()
+
+def extract_json_from_text(text: str) -> Optional[str]:
+    """
+    Extract the first *balanced* top-level JSON object {...} from text.
+    Returns None if nothing balanced is found.
+    """
+    if not text:
+        return None
+    start = text.find("{")
+    while start != -1:
+        depth = 0
+        for i in range(start, len(text)):
+            c = text[i]
+            if c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+                if depth == 0:
+                    candidate = text[start:i+1]
+                    if candidate.count("{") == candidate.count("}"):
+                        return candidate
+        start = text.find("{", start+1)
+    return None
+# --- End patch helpers ---

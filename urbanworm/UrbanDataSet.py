@@ -1,4 +1,6 @@
 import ollama
+import datetime
+from utils import sanitize_json_text, extract_json_from_text
 from pydantic import BaseModel
 import rasterio
 import geopandas as gpd
@@ -613,7 +615,7 @@ class UrbanDataSet:
     #             print("Raw response:", res)
     #             raise e
 
-    def customized_chat(self, model: str = 'gemma3:12b',
+    def _customized_chat_original(self, model: str = 'gemma3:12b',
                         system: str = None, prompt: str = None, img: str | list | tuple = None,
                         temp: float = None, top_k: float = None, top_p: float = None,
                         one_shot_lr: list = []) -> Response:
@@ -698,7 +700,7 @@ class UrbanDataSet:
                 "top_p": top_p
             }
         )
-        return self.format.model_validate_json(res.message.content)
+        return self.self._validate_response_json_with_repair(res.message.content, format)
 
     def __summarize_geo_df(self, max_rows: int = 2) -> tuple[str, list[dict]]:
         """
