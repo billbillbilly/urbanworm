@@ -12,4 +12,3 @@ pydantic
 matplotlib
 requests
 tqdm
-logging
