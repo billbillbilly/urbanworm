@@ -656,21 +656,37 @@ def plot_base64_image(img_base64: str | list[str], caption: str | list[str] = No
 
 # chat with model to analyze/summarize results
 def chatpd(messages: list,
-           model: str) -> list:
+           model: str, key:str = None) -> list:
     import ollama
 
-    # chat with model
     final_reply = ""
-    res = ollama.chat(
-        model=model,
-        messages=messages,
-        options={
-            "temperature": 0.2,
-            "top_k": 1.0,
-            "top_p": 0.8
-        },
-        stream=True
-    )
+    # chat with model
+    if key is not None and key != "":
+        client = ollama.Client(
+            host="https://ollama.com",
+            headers={'Authorization': key},
+        )
+        res = client.chat(
+            model=model,
+            messages=messages,
+            options={
+                "temperature": 0.2,
+                "top_k": 1.0,
+                "top_p": 0.8
+            },
+            stream=True
+        )
+    else:
+        res = ollama.chat(
+            model=model,
+            messages=messages,
+            options={
+                "temperature": 0.2,
+                "top_k": 1.0,
+                "top_p": 0.8
+            },
+            stream=True
+        )
     for chunk in res:
         final_reply += chunk['message']['content']
         print(chunk['message']['content'], end='', flush=True)

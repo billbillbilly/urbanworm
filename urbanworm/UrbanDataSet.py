@@ -1,4 +1,5 @@
 import ollama
+from ollama import Client
 import datetime
 from pydantic import BaseModel
 import rasterio
@@ -28,8 +29,11 @@ class UrbanDataSet:
     Dataset class for urban imagery inference using MLLMs.
     '''
 
-    def __init__(self, image=None, images: list = None, units: str | gpd.GeoDataFrame = None,
-                 format: Response = None, mapillary_key: str = None, random_sample: int = None):
+    def __init__(self, image=None, images: list = None,
+                 units: str | gpd.GeoDataFrame = None,
+                 format: Response = None, skip_errors: bool = True,
+                 mapillary_key: str = None, ollama_key:str = None,
+                 random_sample: int = None):
         '''
         Add data or api key
 
@@ -38,7 +42,9 @@ class UrbanDataSet:
             images (list): The list of image paths.
             units (str or GeoDataFrame): The path to the shapefile or geojson file, or GeoDataFrame.
             format (Response): The response format.
+            skip_errors (bool): Whether to skip errors or not.
             mapillary_key (str): The Mapillary API key.
+            ollama_key (str): The Ollama API key.
             random_sample (int): The number of random samples.
         '''
 
@@ -56,7 +62,7 @@ class UrbanDataSet:
         if random_sample is not None and units is not None:
             self.units = self.__checkUnitsInputType(units)
             self.units = self.units.sample(random_sample)
-        elif random_sample == None and units is not None:
+        elif random_sample is None and units is not None:
             self.units = self.__checkUnitsInputType(units)
         else:
             self.units = units
@@ -66,7 +72,10 @@ class UrbanDataSet:
         else:
             self.format = format
 
+        self.skip_errors = skip_errors
+
         self.mapillary_key = mapillary_key
+        self.ollama_key = ollama_key
 
         self.results, self.geo_df, self.df = None, None, None
         self.messageHistory = []
@@ -565,66 +574,6 @@ class UrbanDataSet:
         else:
             raise Exception("Prompt or image(s) is missing.")
 
-    # def chat(self, model: str = 'gemma3:12b', system: str = None, prompt: str = None,
-    #          img=None, temp=None, top_k: float = None, top_p: float = None) -> Response:
-    #     '''
-    #     Chat with the LLM model using a system message, prompt, and optional image.
-    #
-    #     Args:
-    #         model (str): Model name. Defaults to "gemma3:12b". ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'gemma3:27b', 'minicpm-v', 'mistral-small3.1', ...]
-    #         system (str): The system-level instruction for the model.
-    #         prompt (str): The user message or question.
-    #         img (str): Path to a single image or base64 to be sent to the model.
-    #         temp (float, optional): Sampling temperature for generation (higher = more random).
-    #         top_k (float, optional): Top-k sampling parameter.
-    #         top_p (float, optional): Top-p (nucleus) sampling parameter.
-    #
-    #     Returns:
-    #         Response: Parsed response from the LLM, returned as a `Response` object.
-    #     '''
-    #     if top_k > 100.0:
-    #         top_k = 100.0
-    #     elif top_k <= 0:
-    #         top_k = 1.0
-    #
-    #     if top_p > 1.0:
-    #         top_p = 1.0
-    #     elif top_p <= 0:
-    #         top_p = 0
-    #
-    #     res = ollama.chat(
-    #         model=model,
-    #         format=self.format.model_json_schema(),
-    #         messages=[
-    #             {
-    #                 'role': 'system',
-    #                 'content': system
-    #             },
-    #             {
-    #                 'role': 'user',
-    #                 'content': prompt,
-    #                 'images': [img]
-    #             }
-    #         ],
-    #         options={
-    #             "temperature": temp,
-    #             "top_k": top_k,
-    #             "top_p": top_p
-    #         }
-    #     )
-    #
-    #     try:
-    #         # Try to directly validate the response as a Python dictionary
-    #         return self.format.model_validate(res)
-    #     except ValidationError:
-    #         # If that fails, try parsing it as a JSON string from message content
-    #         try:
-    #             return self.format.model_validate_json(res['message']['content'])
-    #         except Exception as e:
-    #             print("Failed to parse response – unexpected output structure!")
-    #             print("Raw response:", res)
-    #             raise e
-
     def customized_chat(self, model: str = 'gemma3:12b',
                         system: str = None, prompt: str = None, img: str | list | tuple = None,
                         temp: float = None, top_k: float = None, top_p: float = None,
@@ -700,16 +649,33 @@ class UrbanDataSet:
                            }
                        ]
 
-        res = ollama.chat(
-            model=model,
-            format=self.format.model_json_schema(),
-            messages=messages,
-            options={
-                "temperature": temp,
-                "top_k": top_k,
-                "top_p": top_p
-            }
-        )
+        if (self.ollama_key is not None) and (self.ollama_key != ''):
+            # this is not supported by turbo at this point
+            client = Client(
+                host="https://ollama.com",
+                headers={'Authorization': self.ollama_key},
+            )
+            res = client.chat(
+                model=model,
+                format=self.format.model_json_schema(),
+                messages=messages,
+                options={
+                    "temperature": temp,
+                    "top_k": top_k,
+                    "top_p": top_p
+                }
+            )
+        else:
+            res = ollama.chat(
+                model=model,
+                format=self.format.model_json_schema(),
+                messages=messages,
+                options={
+                    "temperature": temp,
+                    "top_k": top_k,
+                    "top_p": top_p
+                }
+            )
         return self._validate_response_json_with_repair(res.message.content, self.format)
 
     def _validate_response_json_with_repair(self, raw_text, model_class):
@@ -719,7 +685,11 @@ class UrbanDataSet:
         try:
             return model_class.model_validate_json(raw_text)
         except Exception:
-            pass
+            if self.skip_errors:
+                raise
+            else:
+                pass
+
         repaired = sanitize_json_text(str(raw_text))
         try:
             return model_class.model_validate_json(repaired)
@@ -728,14 +698,7 @@ class UrbanDataSet:
         extracted = extract_json_from_text(repaired) or repaired
         try:
             return model_class.model_validate_json(extracted)
-        except Exception as e2:
-            # Log & re-raise (no file writes)
-            text = str(raw_text)
-            preview_len = 4000
-            self.logger.warning(
-                "[urbanworm] JSON parse failed after repair: %s | output_len=%d | preview=%r",
-                e2, len(text), text[:preview_len]
-            )
+        except Exception:
             raise
 
     def __summarize_geo_df(self, max_rows: int = 2) -> tuple[str, list[dict]]:
@@ -873,7 +836,7 @@ class UrbanDataSet:
                 'content': prompt.strip(),
             }
         ]
-        conversations = chatpd(self.messageHistory, model)
+        conversations = chatpd(self.messageHistory, model, self.ollama_key)
         self.messageHistory = conversations
 
     def plotBase64(self, img: str):
