@@ -159,7 +159,6 @@ class UrbanDataSet:
             model (str): Model name. Defaults to "gemma3:12b". ['granite3.2-vision', 'llama3.2-vision', 'gemma3', 'gemma3:1b', 'gemma3:12b', 'gemma3:27b', 'minicpm-v', 'mistral-small3.1']
             system (optinal): The system message.
             prompt (str): The prompt message.
-            img (str): The image path.
             temp (float): The temperature value.
             top_k (float): The top_k value.
             top_p (float): The top_p value.
@@ -689,7 +688,6 @@ class UrbanDataSet:
                 raise
             else:
                 pass
-
         repaired = sanitize_json_text(str(raw_text))
         try:
             return model_class.model_validate_json(repaired)

@@ -36,6 +36,9 @@ jobs:
       - name: Install GDAL via Homebrew
         run: brew install gdal
 
+      - name: Install llama.cpp via Homebrew
+        run: brew install llama.cpp
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:

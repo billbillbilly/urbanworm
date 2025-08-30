@@ -13,8 +13,42 @@ import base64
 import cv2
 import matplotlib.pyplot as plt
 from datetime import datetime
+from pathlib import Path
+import subprocess
 import re
 
+def download_gguf(model:str, path:str, include:str = None):
+    include = [] if include is None else [include]
+    cmd = [
+              "hf download",
+              model,
+              "--local-dir", path,
+              "--include"
+          ] + include
+
+    out = subprocess.run(cmd, check=True, text=True, capture_output=True)
+    return out
+
+
+def llamacpp_vision(llm:str, mp:str, imgs:list, prompt:str):
+    lm = Path(llm)
+    mp = Path(mp)
+    imgs = [Path(img) for img in imgs]
+    imgs = [["--image", str(i)] for i in imgs]
+    imgs = [item for sublist in imgs for item in sublist]
+
+    cmd = [
+              "llama-mtmd-cli",
+              "-m", str(lm),
+              "--mmproj", str(mp),
+              "-p", prompt,
+          ] + imgs
+
+    res = subprocess.run(cmd, check=True, text=True, capture_output=True)
+    raw = res.stdout
+    m = re.search(r'image decoded.*? in \d+\s*ms(?:\r?\n){1,2}', raw, re.I)
+    content = raw[m.end():] if m else raw
+    return content.replace('\r', '').replace('\n', '').strip()
 
 def is_base64(s):
     """Checks if a string is base64 encoded."""

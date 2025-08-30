@@ -21,7 +21,7 @@ Urban-Worm is a Python library that integrates remote sensing imagery, street vi
 </picture>
 
 ## Features
-- Run VLMs locally with local datasets and ensure information privacy
+- Run VLMs locally with local datasets and ensure information privacy using Ollama or llama.cpp
 - Download building footprints from OSM and global building data released by Bing Maps, with options to filter building footprints by area
 - Search and clip aerial and street view images (via APIs) based on urban units such as parcel and building footprint data
 - Automatically calibrate the orientation of the panorama street view and the extent of the aerial image
@@ -71,6 +71,17 @@ To install the development version from this repo:
 pip install -e git+https://github.com/billbillbilly/urbanworm.git#egg=urban-worm
 ```
 
+To run more pre-quantized models with vision capabilities, please install pre-built version of llama.cpp:
+``` sh
+# Windows
+winget install llama.cpp
+
+# Mac and Linux
+brew install llama.cpp
+```
+More information [here](https://github.com/ggml-org/llama.cpp/blob/master/docs/install.md)
+
+More GGUF mdoels can be found at the Hugging Face pages [here](https://huggingface.co/collections/ggml-org/multimodal-ggufs-68244e01ff1f39e5bebeeedc) and [here](https://huggingface.co/models?pipeline_tag=image-text-to-text&sort=trending&search=gguf)
 
 ## Usage
 #### single-image inference
@@ -141,9 +152,10 @@ The next version (v0.2.0) will have:
 This repository and its content are provided for educational purposes only. By using the information and code provided, users acknowledge that they are using the APIs and models at their own risk and agree to comply with any applicable laws and regulations. Users who intend to download a large number of image tiles from any basemap are advised to contact the basemap provider to obtain permission before doing so. Unauthorized use of the basemap or any of its components may be a violation of copyright laws or other applicable laws and regulations.
 
 ## Acknowledgements
-The package is heavily built on the Ollama client and Ollama-python. Credit goes to the developers of these projects.
+The package is heavily built on the Ollama client, Ollama-python, and llama.cpp. Credit goes to the developers of these projects.
 - [ollama](https://github.com/ollama/ollama)
 - [ollama-python](https://github.com/ollama/ollama-python)
+- [llama.cpp](https://github.com/ggml-org/llama.cpp/tree/master)
 
 The functionality about sourcing and processing GIS data (satellite & street view imagery) and 360-degree street view image processing is built on the following open projects. Credit goes to the developers of these projects.
 - [tms2geotiff](https://github.com/gumblex/tms2geotiff)
