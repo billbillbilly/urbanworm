@@ -137,16 +137,14 @@ data.to_gdf()
 More examples can be found [here](docs/example.ipynb).
 
 ## To do
-- [ ] One-shot learning in each chat method to help the model get familiar with the questions and expected answers 
+- [x] One-shot learning in each chat method to help the model get familiar with the questions and expected answers 
 - [ ] Multiple images inference for pairwise comparison and more
 - [x] Basic plot method in UrbanDataSet class
 - [x] Improve the method dataAnalyst in UrbanDataSet class by adding functionality of feeding a more meaningful introduction of data to LLMs
-- [ ] A web UI providing interactive operation and data visualization 
 
 The next version (v0.2.0) will have:
 - [ ] agent-based city walk simulation
-- [ ] search for a unit with an address (using Google APIs)
-- [ ] find historical images (using Google APIs)
+- [ ] A web UI providing interactive operation and data visualization 
 
 ## Legal Notice
 This repository and its content are provided for educational purposes only. By using the information and code provided, users acknowledge that they are using the APIs and models at their own risk and agree to comply with any applicable laws and regulations. Users who intend to download a large number of image tiles from any basemap are advised to contact the basemap provider to obtain permission before doing so. Unauthorized use of the basemap or any of its components may be a violation of copyright laws or other applicable laws and regulations.
