@@ -119,7 +119,10 @@ def meters_to_degrees(meters, latitude):
 def getSV(centroid, epsg: int, key: str, multi: bool = False,
           fov: int = 45, heading: int = None, pitch: int = 5,
           height: int = 480, width: int = 640,
-          year: list | tuple = None, season: str = None, time_of_day: str = None) -> list[str]:
+          year: list | tuple = None,
+          season: str = None,
+          time_of_day: str = None,
+          output_df: bool = False) -> list[str]:
     """
     getSV
 
@@ -133,8 +136,12 @@ def getSV(centroid, epsg: int, key: str, multi: bool = False,
         fov (int, optional): Field of view in degrees for the perspective image. Defaults to 80.
         heading (int, optional): Camera heading in degrees. If None, it will be computed based on the house orientation.
         pitch (int, optional): Camera pitch angle. Defaults to 10.
-        height (int, optional): Height in pixels of the returned image. Defaults to 300.
-        width (int, optional): Width in pixels of the returned image. Defaults to 400.
+        height (int, optional): Height in pixels of the returned image. Defaults to 480.
+        width (int, optional): Width in pixels of the returned image. Defaults to 640.
+        year (list[str], optional): Year of data. Defaults to None.
+        season (str, optional): Season of data. Defaults to None.
+        time_of_day (str, optional): Time of data. Defaults to None.
+        output_df (bool, optional): Whether to return a dataframe containing only the closest.
     
     Returns:
         list[str]: A list of images in base64 format
@@ -144,6 +151,16 @@ def getSV(centroid, epsg: int, key: str, multi: bool = False,
     # 2048 -> original to get higher resolution
     url = f"https://graph.mapillary.com/images?access_token={key}&fields=id,compass_angle,thumb_original_url,captured_at,geometry&bbox={bbox}&is_pano=true"
     svis = []
+    svi_df = {
+        "id": [],
+        "captured_year": [],
+        "captured_month": [],
+        "captured_day": [],
+        "captured_hour": [],
+        "compass_angle": [],
+        "image_lon": [],
+        "image_lat": [],
+    }
     try:
         response = retry_request(url)
         if response is None:
@@ -169,6 +186,9 @@ def getSV(centroid, epsg: int, key: str, multi: bool = False,
             svi = Equirectangular(img_url=img_url)
             sv = svi.GetPerspective(fov, relative_heading, pitch, height, width, 128)
             svis.append(sv)
+            if output_df:
+                svi_df['captured_at'] += [response.loc[i, "captured_at"]]
+
         return svis
     except Exception as e:
         print(f"Error in getSV: {e}")
@@ -497,18 +517,38 @@ def getGlobalMLBuilding(bbox: tuple | list, epsg: int = None, min_area: float | 
 
     combined_gdf = filterBF(combined_gdf, epsg, min_area, max_area)
     # Reproject back to WGS84
-    combined_gdf = combined_gdf.to_crs('EPSG:4326')
+    combined_gdf = combined_gdf.to_crs(4326)
     return combined_gdf
 
 
 def filterBF(data, epsg, minm, maxm):
-    # Reproject to a CRS for accurate area measurement
-    gdf_proj = data.units.to_crs(epsg)
-    # Compute area and filter buildings by area
-    gdf_proj['footprint_area'] = gdf_proj.geometry.area
-    gdf_proj = gdf_proj[gdf_proj["footprint_area"] >= minm]  # Filter min area
-    if maxm:
-        gdf_proj = gdf_proj[gdf_proj["footprint_area"] <= maxm]  # Filter max area
+    gdf = data
+
+    # Ensure the input has a CRS
+    if gdf.crs is None:
+        gdf = gdf.set_crs(4326, allow_override=True)
+
+    # Normalize epsg to something GeoPandas will accept
+    if isinstance(epsg, int):
+        target_crs = f"EPSG:{epsg}"
+    else:
+        target_crs = epsg  # allow "EPSG:XXXX" or a pyproj CRS
+
+    # Reproject for accurate area in meters
+    gdf_proj = gdf.to_crs(target_crs)
+
+    # Keep only polygonal geometries
+    poly_mask = gdf_proj.geometry.geom_type.isin(["Polygon", "MultiPolygon"])
+    gdf_proj = gdf_proj.loc[poly_mask].copy()
+
+    # Compute areas (m²) in projected CRS
+    gdf_proj["footprint_area"] = gdf_proj.geometry.area
+
+    # Apply filters
+    if minm is not None:
+        gdf_proj = gdf_proj[gdf_proj["footprint_area"] >= float(minm)]
+    if maxm is not None:
+        gdf_proj = gdf_proj[gdf_proj["footprint_area"] <= float(maxm)]
     return gdf_proj
 
 
