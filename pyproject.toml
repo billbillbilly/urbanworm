@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "urban-worm"
 version = "0.1.0"
 dynamic = ["dependencies"]
-description = "Multimodal Large Language Model (MLLM) for urban environment evaluation."
+description = "Workflow of reproducible multimodal inference for urban environment evaluation."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { file = "LICENSE" }
