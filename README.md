@@ -1,4 +1,4 @@
-from urbanworm import InferenceLlamacpp[![image](https://img.shields.io/pypi/v/urban-worm.svg)](https://pypi.python.org/pypi/urban-worm)
+[![image](https://img.shields.io/pypi/v/urban-worm.svg)](https://pypi.python.org/pypi/urban-worm)
 [![PyPI Downloads](https://static.pepy.tech/badge/urban-worm)](https://pepy.tech/project/urban-worm)
 [![PyPI Downloads](https://static.pepy.tech/badge/urban-worm/week)](https://pepy.tech/projects/urban-worm)
 [![Docs](https://img.shields.io/badge/docs-latest-blue)](https://billbillbilly.github.io/urbanworm/)
@@ -36,14 +36,8 @@ The package `urban-worm` can be installed with `pip`:
 ```sh
 pip install urban-worm
 ```
-To inference with audio data:
-
-```sh
-pip install urban-worm[audio] 
-```
 
 ### 2 Inference with llama.cpp
-
 To run more pre-quantized models with vision capabilities, please install pre-built version of llama.cpp:
 ``` sh
 # Windows

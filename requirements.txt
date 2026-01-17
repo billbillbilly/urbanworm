@@ -10,3 +10,4 @@ pydantic
 matplotlib
 requests
 tqdm
+pydub

@@ -23,9 +23,6 @@ classifiers = [
 ]
 authors = [{ name = "Xiaohao Yang", email = "xiaohaoy111@gmail.com" }]
 
-[project.optional-dependencies]
-audio = ["pydub"]
-
 [project.urls]
 Homepage = "https://github.com/billbillbilly/urbanworm"
 
