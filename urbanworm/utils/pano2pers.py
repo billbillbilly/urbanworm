@@ -8,6 +8,22 @@ from urllib.request import urlopen
 import base64
 
 # Equirectangular to Perspective
+def read_url2img(url:str) -> np.ndarray:
+    '''
+    Read image from a URL
+
+    Args:
+        url (str): Image URL
+
+    Returns:
+        np.ndarray: The image as a NumPy array.
+    '''
+    resp = urlopen(url, timeout=9999)
+    image = np.asarray(bytearray(resp.read()), dtype="uint8")
+    image = cv2.imdecode(image, cv2.IMREAD_COLOR)
+    return image
+
+
 class Equirectangular:
     '''
     Covert paronoma to perspective
@@ -24,23 +40,8 @@ class Equirectangular:
         if img_path != None:
             self._img = cv2.imread(img_path, cv2.IMREAD_COLOR)
         elif img_url != None:
-            self._img = self.read_url2img(img_url)
+            self._img = read_url2img(img_url)
         [self._height, self._width, _] = self._img.shape
-    
-    def read_url2img(self, url:str) -> np.ndarray:
-        '''
-        Read image from a URL
-
-        Args:
-            url (str): Image URL
-
-        Returns: 
-            np.ndarray: The image as a NumPy array.
-        '''
-        resp = urlopen(url, timeout=100)
-        image = np.asarray(bytearray(resp.read()), dtype="uint8")
-        image = cv2.imdecode(image, cv2.IMREAD_COLOR)
-        return image
 
     def GetPerspective(self, FOV:float, THETA:float, PHI:float, height:int, width:int, RADIUS:int = 128) -> str:
         """

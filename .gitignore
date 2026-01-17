@@ -171,3 +171,8 @@ cython_debug/
 .pypirc
 
 .DS_Store
+test.ipynb
+
+flickr_key.txt
+freesound_key.txt
+mapillary_key.txt

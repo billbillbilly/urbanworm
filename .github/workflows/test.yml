@@ -10,9 +10,6 @@ jobs:
   test:
     runs-on: self-hosted
 
-    env:
-      GDAL_VERSION: "3.11.0"  # Adjust this to match `brew info gdal`
-
     steps:
       - uses: actions/checkout@v4
 
@@ -30,12 +27,6 @@ jobs:
       - name: Wait for Ollama to be ready
         run: sleep 10
 
-      - name: Pull the required model
-        run: ollama pull gemma3:12b
-
-      - name: Install GDAL via Homebrew
-        run: brew install gdal
-
       - name: Install llama.cpp via Homebrew
         run: brew install llama.cpp
 
@@ -45,22 +36,12 @@ jobs:
           python-version: "3.10"
           cache: pip
 
-      - name: Set GDAL build env and install dependencies
+      - name: Install dependencies
         run: |
-          export CPLUS_INCLUDE_PATH=/opt/homebrew/opt/gdal/include
-          export C_INCLUDE_PATH=/opt/homebrew/opt/gdal/include
-          export LDFLAGS="-L/opt/homebrew/opt/gdal/lib"
-          export CPPFLAGS="-I/opt/homebrew/opt/gdal/include"
-          export DYLD_LIBRARY_PATH="/opt/homebrew/opt/gdal/lib:$DYLD_LIBRARY_PATH"
-
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -e .
 
-          # Match Python GDAL version with brew GDAL version
-          pip install GDAL==$GDAL_VERSION
-
-      - name: Run tests with real Ollama server
+      - name: Run tests
         run: |
-          python -c "import osgeo.gdal as gdal; print('GDAL loaded:', gdal.VersionInfo())"
           pytest tests

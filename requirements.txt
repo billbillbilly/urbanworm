@@ -1,13 +1,11 @@
 ollama
-gdal
+huggingface_hub
 pandas
 geopandas
-rasterio
-numpy
+numpy>=1.24
 pydantic
 pillow
 opencv-python
-xyzservices
 pydantic
 matplotlib
 requests
