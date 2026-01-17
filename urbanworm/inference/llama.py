@@ -128,11 +128,11 @@ class InferenceOllama(Inference):
             multiImgInput = True
 
         for i in tqdm(range(len(imgs)), desc="Processing...", ncols=75, disable=disableProgressBar):
-            img = self.imgs[i]
+            img = imgs[i]
             try:
                 r = self._mtmd(model=self.llm,
                                system=system, prompt=prompt,
-                               img=[img] if multiImgInput else img,
+                               img=img if multiImgInput else [img],
                                temp=temp, top_k=top_k, top_p=top_p,
                                schema=schema,
                                one_shot_lr=[],
@@ -144,7 +144,7 @@ class InferenceOllama(Inference):
                 rr = {'error': str(e), 'data': None}
 
             dic['responses'] += [rr]
-            dic['data'] += [self.imgs[i]]
+            dic['data'] += [imgs[i]]
         self.results = dic
         return self.to_df(output=True)
 
@@ -262,29 +262,27 @@ class InferenceOllama(Inference):
                     "top_p": top_p
                 }
             )
-        return _validate_response_json_with_repair(res.message.content, schema)
 
-def _validate_response_json_with_repair(self, raw_text, model_class):
-    """Strict JSON -> sanitize -> extract balanced -> strict again.
-    Saves raw on final failure for debugging.
-    """
-    try:
-        return model_class.model_validate_json(raw_text)
-    except Exception:
-        if self.skip_errors:
-            raise
-        else:
+        raw_text = res.message.content
+        try:
+            return schema.model_validate_json(raw_text)
+        except Exception:
+            if self.skip_errors:
+                raise
+            else:
+                pass
+
+        repaired = sanitize_json_text(str(raw_text))
+        try:
+            return schema.model_validate_json(repaired)
+        except Exception:
             pass
-    repaired = sanitize_json_text(str(raw_text))
-    try:
-        return model_class.model_validate_json(repaired)
-    except Exception:
-        pass
-    extracted = extract_json_from_text(repaired) or repaired
-    try:
-        return model_class.model_validate_json(extracted)
-    except Exception:
-        raise
+
+        extracted = extract_json_from_text(repaired) or repaired
+        try:
+            return schema.model_validate_json(extracted)
+        except Exception:
+            raise
 
 
 import pandas as pd

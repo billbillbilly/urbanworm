@@ -11,8 +11,8 @@
 # Urban-WORM
 
 ## Introduction
-Urban-WORM (Workflow Of Reproducible Multimodal Inference) is a user-friendly high-level interface that 
-is designed for adding rich and meaningful captions for crow-sourced data with geotags using multimodal models. 
+Urban-**WORM** (**W**orkflow **O**f **R**eproducible **M**ultimodal Inference) is a user-friendly high-level interface that 
+is designed for adding rich and meaningful captions for crowdsourced data with geotags using multimodal models. 
 Urban-WORM can support the batched analysis of images and sounds for investigating urban environments at scales. 
 The investigation may cover topics about building conditions, street appearance, people's activities, etc.
 
@@ -27,6 +27,8 @@ The investigation may cover topics about building conditions, street appearance,
 - Collect geotagged data (Mapillary street views, Flickr photos, and Freesound audios) via APIs 
 within the proximity of building footprints (or other POIs)
 - Calibrate the orientation of the panorama street views to look at given locations
+- Filter out personal photo using face detection
+- Divide sound recording to multiple clips with given duration
 - Support (batched) multiple data input with multimodal models
 
 ## Installation
