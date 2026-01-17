@@ -17,10 +17,10 @@ Urban-WORM can support the batched analysis of images and sounds for investigati
 The investigation may cover topics about building conditions, street appearance, people's activities, etc.
 
 - Free software: MIT license
-- Website/Documentation: [https://land-info-lab.github.io/urbanworm/](https://land-info-lab.github.io/urbanworm/)
+- Website/Documentation: [https://digital-landscapes.github.io/urbanworm/](https://land-info-lab.github.io/urbanworm/)
 
 <picture>
-  <img alt="workflow" src="docs/images/urabn_worm_diagram.png" width="100%">
+  <img alt="workflow" src="docs/images/urabn_worm_diagram.png" width="90%">
 </picture>
 
 ## Features
