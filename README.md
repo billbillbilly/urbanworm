@@ -105,10 +105,9 @@ More examples can be found [here](docs/1_basic_inference.ipynb).
 v0.1.x:
 - [x] A module for collecting social media data (Flickr and Freesound)
 - [x] A method for inferencing sound recordings
-- [ ] A web UI providing interactive operation and data visualization
 
 v0.2.x:
-- [ ] A module for agent-based city walk simulation
+- [ ] A web UI providing interactive operation and data visualization
 
 ## Legal Notice
 This repository and its content are provided for educational and research purposes only. By using the information and 
