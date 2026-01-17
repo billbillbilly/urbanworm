@@ -50,6 +50,7 @@ The package is heavily built on llamacpp and Ollama. Credit goes to the develope
 
 The functionality about sourcing and processing GIS data and image processing is built on the following open projects. 
 Credit goes to the developers of these projects.
+
 - [GlobalMLBuildingFootprints](https://github.com/microsoft/GlobalMLBuildingFootprints)
 - [Equirec2Perspec](https://github.com/fuenwang/Equirec2Perspec)
 - [Mapillary API](https://www.mapillary.com/developer/api-documentation)
