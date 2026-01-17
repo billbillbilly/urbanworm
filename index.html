@@ -538,11 +538,11 @@
   
   
     <li class="md-nav__item">
-      <a href="API_Reference/UrbanDataSet/" class="md-nav__link">
+      <a href="API_Reference/dataset/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    UrbanDataSet
+    Dataset
     
   </span>
   
@@ -560,55 +560,11 @@
   
   
     <li class="md-nav__item">
-      <a href="API_Reference/format_creation/" class="md-nav__link">
+      <a href="API_Reference/inference/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    Format creation
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="API_Reference/pano2pers/" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    Pano2pers
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="API_Reference/utils/" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    Utils
+    Inference
     
   </span>
   
@@ -669,11 +625,11 @@
   
   
     <li class="md-nav__item">
-      <a href="Examples/all_examples/" class="md-nav__link">
+      <a href="Examples/1_basic_inference/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    All Examples
+    1 basic inference
     
   </span>
   
@@ -691,55 +647,11 @@
   
   
     <li class="md-nav__item">
-      <a href="Examples/define_output_structure/" class="md-nav__link">
+      <a href="Examples/2_inference_geo_located_data/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    Define output structure
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="Examples/download_open-source_building_footprints/" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    Download open-source building footprints
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="Examples/stream_chat/" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    Streaming chat for analyzing and interpreting results
+    Batched input with geolocated data
     
   </span>
   
@@ -851,40 +763,52 @@
 <p><picture>
   <img alt="logo" src="https://github.com/billbillbilly/urbanworm/blob/main/docs/images/urabn_worm_logo.png?raw=true" width="100%">
 </picture></p>
-<p><a href="https://pypi.python.org/pypi/urban-worm"><img alt="image" src="https://img.shields.io/pypi/v/urban-worm.svg" /></a></p>
-<p>A python package for studying urban environment imagery with Llama vison model</p>
+<p><a href="https://pypi.python.org/pypi/urban-worm"><img alt="image" src="https://img.shields.io/pypi/v/urban-worm.svg" /></a>
+<a href="https://colab.research.google.com/github/billbillbilly/urbanworm/blob/main/docs/example_colab.ipynb"><img alt="image" src="https://colab.research.google.com/assets/colab-badge.svg" /></a></p>
 <h2 id="introduction">Introduction<a class="headerlink" href="#introduction" title="Permanent link">&para;</a></h2>
-<p>Urban-Worm is a Python library that integrates remote sensing imagery, street view data, and multimodal model to assess urban units. Using APIs for data collection and vision-language models for inference, Urban-Worm is designed to support the automation of the evaluation for urban environments, including roof integrity, structural condition, landscape quality, and urban perception.</p>
+<p>Urban-<strong>WORM</strong> (<strong>W</strong>orkflow <strong>O</strong>f <strong>R</strong>eproducible <strong>M</strong>ultimodal Inference) is a user-friendly high-level interface that 
+is designed for adding rich and meaningful captions for crowdsourced data with geotags using multimodal models (MMs). 
+Urban-WORM can support the batched analysis of images and sounds for investigating urban environments at scales. 
+The investigation may cover topics about building conditions, street appearance, people's activities, etc.</p>
 <p><picture>
   <img alt="logo" src="https://github.com/billbillbilly/urbanworm/blob/main/docs/images/urabn_worm_diagram.png?raw=true" width="100%">
 </picture></p>
 <h2 id="features">Features<a class="headerlink" href="#features" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Run vision-language models locally using custom datasets while maintaining data privacy</li>
-<li>Download building footprints from OpenStreetMap (OSM) and global building datasets released by Bing Maps with options to filter building footprints by area</li>
-<li>Search for (via APIs) and clip aerial or street view imagery, based on urban units such as parcels or building footprints</li>
-<li>Automatically calibrate the orientation of panoramic street views and define the spatial extent of aerial imagery</li>
-<li>Visualize results on maps and in tables</li>
-<li>Interact with LLMs through a streaming chat interface to analyze and interpret results</li>
+<li>Collect geotagged data (Mapillary street views, Flickr photos, and Freesound audios) via APIs 
+within the proximity of building footprints (or other POIs)</li>
+<li>Calibrate the orientation of the panorama street views to look at given locations</li>
+<li>Filter out personal photo using face detection</li>
+<li>Divide sound recording to multiple clips with given duration</li>
+<li>Support (batched) multiple data input with multimodal models</li>
 </ul>
 <h2 id="computing-resources">Computing Resources<a class="headerlink" href="#computing-resources" title="Permanent link">&para;</a></h2>
-<p>Large language models (LLMs) and vision-language models (VLMs) typically require substantial RAM and can be quite slow when running solely on a CPU. While macOS devices with Apple Silicon can accelerate computation using Metal, performance is still not on par with high-end NVIDIA GPUs, which are strongly recommended for optimal speed and efficiency. This package is built on Ollama, which provides fast performance—especially for local use with quantized models. However, the number of parameters in a model directly affects VRAM requirements. More powerful models need more VRAM to run entirely on the GPU. For instance, the Llama3.2-Vision model with 11 billion parameters requires approximately 10 GB of GPU memory. Additionally, image resolution plays a crucial role in inference time—particularly for high-resolution inputs like satellite imagery or street views. The higher the resolution, the longer a VLM may take to process the image.</p>
+<p>MMs typically require substantial RAM and can be quite slow when running solely on a CPU. While macOS devices with Apple 
+Silicon can accelerate computation using Metal, performance is still not on par with high-end NVIDIA GPUs, which are 
+strongly recommended for optimal speed and efficiency. This package is built on Ollama, which provides fast performance—especially 
+for local use with quantized models. However, the number of parameters in a model directly affects VRAM requirements. 
+More powerful models need more VRAM to run entirely on the GPU. For instance, the Llama3.2-Vision model with 11 billion 
+parameters requires approximately 10 GB of GPU memory. Additionally, image resolution plays a crucial role in inference 
+time—particularly for high-resolution inputs like satellite imagery or street views. The higher the resolution, the longer 
+a VLM may take to process the image.</p>
 <h2 id="legal-notice">Legal Notice<a class="headerlink" href="#legal-notice" title="Permanent link">&para;</a></h2>
-<p>This repository and its content are provided for educational purposes only. By using the information and code provided, users acknowledge that they are using the APIs and models at their own risk and agree to comply with any applicable laws and regulations. Users who intend to download a large number of image tiles from any basemap are advised to contact the basemap provider to obtain permission before doing so. Unauthorized use of the basemap or any of its components may be a violation of copyright laws or other applicable laws and regulations.</p>
+<p>This repository and its content are provided for educational purposes only. By using the information and code provided, 
+users acknowledge that they are using the APIs and models at their own risk and agree to comply with any applicable laws 
+and regulations. </p>
 <h2 id="acknowledgements">Acknowledgements<a class="headerlink" href="#acknowledgements" title="Permanent link">&para;</a></h2>
-<p>The package is heavily built on Ollama client and Ollama-python. Credit goes to the developers of these projects.</p>
+<p>The package is heavily built on llamacpp and Ollama. Credit goes to the developers of these projects.</p>
 <ul>
+<li><a href="https://github.com/ggml-org/llama.cpp/tree/master">llama.cpp</a></li>
 <li><a href="https://github.com/ollama/ollama">ollama</a></li>
 <li><a href="https://github.com/ollama/ollama-python">ollama-python</a></li>
-<li><a href="https://ollama.com/blog/structured-outputs">structured outputs</a></li>
 </ul>
-<p>The functionality about sourcing and processing GIS data (satellite &amp; street view imagery) and 360-degree street view image processing is built on the following open projects. Credit goes to the developers of these projects.</p>
-<ul>
-<li><a href="https://github.com/gumblex/tms2geotiff">tms2geotiff</a></li>
-<li><a href="https://github.com/microsoft/GlobalMLBuildingFootprints">GlobalMLBuildingFootprints</a></li>
-<li><a href="https://www.mapillary.com/developer/api-documentation">Mapillary API</a></li>
-<li><a href="https://github.com/fuenwang/Equirec2Perspec">Equirec2Perspec</a></li>
-</ul>
+<p>The functionality about sourcing and processing GIS data and image processing is built on the following open projects. 
+Credit goes to the developers of these projects.
+- <a href="https://github.com/microsoft/GlobalMLBuildingFootprints">GlobalMLBuildingFootprints</a>
+- <a href="https://github.com/fuenwang/Equirec2Perspec">Equirec2Perspec</a>
+- <a href="https://www.mapillary.com/developer/api-documentation">Mapillary API</a>
+- <a href="https://www.flickr.com/services/api/">Flickr API</a>
+- <a href="https://freesound.org/apiv2/apply">Freesound API</a></p>
 <p>The development of this package is supported and inspired by the city of Detroit.</p>
 
 
@@ -906,7 +830,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    2025-04-02
+    2026-01-17
   </span>
 
     
@@ -936,7 +860,7 @@
       <div class="md-copyright">
   
     <div class="md-copyright__highlight">
-      Copyright &copy; 2025 Xiaohao Yang
+      Copyright &copy; 2026 Xiaohao Yang
     </div>
   
   

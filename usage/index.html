@@ -12,7 +12,7 @@
         <link rel="prev" href="../installation/">
       
       
-        <link rel="next" href="../API_Reference/UrbanDataSet/">
+        <link rel="next" href="../API_Reference/dataset/">
       
       
       <link rel="icon" href="../assets/images/favicon.png">
@@ -72,11 +72,6 @@
     <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
     <label class="md-overlay" for="__drawer"></label>
     <div data-md-component="skip">
-      
-        
-        <a href="#single-image" class="md-skip">
-          Skip to content
-        </a>
       
     </div>
     <div data-md-component="announce">
@@ -404,18 +399,6 @@
       
       
       
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  <span class="md-ellipsis">
-    Usage
-    
-  </span>
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
       <a href="./" class="md-nav__link md-nav__link--active">
         
   
@@ -426,41 +409,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#single-image" class="md-nav__link">
-    <span class="md-ellipsis">
-      single-image
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#multiple-images-using-osm-data-and-mapillary-api" class="md-nav__link">
-    <span class="md-ellipsis">
-      multiple images using OSM data and Mapillary API
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
       
     </li>
   
@@ -509,11 +457,11 @@
   
   
     <li class="md-nav__item">
-      <a href="../API_Reference/UrbanDataSet/" class="md-nav__link">
+      <a href="../API_Reference/dataset/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    UrbanDataSet
+    Dataset
     
   </span>
   
@@ -531,55 +479,11 @@
   
   
     <li class="md-nav__item">
-      <a href="../API_Reference/format_creation/" class="md-nav__link">
+      <a href="../API_Reference/inference/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    Format creation
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../API_Reference/pano2pers/" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    Pano2pers
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../API_Reference/utils/" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    Utils
+    Inference
     
   </span>
   
@@ -640,11 +544,11 @@
   
   
     <li class="md-nav__item">
-      <a href="../Examples/all_examples/" class="md-nav__link">
+      <a href="../Examples/1_basic_inference/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    All Examples
+    1 basic inference
     
   </span>
   
@@ -662,55 +566,11 @@
   
   
     <li class="md-nav__item">
-      <a href="../Examples/define_output_structure/" class="md-nav__link">
+      <a href="../Examples/2_inference_geo_located_data/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    Define output structure
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../Examples/download_open-source_building_footprints/" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    Download open-source building footprints
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../Examples/stream_chat/" class="md-nav__link">
-        
-  
-  <span class="md-ellipsis">
-    Streaming chat for analyzing and interpreting results
+    Batched input with geolocated data
     
   </span>
   
@@ -746,32 +606,6 @@
   
   
   
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#single-image" class="md-nav__link">
-    <span class="md-ellipsis">
-      single-image
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#multiple-images-using-osm-data-and-mapillary-api" class="md-nav__link">
-    <span class="md-ellipsis">
-      multiple images using OSM data and Mapillary API
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
 </nav>
                   </div>
                 </div>
@@ -792,54 +626,23 @@
   <h1>Usage</h1>
 
 <p>To use urban-worm in a project:</p>
-<pre><code class="language-python">from urbanworm import UrbanDataSet
-</code></pre>
-<h2 id="single-image">single-image<a class="headerlink" href="#single-image" title="Permanent link">&para;</a></h2>
-<pre><code class="language-python"># load a local image
-data = UrbanDataSet(image = './docs/data/test1.jpg')
+<pre><code class="language-python">from urbanworm.inference.llama import InferenceOllama
+
+data = InferenceOllama(image = 'docs/data/img_1.jpg')
 system = '''
-    Given a top view image, you are going to roughly estimate house conditions. Your answer should be based only on your observation. 
-    The format of your response must include question, answer (yes or no), explanation (within 50 words)
+    Your answer should be based only on your observation. 
+    The format of your response must include answer (yes/True or no/False), explanation (within 50 words)
 '''
 prompt = '''
-    Is there any damage on the roof?
-'''
-data.oneImgChat(system=system, prompt=prompt)
-# output:
-# {'question': 'Is there any damage on the roof?',
-#  'answer': 'no',
-#  'explanation': 'No visible signs of damage or wear on the roof',
-#  'img': '/9j/4AAQSkZ...'}
-</code></pre>
-<h2 id="multiple-images-using-osm-data-and-mapillary-api">multiple images using OSM data and Mapillary API<a class="headerlink" href="#multiple-images-using-osm-data-and-mapillary-api" title="Permanent link">&para;</a></h2>
-<p>Get building footprints as units and collect satellite and street view images based on each unit. Finally, chat with MLLM model for each unit based on collected images.</p>
-<p>To get a token/key to access data via mapillary api, please <a href="https://www.mapillary.com/dashboard/developers">create an acount and apply</a> on Mapillary</p>
-<pre><code class="language-python">bbox = (-83.235572,42.348092,-83.235154,42.348806)
-data = UrbanDataSet()
-data.bbox2Buildings(bbox, source='osm')
-
-system = '''
-    Given a top view image or street view images, you are going to roughly estimate house conditions. 
-    Your answer should be based only on your observation. 
-    The format of your response must include question, answer (yes or no), explanation (within 50 words) for each question.
+    Is there a tree?
 '''
 
-prompt = {
-    'top': '''
-        Is there any damage on the roof?
-    ''',
-    'street': '''
-        Is the wall missing or damaged?
-        Is the yard maintained well?
-    '''
+data.schema = {
+    &quot;answer&quot;: (bool, ...),
+    &quot;explanation&quot;: (str, ...)
 }
 
-# add the Mapillary key
-data.mapillary_key = 'MLY|......'
-# use both the aerial and street view images (with type='both')
-data.loopUnitChat(system=system, prompt=prompt, type='both', epsg=2253)
-# convert results into GeoDataframe
-data.to_gdf()
+data.one_inference(system=system, prompt=prompt)
 </code></pre>
 
 
@@ -861,7 +664,7 @@ data.to_gdf()
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    2025-03-20
+    2026-01-17
   </span>
 
     
@@ -891,7 +694,7 @@ data.to_gdf()
       <div class="md-copyright">
   
     <div class="md-copyright__highlight">
-      Copyright &copy; 2025 Xiaohao Yang
+      Copyright &copy; 2026 Xiaohao Yang
     </div>
   
   
