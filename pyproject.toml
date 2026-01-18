@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "urban-worm"
-version = "0.1.0"
+version = "0.1.1"
 dynamic = ["dependencies"]
 description = "Workflow of reproducible multimodal inference for urban environment evaluation."
 readme = "README.md"
