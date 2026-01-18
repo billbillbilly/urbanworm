@@ -533,7 +533,7 @@ class GeoTaggedData:
             data (str): Type of data to download: ['svi', 'audio', 'photo'].
             export_gdf (bool): Export gpd.GeoDataFrame.
         '''
-        if data is not None:
+        if data is None:
             return None
 
         if data == 'svi':
@@ -555,9 +555,14 @@ class GeoTaggedData:
             gdf = gpd.GeoDataFrame(temp, geometry=geometry, crs="EPSG:4326")
             popup = ["id", "datetaken", "detail"]
         elif data == 'audio':
-            geometry = gpd.points_from_xy(self.audio_metadata['longitude'], self.audio_metadata['latitude'])
+            temp = self.audio_metadata
+            geometry = gpd.points_from_xy(temp['longitude'], temp['latitude'])
+            temp['detail'] = temp.apply(
+                lambda row: f'<a href="{row["url"]}">Listen to the sound</a>',
+                axis=1
+            )
             gdf = gpd.GeoDataFrame(self.audio_metadata, geometry=geometry, crs="EPSG:4326")
-            popup = ["id", "datetaken", "detail"]
+            popup = ["id", "created_dt", "detail"]
         else:
             raise ValueError('Invalid data type provided. It has to be one of ["svi", "audio", "photo"].')
 
