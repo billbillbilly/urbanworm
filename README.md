@@ -93,6 +93,7 @@ prompt = '''
     Is there a tree?
 '''
 
+data.llm = "hf.co/ggml-org/InternVL3-8B-Instruct-GGUF:Q8_0"
 data.schema = {
     "answer": (bool, ...),
     "explanation": (str, ...)
