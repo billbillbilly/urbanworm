@@ -415,7 +415,8 @@ class InferenceLlamacpp(Inference):
                         top_k: int = 20,
                         top_p: float = 0.8,
                         ctx_size: int = 4096,
-                        audio_input = False):
+                        audio_input = False,
+                        disableProgressBar: bool = False):
         '''
             Chat with MLLM model for each image in a list.
             Args:
@@ -425,7 +426,8 @@ class InferenceLlamacpp(Inference):
                 top_k (float): The top_k value.
                 top_p (float): The top_p value.
                 ctx_size (int): Size of context (The default is 4096)
-                audio_input (bool): False
+                audio_input (bool): Whether to run inference with audio input
+                disableProgressBar (bool): Whether to disable progress bar.
             Returns: response from MLLM as a dataframe
         '''
 
@@ -447,7 +449,7 @@ class InferenceLlamacpp(Inference):
 
         schema = create_format(self.schema)
 
-        for i in tqdm(range(len(imgs)), desc="Processing...", ncols=75, disable=kwargs.get('disableProgressBar', False)):
+        for i in tqdm(range(len(imgs)), desc="Processing...", ncols=75, disable=disableProgressBar):
             ims = [imgs[i]] if isinstance(imgs[i], str) else imgs[i]
 
             ims_origin = None
