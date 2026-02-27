@@ -624,7 +624,7 @@ def getSV(location: list|tuple,
     """
 
     bbox = projection(location, r=distance)
-    url = f"https://graph.mapillary.com/images?access_token={key}&fields=id,compass_angle,thumb_original_url,captured_at,geometry,sequence&bbox={bbox}"
+    url = f"https://graph.mapillary.com/images?access_token={key}&fields=id,computed_compass_angle,thumb_original_url,captured_at,computed_geometry,sequence&bbox={bbox}"
     # 2048 -> original to get higher resolution
     if pano:
         url += "&is_pano=true"
@@ -663,9 +663,9 @@ def getSV(location: list|tuple,
 
         for index, row in response.iterrows():
             # Extract Image ID, Compass Angle, image url, and coordinates
-            img_heading = float(row['compass_angle'])
+            img_heading = float(row['computed_compass_angle'])
             img_url = row['thumb_original_url']
-            image_lon, image_lat = row['coordinates']
+            image_lon, image_lat = row['computed_geometry.coordinates']
             if heading is None:
                 # calculate bearing to the house
                 bearing_to_house = calculate_bearing(image_lat, image_lon, location[1], location[0])

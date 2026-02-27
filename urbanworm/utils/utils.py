@@ -305,7 +305,7 @@ def get_sequence(sequence_id, key=None):
     return pd.DataFrame.from_dict(response['data'])['id'].tolist()
 
 def get_svi_from_id(id, key):
-    url = f"https://graph.mapillary.com/{id}?access_token={key}&fields=id,compass_angle,thumb_original_url,captured_at,geometry,sequence"
+    url = f"https://graph.mapillary.com/{id}?access_token={key}&fields=id,computed_compass_angle,thumb_original_url,captured_at,computed_geometry,sequence"
     response = retry_request(url)
     response = response.json()
     return pd.json_normalize(response)
@@ -313,7 +313,7 @@ def get_svi_from_id(id, key):
 def _extract_info(raw, with_geometry=True):
     if with_geometry:
         # extract coordinates
-        raw[['point', 'coordinates']] = pd.DataFrame(raw.geometry.tolist(), index=raw.index)
+        raw[['point', 'coordinates']] = pd.DataFrame(raw.computed_geometry.tolist(), index=raw.index)
         raw[['lon', 'lat']] = pd.DataFrame(raw.coordinates.tolist(), index=raw.index)
 
     # extract capture time

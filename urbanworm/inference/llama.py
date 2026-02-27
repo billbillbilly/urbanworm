@@ -414,6 +414,8 @@ class InferenceLlamacpp(Inference):
                         temp: float = 0.2,
                         top_k: int = 20,
                         top_p: float = 0.8,
+                        min_p: float = 0.0,
+                        seed: int = 3407,
                         ctx_size: int = 4096,
                         audio_input = False,
                         disableProgressBar: bool = False):
@@ -422,10 +424,12 @@ class InferenceLlamacpp(Inference):
             Args:
                 system (str, optional): The system message.
                 prompt (str): The prompt message.
-                temp (float): The temperature value.
-                top_k (float): The top_k value.
-                top_p (float): The top_p value.
-                ctx_size (int): Size of context (The default is 4096)
+                temp (float): The temperature value (default: 0.2)
+                top_k (float): The top_k value (default: 20)
+                top_p (float): The top_p value (default: 0.8)
+                min_p (float): min-p sampling (default: 0.0, 0.0 = disabled)
+                seed (int): The seed value (Default is 3407)
+                ctx_size (int): Size of context (Default is 4096)
                 audio_input (bool): Whether to run inference with audio input
                 disableProgressBar (bool): Whether to disable progress bar.
             Returns: response from MLLM as a dataframe
@@ -494,6 +498,8 @@ class InferenceLlamacpp(Inference):
                                    temperature=temp,
                                    top_k=top_k,
                                    top_p=top_p,
+                                   min_p=min_p,
+                                   seed = seed,
                                    ctx_size=ctx_size,
                                    schema=schema,
                                    audio_input = audio_input)
@@ -559,6 +565,8 @@ class InferenceLlamacpp(Inference):
               temperature: float = 0.2,
               top_k: int = 40,
               top_p: float = 0.9,
+              min_p: float = 0.0,
+              seed: int = 3407,
               ctx_size:int = 4096,
               # threads:int = -1,
               # batch_size:int = 512,
@@ -576,6 +584,8 @@ class InferenceLlamacpp(Inference):
             temperature (float): temperature (default: 0.2)
             top_k (float): top-k sampling (default: 40, 0 = disabled)
             top_p (float): top-p sampling (default: 0.9, 1.0 = disabled)
+            min_p (float): min-p sampling (default: 0.0, 0.0 = disabled)
+            seed (int): random seed
             ctx_size (int): size of the prompt context (default: 4096, 0 = loaded from model)
         '''
         if imgs is not None:
@@ -604,6 +614,8 @@ class InferenceLlamacpp(Inference):
                      "--top-k", f"{top_k}",
                      "--top-p", f"{top_p}",
                      "-c", f"{ctx_size}",
+                     "-s", seed,
+                     "--min-p", min_p
                      # "-t", f"{threads}",
                      # "-ub", f"{batch_size}",
                      # "-ngl", f"{gpu_layers}"
