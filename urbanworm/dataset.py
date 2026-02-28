@@ -260,7 +260,7 @@ class GeoTaggedData:
         res_df = None
         skip_count = 0
         for index, row in tqdm(self.units.iterrows(), total=len(self.units)):
-            loc_id = row['loc_id']
+            loc_id = row[id_column]
             try:
                 output_df = getPhoto([row.geometry.centroid.x, row.geometry.centroid.y],
                                      loc_id,
@@ -360,7 +360,7 @@ class GeoTaggedData:
         res_df = None
         skip_count = 0
         for index, row in tqdm(self.units.iterrows(), total=len(self.units)):
-            loc_id = row['loc_id']
+            loc_id = row[id_column]
             try:
                 output_df = getSound([row.geometry.centroid.x, row.geometry.centroid.y],
                                      loc_id,
