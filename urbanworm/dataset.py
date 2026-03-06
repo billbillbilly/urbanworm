@@ -213,6 +213,7 @@ class GeoTaggedData:
                                 distance: int = 50,
                                 key: str = None,
                                 query: str | list[str] = None,
+                                geo_context: int = None,
                                 tag: str | list[str] = None,
                                 max_return: int = 1,
                                 year: list | tuple = None,
@@ -232,6 +233,7 @@ class GeoTaggedData:
                 distance (int): Search radius in meters (converted to km; Flickr radius max is 32 km).
                 key (str): Flickr API key. If None, reads env var FLICKR_API_KEY.
                 query (str, optional): Query string to search for.
+                geo_context (int, optional): Specify whether a geotagged photo was taken indoors or outdoors. 0: Not defined; 1: Indoors; 2: Outdoors. (Default is None)
                 tag (str | list[str]): Tag string or list of tags (comma-separated). Acts as a "limiting agent" for geo queries.
                 max_return (int): Number of photos to return (after filters).
                 year: [Y] or (Y,) or (Y1, Y2) inclusive. Filters by taken date range.
@@ -267,6 +269,7 @@ class GeoTaggedData:
                                      distance,
                                      key,
                                      query,
+                                     geo_context,
                                      tag,
                                      max_return,
                                      year,
@@ -712,6 +715,7 @@ def getPhoto(
         distance: int = 50,
         key: str = None,
         query: str | list[str] = None,
+        geo_context: int = None,
         tag: str | list[str] = None,
         max_return: int = 1,
         year: list | tuple = None,
@@ -731,6 +735,7 @@ def getPhoto(
             distance (int): Search radius in meters (converted to km; Flickr radius max is 32 km).
             key (str): Flickr API key. If None, reads env var FLICKR_API_KEY.
             query (str | list[str]): Query parameters to pass to Flickr API (free text search).
+            geo_context (int): Specify whether a geotagged photo was taken indoors or outdoors. 0: Not defined; 1: Indoors; 2: Outdoors. (Default is None)
             tag: Tag string or list of tags (comma-separated). Acts as a "limiting agent" for geo queries.
             max_return: Number of photos to return (after filters).
             year (str | tuple): [Y] or (Y,) or (Y1, Y2) inclusive. Filters by taken date range.
@@ -826,6 +831,9 @@ def getPhoto(
         q = query_string(query)
         if q:
             params["text"] = q
+
+    if geo_context:
+        params["geo_context"] = geo_context
 
     # tags
     if tag:
