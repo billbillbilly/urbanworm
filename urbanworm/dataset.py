@@ -456,14 +456,15 @@ class GeoTaggedData:
                 img_id = self.svis['id'][i]
                 path = f'{to_dir}/{prefix}_{loc_id}' if prefix is not None else f'./{to_dir}/{loc_id}'
                 p = path + f'_{img_id}.png'
-                try:
-                    if is_base64(self.svis['data'][i]):
-                        save_base64(self.svis['data'][i], p)
-                    else:
-                        download_image_requests(self.svis['data'][i], p)
-                except:
-                    self.svis['path'] += [" "]
-                    continue
+                if not os.path.exists(p):
+                    try:
+                        if is_base64(self.svis['data'][i]):
+                            save_base64(self.svis['data'][i], p)
+                        else:
+                            download_image_requests(self.svis['data'][i], p)
+                    except:
+                        self.svis['path'] += [" "]
+                        continue
                 self.svis['path'] += [p]
         elif data == 'audio':
             if len(self.audios['id']) == 0:
@@ -478,10 +479,11 @@ class GeoTaggedData:
                     start = slices[0]
                     end = slices[1]
                     p = path + f'_{audio_id}_clip_{start}_{end}.mp3'
-                    try:
-                        clip(self.audios['data'][i], start, end, p)
-                    except:
-                        continue
+                    if not os.path.exists(p):
+                        try:
+                            clip(self.audios['data'][i], start, end, p)
+                        except:
+                            continue
                     self.audios['path'] += [p]
             else:
                 for i in tqdm(range(len(self.audios['data'])), total=len(self.audios['data'])):
@@ -489,11 +491,12 @@ class GeoTaggedData:
                     audio_id = self.audios['id'][i]
                     path = f'{to_dir}/{prefix}_{loc_id}' if prefix is not None else f'./{to_dir}/{loc_id}'
                     p = path + f'_{audio_id}.mp3'
-                    try:
-                        download_freesound_preview(self.audios['data'][i], p)
-                    except:
-                        self.audios['path'] += [" "]
-                        continue
+                    if not os.path.exists(p):
+                        try:
+                            download_freesound_preview(self.audios['data'][i], p)
+                        except:
+                            self.audios['path'] += [" "]
+                            continue
                     self.audios['path'] += [p]
         elif data == 'photo':
             if len(self.photos['id']) == 0:
@@ -504,10 +507,11 @@ class GeoTaggedData:
                 photo_id = self.photos['id'][i]
                 path = f'{to_dir}/{prefix}_{loc_id}' if prefix is not None else f'./{to_dir}/{loc_id}'
                 p = path + f'_{photo_id}.png'
-                try:
-                    download_image_requests(self.photos['data'][i], p)
-                except:
-                    self.photos['path'] += [" "]
+                if not os.path.exists(p):
+                    try:
+                        download_image_requests(self.photos['data'][i], p)
+                    except:
+                        self.photos['path'] += [" "]
                 self.photos['path'] += [p]
         return None
 
