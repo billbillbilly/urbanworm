@@ -673,12 +673,12 @@ def getSV(location: list|tuple,
             img_heading = float(row['computed_compass_angle'])
             img_url = row['thumb_original_url']
 
-            if 'computed_geometry.coordinates' in row.columns:
+            if 'computed_geometry.coordinates' in row.index:
                 image_lon, image_lat = row['computed_geometry.coordinates']
-            elif 'coordinates' in row.columns:
+            elif 'coordinates' in row.index:
                 image_lon, image_lat = row['coordinates']
             else:
-                coor_columns = [col for col in row.columns if 'coordinates' in col]
+                coor_columns = [col for col in row.index if 'coordinates' in col]
                 image_lon, image_lat = row[coor_columns[0]]
 
             if heading is None:
