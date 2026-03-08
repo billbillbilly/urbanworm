@@ -672,7 +672,15 @@ def getSV(location: list|tuple,
             # Extract Image ID, Compass Angle, image url, and coordinates
             img_heading = float(row['computed_compass_angle'])
             img_url = row['thumb_original_url']
-            image_lon, image_lat = row['computed_geometry.coordinates']
+
+            if 'computed_geometry.coordinates' in row.columns:
+                image_lon, image_lat = row['computed_geometry.coordinates']
+            elif 'coordinates' in row.columns:
+                image_lon, image_lat = row['coordinates']
+            else:
+                coor_columns = [col for col in row.columns if 'coordinates' in col]
+                image_lon, image_lat = row[coor_columns[0]]
+
             if heading is None:
                 # calculate bearing to the house
                 bearing_to_house = calculate_bearing(image_lat, image_lon, location[1], location[0])
