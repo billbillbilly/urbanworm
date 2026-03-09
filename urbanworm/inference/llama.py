@@ -614,8 +614,8 @@ class InferenceLlamacpp(Inference):
                      "--top-k", f"{top_k}",
                      "--top-p", f"{top_p}",
                      "-c", f"{ctx_size}",
-                     "-s", seed,
-                     "--min-p", min_p
+                     "-s", f"{seed}",
+                     "--min-p", f"{min_p}"
                      # "-t", f"{threads}",
                      # "-ub", f"{batch_size}",
                      # "-ngl", f"{gpu_layers}"
