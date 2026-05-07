@@ -1,14 +1,57 @@
-name: Test Ollama on Self-Hosted Runner
+name: Tests
 
 on:
   push:
-    branches:
-      - main
+    branches: [main, dev, dev2]
   pull_request:
 
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  test:
+  # --------------------------------------------------------------------
+  # Fast unit tests: no Ollama / llama.cpp / network required.
+  # Runs on every push and PR against the main branches.
+  # --------------------------------------------------------------------
+  unit:
+    name: unit (${{ matrix.python-version }} on ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install package + dev deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,all]"
+
+      - name: Lint with ruff
+        run: ruff check urbanworm tests
+
+      - name: Run unit tests with coverage
+        run: pytest --cov=urbanworm --cov-report=term-missing
+
+  # --------------------------------------------------------------------
+  # Integration tests: require Ollama and llama.cpp to be reachable.
+  # These run on a self-hosted MacOS runner.
+  # --------------------------------------------------------------------
+  integration:
+    name: integration (self-hosted)
     runs-on: self-hosted
+    needs: unit
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
       - uses: actions/checkout@v4
@@ -28,7 +71,12 @@ jobs:
         run: sleep 10
 
       - name: Install llama.cpp via Homebrew
-        run: brew install llama.cpp
+        run: |
+          if ! command -v llama-mtmd-cli &> /dev/null; then
+            brew install llama.cpp
+          else
+            echo "llama.cpp is already installed."
+          fi
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -39,9 +87,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -e .
+          pip install -e ".[dev,all]"
 
-      - name: Run tests
-        run: |
-          pytest tests
+      - name: Run all tests
+        run: pytest -m "not skip_ci"

@@ -1,10 +1,22 @@
-from geopandas import GeoDataFrame
-from .utils.building import *
-from .utils.pano2pers import Equirectangular
-from .utils.utils import projection, retry_request, closest, calculate_bearing
-import pandas as pd
-from tqdm.auto import tqdm
+from __future__ import annotations
+
+import logging
 import os
+
+import pandas as pd
+from geopandas import GeoDataFrame
+from tqdm.auto import tqdm
+
+from .utils.building import *  # noqa: F401,F403  (also re-exports gpd, Path, etc.)
+from .utils.pano2pers import Equirectangular
+from .utils.utils import (
+    calculate_bearing,
+    closest,
+    projection,
+    retry_request,
+)
+
+logger = logging.getLogger("urbanworm")
 
 class GeoTaggedData:
     def __init__(self,
@@ -34,12 +46,14 @@ class GeoTaggedData:
         if locations is not None and units is None:
             self.construct_units()
 
-        self.svis = self.photos = self.audios = {
-            'loc_id': [],
-            'id': [],
-            'data': [],
-            'path':[],
-        }
+        # NOTE: each must be its own dict literal — chained assignment would
+        # alias all three names to the SAME underlying dict object.
+        def _empty_payload():
+            return {'loc_id': [], 'id': [], 'data': [], 'path': []}
+
+        self.svis = _empty_payload()
+        self.photos = _empty_payload()
+        self.audios = _empty_payload()
 
         self.svi_metadata = None
         self.photo_metadata = None
@@ -48,37 +62,36 @@ class GeoTaggedData:
 
     def construct_units(self):
         if isinstance(self.locations, list):
-            if isinstance(self.locations[0], list):
-                coor = {
-                    'x': [],
-                    'y': []
-                }
-                for location in self.locations:
-                    coor['x'].append(location[0])
-                    coor['y'].append(location[1])
-                df = pd.DataFrame(coor)
-                geometry = gpd.points_from_xy(df['x'], df['y'])
-                id_df = pd.DataFrame({'loc_id':[i for i in range(len(df))]})
-                self.units = gpd.GeoDataFrame(df, geometry=geometry, crs="EPSG:4326")
-            else:
-                print("coordinates should be stored in a nested list")
-                return None
+            if not self.locations or not isinstance(self.locations[0], (list, tuple)):
+                raise ValueError(
+                    "locations as a list must be a nested list of "
+                    "[longitude, latitude] pairs."
+                )
+            xs = [loc[0] for loc in self.locations]
+            ys = [loc[1] for loc in self.locations]
+            geometry = gpd.points_from_xy(xs, ys)
+            id_df = pd.DataFrame({'loc_id': list(range(len(self.locations)))})
         elif isinstance(self.locations, dict):
             if 'longitude' in self.locations and 'latitude' in self.locations:
                 geometry = gpd.points_from_xy(self.locations['longitude'], self.locations['latitude'])
-                id_df = pd.DataFrame({'loc_id': [i for i in range(len(self.locations['longitude']))]})
+                id_df = pd.DataFrame({'loc_id': list(range(len(self.locations['longitude'])))})
             else:
-                print("the dictionary of coordinates should be keyed by longitude and latitude")
-                return None
+                raise ValueError(
+                    "locations as a dict must be keyed by 'longitude' and 'latitude'."
+                )
         elif isinstance(self.locations, pd.DataFrame):
             if 'longitude' in self.locations.columns and 'latitude' in self.locations.columns:
                 geometry = gpd.points_from_xy(self.locations['longitude'], self.locations['latitude'])
-                id_df = pd.DataFrame({'loc_id': [i for i in range(len(self.locations['longitude']))]})
+                id_df = pd.DataFrame({'loc_id': list(range(len(self.locations['longitude'])))})
             else:
-                print("the dataframe of coordinates should include columns of longitude and latitude")
-                return None
+                raise ValueError(
+                    "locations as a DataFrame must include columns 'longitude' and 'latitude'."
+                )
         else:
-            return None
+            raise TypeError(
+                f"Unsupported locations type: {type(self.locations).__name__}. "
+                "Use list[list], dict, or pandas.DataFrame."
+            )
         self.units = gpd.GeoDataFrame(id_df, geometry=geometry, crs="EPSG:4326")
         return None
 
@@ -100,23 +113,30 @@ class GeoTaggedData:
         '''
 
         if source not in ['osm', 'microsoft']:
-            raise Exception(f'{source} is not supported')
+            raise ValueError(f'Unsupported building source {source!r}; '
+                             f'choose from "osm" or "microsoft".')
 
         if source == 'osm':
             buildings = getOSMbuildings(bbox, min_area, max_area)
-        elif source == 'microsoft':
+        else:  # 'microsoft'
             buildings = getGlobalMLBuilding(bbox, min_area, max_area)
         if buildings is None or buildings.empty:
             if source == 'osm':
-                print("No buildings found in the bounding box. Please check https://overpass-turbo.eu/ for areas with buildings.")
-                return None
-            if source == 'microsoft':
-                print("No buildings found in the bounding box. Please check https://github.com/microsoft/GlobalMLBuildingFootprints for areas with buildings.")
-                return None
+                logger.warning(
+                    "No buildings found in the bounding box. "
+                    "Check https://overpass-turbo.eu/ for areas with buildings."
+                )
+            else:
+                logger.warning(
+                    "No buildings found in the bounding box. "
+                    "Check https://github.com/microsoft/GlobalMLBuildingFootprints "
+                    "for areas with buildings."
+                )
+            return None
         if random_sample is not None:
             buildings = buildings.sample(random_sample)
         self.units = buildings.to_crs(4326)
-        print(f"{len(buildings)} buildings found in the bounding box.")
+        logger.info("%d buildings found in the bounding box.", len(buildings))
         return None
 
     def get_svi_from_locations(self,
@@ -166,7 +186,14 @@ class GeoTaggedData:
             id_column = 'loc_id'
             if id_column not in self.units.columns:
                 self.units[id_column] = [i for i in range(len(self.units))]
-        res_df = None
+        # Resolve API key once with env var fallback
+        resolved_key = key or os.getenv("MAPILLARY_API_KEY")
+        if not resolved_key:
+            raise ValueError(
+                "Missing Mapillary access token. Pass key=... or set env var MAPILLARY_API_KEY."
+            )
+        # Accumulate per-location frames and concat once for O(n) instead of O(n^2)
+        frames: list[pd.DataFrame] = []
         skip_count = 0
         for index, row in tqdm(self.units.iterrows(), total=len(self.units)):
             loc_id = row[id_column]
@@ -174,7 +201,7 @@ class GeoTaggedData:
                 svis, output_df = getSV([row.geometry.centroid.x, row.geometry.centroid.y],
                                         loc_id,
                                         distance,
-                                        key,
+                                        resolved_key,
                                         pano,
                                         reoriented,
                                         multi_num,
@@ -195,17 +222,21 @@ class GeoTaggedData:
                 self.svis['loc_id'] += output_df['loc_id'].tolist()
                 self.svis['id'] += output_df['id'].tolist()
 
-                if res_df is None:
-                    res_df = output_df
-                else:
-                    res_df = pd.concat([res_df, output_df])
+                frames.append(output_df)
             except Exception as e:
-                if not silent: print(f'skipping {[row.geometry.centroid.x, row.geometry.centroid.y]}: {e}')
+                if not silent:
+                    logger.warning(
+                        'skipping %s: %s',
+                        [row.geometry.centroid.x, row.geometry.centroid.y], e,
+                    )
                 skip_count += 1
                 continue
-        self.svi_metadata = res_df
+        self.svi_metadata = pd.concat(frames, ignore_index=True) if frames else None
         if skip_count > 0:
-            print(f'Collect data for {len(self.units) - skip_count} locations and skipped {skip_count} locations due to no data found.')
+            logger.info(
+                'Collected data for %d locations; skipped %d (no data found).',
+                len(self.units) - skip_count, skip_count,
+            )
         return None
 
     def get_photo_from_location(self,
@@ -258,8 +289,8 @@ class GeoTaggedData:
         if id_column is None:
             id_column = 'loc_id'
             if id_column not in self.units.columns:
-                self.units[id_column] = [i for i in range(len(self.units))]
-        res_df = None
+                self.units[id_column] = list(range(len(self.units)))
+        frames: list[pd.DataFrame] = []
         skip_count = 0
         for index, row in tqdm(self.units.iterrows(), total=len(self.units)):
             loc_id = row[id_column]
@@ -293,17 +324,18 @@ class GeoTaggedData:
                 self.photos['loc_id'] += output_df['loc_id'].tolist()
                 self.photos['data'] += output_df['url'].tolist()
                 self.photos['id'] += output_df['id'].tolist()
-                if res_df is None:
-                    res_df = output_df
-                else:
-                    res_df = pd.concat([res_df, output_df])
+                frames.append(output_df)
             except Exception as e:
-                if not silent: print(e)
+                if not silent:
+                    logger.warning("photo fetch error: %s", e)
                 skip_count += 1
                 continue
-        self.photo_metadata = res_df
+        self.photo_metadata = pd.concat(frames, ignore_index=True) if frames else None
         if skip_count > 0:
-            print(f'Collect data for {len(self.units) - skip_count} locations and skipped {skip_count} locations due to no data found.')
+            logger.info(
+                'Collected data for %d locations; skipped %d (no data found).',
+                len(self.units) - skip_count, skip_count,
+            )
         return None
 
     def get_sound_from_location(self,
@@ -359,8 +391,8 @@ class GeoTaggedData:
         if id_column is None:
             id_column = 'loc_id'
             if id_column not in self.units.columns:
-                self.units[id_column] = [i for i in range(len(self.units))]
-        res_df = None
+                self.units[id_column] = list(range(len(self.units)))
+        frames: list[pd.DataFrame] = []
         skip_count = 0
         for index, row in tqdm(self.units.iterrows(), total=len(self.units)):
             loc_id = row[id_column]
@@ -387,45 +419,40 @@ class GeoTaggedData:
                     data_list = output_df['preview-hq-mp3'].tolist()
                     id_list = output_df['id'].tolist()
 
-                    slice_num = 1
-                    if isinstance(slice_list[0][0], list):
-                        slice_num = len(slice_list[0])
-                        flattened_slice_list = [item for sublist in slice_list for item in sublist]
-                    if slice_num > 1:
-                        loc_id_list_ = []
-                        data_list_ = []
-                        id_list_ = []
-                        for item in loc_id_list:
-                            loc_id_list_.extend([item] * slice_num)
-                        for item in data_list:
-                            data_list_.extend([item] * slice_num)
-                        for item in id_list:
-                            id_list_.extend([item] * slice_num)
-                        self.audios['loc_id'] += loc_id_list_
-                        self.audios['data'] += data_list_
-                        self.audios['id'] += id_list_
-                        self.audios['slice'] += flattened_slice_list
-                    else:
-                        self.audios['loc_id'] += loc_id_list
-                        self.audios['data'] += data_list
-                        self.audios['id'] += id_list
-                        self.audios['slice'] += flattened_slice_list
+                    # `slice_list[i]` is always a list of [start_ms, end_ms] pairs
+                    # (one per generated clip). Flatten and replicate metadata
+                    # to match the per-clip cardinality.
+                    flattened_slice_list = [
+                        item for sublist in slice_list for item in sublist
+                    ]
+                    repeated_loc, repeated_data, repeated_id = [], [], []
+                    for sublist, lid, d, sid in zip(
+                            slice_list, loc_id_list, data_list, id_list):
+                        n = len(sublist)
+                        repeated_loc.extend([lid] * n)
+                        repeated_data.extend([d] * n)
+                        repeated_id.extend([sid] * n)
+                    self.audios['loc_id'] += repeated_loc
+                    self.audios['data'] += repeated_data
+                    self.audios['id'] += repeated_id
+                    self.audios['slice'] += flattened_slice_list
                 else:
                     self.audios['loc_id'] += output_df['loc_id'].tolist()
                     self.audios['data'] += output_df['preview-hq-mp3'].tolist()
                     self.audios['id'] += output_df['id'].tolist()
 
-                if res_df is None:
-                    res_df = output_df
-                else:
-                    res_df = pd.concat([res_df, output_df])
+                frames.append(output_df)
             except Exception as e:
-                if not silent: print(e)
+                if not silent:
+                    logger.warning("sound fetch error: %s", e)
                 skip_count += 1
                 continue
-        self.audio_metadata = res_df
+        self.audio_metadata = pd.concat(frames, ignore_index=True) if frames else None
         if skip_count > 0:
-            print(f'Collect data for {len(self.units) - skip_count} locations and skipped {skip_count} locations due to no data found.')
+            logger.info(
+                'Collected data for %d locations; skipped %d (no data found).',
+                len(self.units) - skip_count, skip_count,
+            )
         return None
 
     def download_to_dir(self, data:str = None, to_dir:str = None, prefix: str = None)-> None:
@@ -441,15 +468,11 @@ class GeoTaggedData:
         '''
         if data not in ['svi', 'audio', 'photo']:
             raise ValueError('Invalid data type provided. It has to be one of ["svi", "audio", "photo"].')
-        if to_dir is not None:
-            if not os.path.exists(to_dir):
-                print("The directory doesn't exist.")
-                print("The directory is created now.")
-                out_dir = Path(to_dir)
-                out_dir.mkdir(parents=True, exist_ok=True)
-        else:
-            print("You need to specify a directory to download.")
-            return None
+        if to_dir is None:
+            raise ValueError("to_dir must be provided.")
+        if not os.path.exists(to_dir):
+            logger.info("Directory %s does not exist; creating.", to_dir)
+            Path(to_dir).mkdir(parents=True, exist_ok=True)
         if data == 'svi':
             if len(self.svis['id']) == 0:
                 return None
@@ -465,7 +488,7 @@ class GeoTaggedData:
                             save_base64(self.svis['data'][i], p)
                         else:
                             download_image_requests(self.svis['data'][i], p)
-                    except:
+                    except Exception:
                         self.svis['path'] += [" "]
                         continue
                 self.svis['path'] += [p]
@@ -485,7 +508,8 @@ class GeoTaggedData:
                     if not os.path.exists(p):
                         try:
                             clip(self.audios['data'][i], start, end, p)
-                        except:
+                        except Exception:
+                            self.audios['path'] += [" "]
                             continue
                     self.audios['path'] += [p]
             else:
@@ -497,7 +521,7 @@ class GeoTaggedData:
                     if not os.path.exists(p):
                         try:
                             download_freesound_preview(self.audios['data'][i], p)
-                        except:
+                        except Exception:
                             self.audios['path'] += [" "]
                             continue
                     self.audios['path'] += [p]
@@ -513,8 +537,10 @@ class GeoTaggedData:
                 if not os.path.exists(p):
                     try:
                         download_image_requests(self.photos['data'][i], p)
-                    except:
+                    except Exception:
+                        # download failed: align list lengths with sentinel
                         self.photos['path'] += [" "]
+                        continue
                 self.photos['path'] += [p]
         return None
 
@@ -630,8 +656,13 @@ def getSV(location: list|tuple,
             DataFrame: A dataframe containing metadata about the closest street view images.
     """
 
+    api_key = key or os.getenv("MAPILLARY_API_KEY")
+    if not api_key:
+        raise ValueError(
+            "Missing Mapillary access token. Pass key=... or set env var MAPILLARY_API_KEY."
+        )
     bbox = projection(location, r=distance)
-    url = f"https://graph.mapillary.com/images?access_token={key}&fields=id,computed_compass_angle,thumb_original_url,captured_at,computed_geometry,sequence&bbox={bbox}"
+    url = f"https://graph.mapillary.com/images?access_token={api_key}&fields=id,computed_compass_angle,thumb_original_url,captured_at,computed_geometry,sequence&bbox={bbox}"
     # 2048 -> original to get higher resolution
     if pano:
         url += "&is_pano=true"
@@ -655,15 +686,17 @@ def getSV(location: list|tuple,
     try:
         response = retry_request(url)
         if response is None:
-            if not silent: print(f'skip location: {location} due to no data found')
+            if not silent:
+                logger.warning('skip location %s: no data found', location)
             if output_df:
                 return None, None
             return None
         response = response.json()
         # find the closest image
-        response = closest(location, response, multi_num, interval, year, season, time_of_day, key)
+        response = closest(location, response, multi_num, interval, year, season, time_of_day, api_key)
         if response is None:
-            if not silent: print(f'skip location: {location} due to no data found')
+            if not silent:
+                logger.warning('skip location %s: no data found', location)
             if output_df:
                 return None, None
             return None
@@ -710,7 +743,8 @@ def getSV(location: list|tuple,
         else:
             return svis
     except Exception as e:
-        if not silent: print(f'skip location: {location} due to {e}')
+        if not silent:
+            logger.warning('skip location %s: %s', location, e)
         if output_df:
             return None, None
         return None
@@ -997,48 +1031,14 @@ def getSound(
             dict | list[dict] | pandas.DataFrame
     """
     import os
+
     import requests
-    from datetime import datetime
+
+    from .utils.utils import parse_iso_created as _parse_created
+    from .utils.utils import solr_year_range as _year_range
 
     if exclude_from_location is not None:
         drop_area = projection(location, r=distance)
-
-    # -------------------------
-    # Helpers
-    # -------------------------
-    def _parse_created(s):
-        if not s:
-            return None
-        # Examples look like "2014-04-16T20:07:11.145" (no timezone).
-        # Try a couple variants.
-        for fmt in ("%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S"):
-            try:
-                return datetime.strptime(s, fmt)
-            except Exception:
-                pass
-        # last resort: fromisoformat (py3.11+ handles many cases)
-        try:
-            return datetime.fromisoformat(s.replace("Z", ""))
-        except Exception:
-            return None
-
-    def _year_range(y, with_z: bool=False):
-        if y is None:
-            return None
-        if not isinstance(y, (list, tuple)) or len(y) == 0:
-            raise ValueError("year must be a list/tuple like [2020] or (2020, 2022).")
-        if len(y) == 1:
-            y1 = y2 = int(y[0])
-        else:
-            y1, y2 = int(y[0]), int(y[1])
-            if y2 < y1:
-                y1, y2 = y2, y1
-
-        # Use standard Solr-like ISO range; we will retry without 'Z' if needed.
-        z = "Z" if with_z else ""
-        start = f"{y1:04d}-01-01T00:00:00{z}"
-        end = f"{y2:04d}-12-31T23:59:59{z}"
-        return start, end
 
     # -------------------------
     # Validate inputs
@@ -1154,7 +1154,7 @@ def getSound(
         try:
             for page in range(1, max_pages + 1):
                 params["page"] = page
-                r = session.get(endpoint, params=params, headers=headers, timeout=999)
+                r = session.get(endpoint, params=params, headers=headers, timeout=60)
 
                 if r.status_code == 400 and attempt == 1 and year is not None:
                     # likely date format issue; retry without Z

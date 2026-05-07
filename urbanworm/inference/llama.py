@@ -168,37 +168,43 @@ class InferenceOllama(Inference):
     def _mtmd(self, model: str = None, system: str = None, prompt: str = None,
               img: list[str] = None, temp: float = None, top_k: float = None, top_p: float = None,
               schema = None,
-              one_shot_lr: list | tuple = [], multiImgInput: bool = False, audio_input: bool = False):
+              one_shot_lr: list | tuple | None = None, multiImgInput: bool = False, audio_input: bool = False):
+        if one_shot_lr is None:
+            one_shot_lr = []
 
         if prompt is not None and img is not None:
             if len(img) == 1:
                 return self._customized_chat(model, system, prompt, img[0], temp, top_k, top_p, schema, one_shot_lr)
             elif len(img) >= 2:
-                system = f'You are analyzing aerial or street view images. For street view, you should just focus on the building and yard in the middle. {system}'
+                system = (
+                    "You are analyzing aerial or street view images. For street "
+                    "view, you should just focus on the building and yard in "
+                    f"the middle. {system}"
+                )
                 if multiImgInput:
                     return self._customized_chat(model, system, prompt, img, temp, top_k, top_p, schema, one_shot_lr)
-                else:
-                    res = []
-
-                    for i in range(len(img)):
-                        r = self._customized_chat(model, system, prompt, img, temp, top_k, top_p, schema, one_shot_lr)
-                        res += [r.responses]
-                    return res
+                # Per-image inference: pass img[i], not the full list.
+                res = []
+                for i in range(len(img)):
+                    r = self._customized_chat(model, system, prompt, img[i], temp, top_k, top_p, schema, one_shot_lr)
+                    res += [r.responses]
+                return res
             return None
         else:
-            raise Exception("Prompt or image(s) is missing.")
+            raise ValueError("Prompt or image(s) is missing.")
 
     def _customized_chat(self, model: str = None,
                          system: str = None, prompt: str = None, img: str | list | tuple = None,
                          temp: float = None, top_k: float = None, top_p: float = None,
                          schema=None,
-                         one_shot_lr: list = [],
+                         one_shot_lr: list | None = None,
                          audio_input: bool = False) -> Response:
-
+        if one_shot_lr is None:
+            one_shot_lr = []
         if isinstance(one_shot_lr, list):
             if len(one_shot_lr) > 0:
                 if not isinstance(one_shot_lr[0], dict):
-                    raise Exception("Please provide a list of dictionaries.")
+                    raise TypeError("Please provide a list of dictionaries.")
 
         if img is not None:
             if isinstance(img, str):
@@ -266,22 +272,27 @@ class InferenceOllama(Inference):
         raw_text = res.message.content
         try:
             return schema.model_validate_json(raw_text)
-        except Exception:
-            if self.skip_errors:
-                raise
-            else:
-                pass
+        except Exception as direct_err:
+            self.logger.debug("direct JSON validation failed: %s", direct_err)
 
         repaired = sanitize_json_text(str(raw_text))
         try:
             return schema.model_validate_json(repaired)
-        except Exception:
-            pass
+        except Exception as repair_err:
+            self.logger.debug("validation after sanitize failed: %s", repair_err)
 
         extracted = extract_json_from_text(repaired) or repaired
         try:
             return schema.model_validate_json(extracted)
         except Exception:
+            # All recovery paths exhausted. If skip_errors is True, suppress
+            # and return an empty Response shape so batch loops can continue.
+            if self.skip_errors:
+                self.logger.warning(
+                    "Could not validate model output against schema; "
+                    "returning empty response."
+                )
+                return schema(responses=[])
             raise
 
 
@@ -360,18 +371,18 @@ class InferenceLlamacpp(Inference):
         if not audio_input:
             for i in im:
                 if is_base64(i):
-                    temp = base64img2temp(i)
-                    im_ += [temp]
+                    tmp_path = base64img2temp(i)
+                    im_ += [tmp_path]
                 elif is_url(i):
-                    temp = url2temp(i)
-                    im_ += [temp]
+                    tmp_path = url2temp(i)
+                    im_ += [tmp_path]
                 else:
                     pass
         else:
             for i in range(len(im)):
                 if is_url(im[i]):
-                    temp = sound_url_to_temp(im[i])
-                    im_ += [temp]
+                    tmp_path = sound_url_to_temp(im[i])
+                    im_ += [tmp_path]
                 else:
                     pass
 
@@ -461,11 +472,11 @@ class InferenceLlamacpp(Inference):
             if not audio_input:
                 for im in ims:
                     if is_base64(im):
-                        temp = base64img2temp(im)
-                        ims_ += [temp]
+                        tmp_path = base64img2temp(im)
+                        ims_ += [tmp_path]
                     elif is_url(im):
-                        temp = url2temp(im)
-                        ims_ += [temp]
+                        tmp_path = url2temp(im)
+                        ims_ += [tmp_path]
                     else:
                         pass
             else:
@@ -473,12 +484,12 @@ class InferenceLlamacpp(Inference):
                     im = ims[j]
                     if is_url(im):
                         if clips is not None:
-                            clip = clips[j]
-                            temp = sound_url_to_temp(im, clip)
-                            ims_ += [temp]
+                            clip_range = clips[j]
+                            tmp_path = sound_url_to_temp(im, clip_range)
+                            ims_ += [tmp_path]
                         else:
-                            temp = sound_url_to_temp(im)
-                            ims_ += [temp]
+                            tmp_path = sound_url_to_temp(im)
+                            ims_ += [tmp_path]
                     else:
                         pass
 
@@ -499,10 +510,10 @@ class InferenceLlamacpp(Inference):
                                    top_k=top_k,
                                    top_p=top_p,
                                    min_p=min_p,
-                                   seed = seed,
+                                   seed=seed,
                                    ctx_size=ctx_size,
                                    schema=schema,
-                                   audio_input = audio_input)
+                                   audio_input=audio_input)
                     r = extract_last_json(r)
                     try_times += 1
 

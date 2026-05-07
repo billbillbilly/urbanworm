@@ -1,10 +1,15 @@
 from __future__ import annotations
+
+import logging
+
 import geopandas as gpd
 from pyproj import Geod
 from shapely.geometry import Polygon
-from .utils import *
+
+from .utils import *  # noqa: F401,F403
 
 _GEOD = Geod(ellps="WGS84")
+logger = logging.getLogger("urbanworm")
 
 
 def getOSMbuildings(
@@ -169,7 +174,10 @@ def getGlobalMLBuilding(bbox: tuple | list, min_area: float | int = 0.0,
                 if not os.path.exists(fn):  # Skip if file already exists
                     gdf.to_file(fn, driver="GeoJSON")
             elif rows.shape[0] > 1:
-                print(f"Warning: Multiple rows found for QuadKey: {quad_key}. Processing all entries.")
+                logger.warning(
+                    "Multiple rows found for QuadKey %s; processing all entries.",
+                    quad_key,
+                )
                 for _, row in rows.iterrows():
                     url = row["Url"]
                     df2 = pd.read_json(url, lines=True)

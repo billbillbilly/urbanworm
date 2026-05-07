@@ -8,17 +8,18 @@ from urllib.request import urlopen
 import base64
 
 # Equirectangular to Perspective
-def read_url2img(url:str) -> np.ndarray:
+def read_url2img(url: str, timeout: float = 30.0) -> np.ndarray:
     '''
-    Read image from a URL
+    Read image from a URL.
 
     Args:
-        url (str): Image URL
+        url (str): Image URL.
+        timeout (float): Request timeout in seconds.
 
     Returns:
         np.ndarray: The image as a NumPy array.
     '''
-    resp = urlopen(url, timeout=9999)
+    resp = urlopen(url, timeout=timeout)
     image = np.asarray(bytearray(resp.read()), dtype="uint8")
     image = cv2.imdecode(image, cv2.IMREAD_COLOR)
     return image

@@ -1,4 +1,4 @@
-cff-version: 0.0.1
+cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
 authors:
 - family-names: "Yang"
@@ -12,7 +12,9 @@ authors:
   given-names: "Mark"
 
 title: "urban-worm"
-version: 0.0.16
+version: 0.1.9
 doi: 10.5281/zenodo.15285331
 date-released: 2025-03-19
-url: "https://github.com/land-info-lab/urbanworm"
+url: "https://github.com/billbillbilly/urbanworm"
+repository-code: "https://github.com/billbillbilly/urbanworm"
+license: MIT

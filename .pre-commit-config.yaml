@@ -1,0 +1,28 @@
+# Run with: pre-commit run --all-files
+# Install hooks with: pre-commit install
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ["--maxkb=2048"]
+      - id: detect-private-key
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff
+        args: ["--fix"]
+
+  - repo: local
+    hooks:
+      - id: forbid-key-files
+        name: Disallow committing API key files
+        entry: bash -c 'if git diff --cached --name-only | grep -E "(_key\.txt|_token\.txt|\.env$)"; then echo "ERROR: refusing to commit credential files"; exit 1; fi'
+        language: system
+        pass_filenames: false

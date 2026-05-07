@@ -1,18 +1,26 @@
 from __future__ import annotations
-import io
-import urllib
-from urllib.parse import urlparse
-import pandas as pd
-import numpy as np
-from pyproj import Transformer
-import math
-import requests
-import os
+
 import base64
-import cv2
-from datetime import datetime
-import tempfile
+import io
 import json
+import logging
+import math
+import os
+import tempfile
+import urllib
+from datetime import datetime
+from urllib.parse import urlparse
+
+import cv2
+import numpy as np
+import pandas as pd
+import requests
+from pyproj import Transformer
+
+logger = logging.getLogger("urbanworm")
+
+# Default request timeout for all helpers in this module (seconds).
+_DEFAULT_TIMEOUT = 30.0
 
 def is_url(url:str) -> bool:
     try:
@@ -81,19 +89,20 @@ def projection(centroid, r):
     x_max, y_max = dis2degree(x_max, y_max, utm_epsg)
     return f'{x_min},{y_min},{x_max},{y_max}'
 
-def retry_request(url, retries=3):
+def retry_request(url, retries: int = 3, timeout: float = _DEFAULT_TIMEOUT):
+    """GET ``url`` up to ``retries`` times. Returns the last response or None."""
     response = None
-    for _ in range(retries):
-        # Check for rate limit or server error
+    for attempt in range(retries):
         try:
-            response = requests.get(url)
-            # If the response status code is in the list, wait and retry
-            if response.status_code != 200:
-                continue
-            else:
+            response = requests.get(url, timeout=timeout)
+            if response.status_code == 200:
                 return response
-        except:
-            pass
+            logger.debug(
+                "retry_request: attempt %d returned status %d",
+                attempt + 1, response.status_code,
+            )
+        except requests.RequestException as e:
+            logger.debug("retry_request: attempt %d raised %s", attempt + 1, e)
     return response
 
 # --- UTM -> degrees (WGS84) ---
@@ -145,27 +154,25 @@ def closest(location=None,
             season_start, season_end = season_[season.lower()]
             res_df1 = res_df[(res_df['month'] == season_start[0]) & (res_df['day'] >= season_start[1])]
             res_df2 = res_df[(res_df['month'] == season_end[0]) & (res_df['day'] <= season_end[1])]
+            # default empty mid-season frame so concat is always safe
+            res_df3 = res_df.iloc[0:0]
             if 'winter' in season_:
                 res_df3 = res_df[(res_df['month'] <= 2)]
-
-            if 'summer' in season_:
+            elif 'summer' in season_:
                 res_df3 = res_df[(res_df['month'] > 6) & (res_df['month'] < 9)]
-
-            if 'fall' in season_:
+            elif 'fall' in season_:
                 res_df3 = res_df[(res_df['month'] > 9) & (res_df['month'] < 12)]
-
-            if 'spring' in season_:
+            elif 'spring' in season_:
                 res_df3 = res_df[(res_df['month'] > 3) & (res_df['month'] < 6)]
 
-            res_df = pd.concat([res_df1, res_df2])
-            res_df = pd.concat([res_df, res_df3])
+            res_df = pd.concat([res_df1, res_df2, res_df3])
         if day_start is not None:
             res_df = res_df[(res_df['hour'] >= day_start) & (res_df['hour'] <= day_end)]
 
         if len(res_df) == 0:
             return None
     except Exception as e:
-        print(f"Error in filtering street views by time: {e}")
+        logger.warning("Error filtering street views by time: %s", e)
         return None
 
     # when year is None, select the street views captured in the latest year
@@ -337,22 +344,12 @@ def save_base64(b64, fn = None):
     with open(fn, "wb") as f:
         f.write(b64)
 
-def download_image_requests(image_url, save_path):
-    """
-    Downloads an image from a URL using the requests library and saves it locally.
-    """
-    try:
-        # Send a GET request to the URL
-        response = requests.get(image_url)
-        # Check if the request was successful (status code 200)
-        if response.status_code == 200:
-            # Open the file in write-binary mode ('wb') and write the content
-            with open(save_path, 'wb') as f:
-                f.write(response.content)
-        else:
-            print(f"Failed to download image. Status code: {response.status_code}")
-    except requests.exceptions.RequestException as e:
-        print(f"An error occurred: {e}")
+def download_image_requests(image_url, save_path, timeout: float = _DEFAULT_TIMEOUT):
+    """Download an image to ``save_path``. Raises on HTTP/network errors."""
+    response = requests.get(image_url, timeout=timeout)
+    response.raise_for_status()
+    with open(save_path, 'wb') as f:
+        f.write(response.content)
 
 
 # ------------------ ollama utils -------------------
@@ -789,11 +786,43 @@ def parse_taken(p):
     except Exception:
         return None
 
-def download_freesound_preview(preview_url: str, out_path: str | Path):
+
+def parse_iso_created(s: str | None):
+    """Parse Freesound's ``created`` timestamp ('YYYY-MM-DDTHH:MM:SS[.ffffff]')."""
+    if not s:
+        return None
+    for fmt in ("%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S"):
+        try:
+            return datetime.strptime(s, fmt)
+        except Exception:
+            pass
+    try:
+        return datetime.fromisoformat(s.replace("Z", ""))
+    except Exception:
+        return None
+
+
+def solr_year_range(year, with_z: bool = False):
+    """Build Solr-style ISO 'YYYY-...T...' range string for Freesound's ``created`` filter."""
+    if year is None:
+        return None
+    if not isinstance(year, (list, tuple)) or len(year) == 0:
+        raise ValueError("year must be a list/tuple like [2020] or (2020, 2022).")
+    if len(year) == 1:
+        y1 = y2 = int(year[0])
+    else:
+        y1, y2 = int(year[0]), int(year[1])
+        if y2 < y1:
+            y1, y2 = y2, y1
+    z = "Z" if with_z else ""
+    return f"{y1:04d}-01-01T00:00:00{z}", f"{y2:04d}-12-31T23:59:59{z}"
+
+def download_freesound_preview(preview_url: str, out_path: str | Path,
+                               timeout: float = _DEFAULT_TIMEOUT):
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with requests.get(preview_url, stream=True, timeout=999) as r:
+    with requests.get(preview_url, stream=True, timeout=timeout) as r:
         r.raise_for_status()
         with out_path.open("wb") as f:
             for chunk in r.iter_content(chunk_size=1024 * 1024):
@@ -817,35 +846,40 @@ def sliced_duration(duration, clip_duration, number=None):
         return [[0, duration]]
 
 from pydub import AudioSegment
-def clip(url=None, start_ms=None, end_ms=None, output_file_path=None):
+def clip(url=None, start_ms=None, end_ms=None, output_file_path=None,
+         timeout: float = _DEFAULT_TIMEOUT):
+    """Download an mp3 from ``url`` and write the [start_ms, end_ms] slice."""
     try:
-        # Download the audio data using requests
-        res = requests.get(url)
-        # Use BytesIO to treat the downloaded content as a file in memory
+        res = requests.get(url, timeout=timeout)
+        res.raise_for_status()
         audio_data = BytesIO(res.content)
-        # Load the audio file
         audio = AudioSegment.from_file(audio_data, format="mp3")
-        # Extract the desired segment
         clipped_audio = audio[start_ms:end_ms]
-        # Export the clipped audio to a new file
         clipped_audio.export(output_file_path, format="mp3")
     except Exception as e:
-        print(f"An error occurred: {e}")
+        logger.warning("clip() failed for %s: %s", url, e)
+        raise
     return None
 
-def sound_url_to_temp(url, slice: list|tuple = None):
+def sound_url_to_temp(url, slice: list | tuple = None, timeout: float = 30.0):
     fd, tmp_path = tempfile.mkstemp(prefix="urban_worm_", suffix=".mp3")
     os.close(fd)
     try:
-        res = requests.get(url)
+        res = requests.get(url, timeout=timeout)
+        res.raise_for_status()
         audio_data = BytesIO(res.content)
         audio = AudioSegment.from_file(audio_data, format="mp3")
         if slice is not None:
             audio = audio[slice[0]:slice[1]]
         audio.export(tmp_path, format="mp3")
-    except:
-        os.remove(tmp_path)
-    return tmp_path
+        return tmp_path
+    except Exception:
+        # Clean up the empty placeholder file and surface the failure
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+        raise
 
 # --- Added by patch: robust JSON cleanup for model outputs ---
 import re
