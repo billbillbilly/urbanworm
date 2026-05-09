@@ -195,7 +195,7 @@ class GeoTaggedData:
         # Accumulate per-location frames and concat once for O(n) instead of O(n^2)
         frames: list[pd.DataFrame] = []
         skip_count = 0
-        for index, row in tqdm(self.units.iterrows(), total=len(self.units)):
+        for _index, row in tqdm(self.units.iterrows(), total=len(self.units)):
             loc_id = row[id_column]
             try:
                 svis, output_df = getSV([row.geometry.centroid.x, row.geometry.centroid.y],
@@ -275,8 +275,7 @@ class GeoTaggedData:
                 silent (bool): If True, do not show error traceback (Default is True).
         '''
 
-        from .utils.pano2pers import read_url2img
-        from importlib.resources import files, as_file
+        from importlib.resources import as_file, files
 
         self.photos = {
             'loc_id': [],
@@ -292,7 +291,7 @@ class GeoTaggedData:
                 self.units[id_column] = list(range(len(self.units)))
         frames: list[pd.DataFrame] = []
         skip_count = 0
-        for index, row in tqdm(self.units.iterrows(), total=len(self.units)):
+        for _index, row in tqdm(self.units.iterrows(), total=len(self.units)):
             loc_id = row[id_column]
             try:
                 output_df = getPhoto([row.geometry.centroid.x, row.geometry.centroid.y],
@@ -394,7 +393,7 @@ class GeoTaggedData:
                 self.units[id_column] = list(range(len(self.units)))
         frames: list[pd.DataFrame] = []
         skip_count = 0
-        for index, row in tqdm(self.units.iterrows(), total=len(self.units)):
+        for _index, row in tqdm(self.units.iterrows(), total=len(self.units)):
             loc_id = row[id_column]
             try:
                 output_df = getSound([row.geometry.centroid.x, row.geometry.centroid.y],
@@ -427,7 +426,7 @@ class GeoTaggedData:
                     ]
                     repeated_loc, repeated_data, repeated_id = [], [], []
                     for sublist, lid, d, sid in zip(
-                            slice_list, loc_id_list, data_list, id_list):
+                            slice_list, loc_id_list, data_list, id_list, strict=False):
                         n = len(sublist)
                         repeated_loc.extend([lid] * n)
                         repeated_data.extend([d] * n)
@@ -666,7 +665,7 @@ def getSV(location: list|tuple,
     # 2048 -> original to get higher resolution
     if pano:
         url += "&is_pano=true"
-    if pano == False and reoriented == True:
+    if not pano and reoriented:
         reoriented = False
 
     svis = []
@@ -701,7 +700,7 @@ def getSV(location: list|tuple,
                 return None, None
             return None
 
-        for index, row in response.iterrows():
+        for _index, row in response.iterrows():
             # Extract Image ID, Compass Angle, image url, and coordinates
             img_heading = float(row['computed_compass_angle'])
             img_url = row['thumb_original_url']
@@ -750,7 +749,9 @@ def getSV(location: list|tuple,
         return None
 
 
-from .utils.utils import season_months,tod_hours,year_range
+from .utils.utils import season_months, tod_hours, year_range
+
+
 def getPhoto(
         location: list | tuple,
         loc_id: int | str = None,
@@ -792,8 +793,9 @@ def getPhoto(
     """
 
     import os
-    import requests
     from datetime import datetime, timedelta, timezone
+
+    import requests
 
     if exclude_from_location is not None:
         drop_area = projection(location, r=distance)

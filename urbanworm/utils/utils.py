@@ -7,7 +7,6 @@ import logging
 import math
 import os
 import tempfile
-import urllib
 from datetime import datetime
 from urllib.parse import urlparse
 
@@ -27,12 +26,11 @@ def is_url(url:str) -> bool:
         result = urlparse(url)
         # Check if both scheme and network location exist
         return all([result.scheme, result.netloc])
-    except:
+    except Exception:
         return False
 
 def is_base64(s):
     """Checks if a string is base64 encoded."""
-    import io
     from PIL import Image
     try:
         # Decode Base64
@@ -41,7 +39,7 @@ def is_base64(s):
         image = Image.open(io.BytesIO(decoded_data))
         image.verify()
         return True
-    except:
+    except Exception:
         return False
 
 
@@ -260,7 +258,8 @@ def closest(location=None,
 
     else:
         if multi_num is not None and len(dis_array) > multi_num:
-            if multi_num > 3: multi_num = 3
+            if multi_num > 3:
+                multi_num = 3
             smallest_indices = np.argsort(dis_array)[:multi_num]
             return res_df.loc[res_df['id'].isin(id_array[smallest_indices])]
         return closest_df
@@ -357,8 +356,8 @@ def response2df(qna_dict):
     """
     Extracts filds from QnA objects as a single dictionary and convert it into a Dataframe.
     """
-    import pandas as pd
     import numpy as np
+    import pandas as pd
 
     def renameKey(qna_list):
         return [{f'{key}{i + 1}': qna_list[i][key] for key in qna_list[i]} for i in range(len(qna_list))]
@@ -379,7 +378,7 @@ def response2df(qna_dict):
             for field_i in range(len(fields)):
                 try:
                     dic[fields[field_i]] += [qna_[fields[field_i]]]
-                except:
+                except (KeyError, IndexError):
                     pass
         return dic
 
@@ -425,7 +424,9 @@ def responses_to_wide_all_columns(df: pd.DataFrame) -> pd.DataFrame:
     cols = [f"{col}_{i}" for i in range(1, n+1) for col in df.columns]
     return pd.DataFrame([row])[cols]
 
-from typing import Sequence
+from collections.abc import Sequence
+
+
 def pick_best_gguf(files: Sequence[str], prefer: Sequence[str]) -> str:
     # Main model: endswith .gguf and NOT mmproj
     candidates = [f for f in files if f.lower().endswith(".gguf") and "mmproj" not in f.lower()]
@@ -485,7 +486,7 @@ def base64img2temp(s: str) -> str:
     try:
         ok = cv2.imwrite(tmp_path, img)  # PNG supports alpha if present
         if not ok:
-            raise IOError("cv2.imwrite failed")
+            raise OSError("cv2.imwrite failed")
     except Exception:
         try:
             os.remove(tmp_path)
@@ -495,6 +496,8 @@ def base64img2temp(s: str) -> str:
     return tmp_path
 
 from .pano2pers import read_url2img
+
+
 def url2temp(url: str) -> str:
     img = read_url2img(url)
     fd, tmp_path = tempfile.mkstemp(prefix="urban_worm_", suffix=".jpg")
@@ -502,7 +505,7 @@ def url2temp(url: str) -> str:
     try:
         ok = cv2.imwrite(tmp_path, img)
         if not ok:
-            raise IOError("cv2.imwrite failed")
+            raise OSError("cv2.imwrite failed")
     except Exception:
         try:
             os.remove(tmp_path)
@@ -516,18 +519,17 @@ def url2temp(url: str) -> str:
 import re
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Optional, Union
-from urllib.parse import urlparse
+from typing import Any
 from urllib.request import Request, urlopen
-from PIL import Image
 
+from PIL import Image
 
 _DATA_URI_RE = re.compile(r"^data:image/[^;]+;base64,", re.IGNORECASE)
 
 def load_image_auto(
-    src: Union[str, Path, bytes, bytearray, BytesIO, Any],
+    src: str | Path | bytes | bytearray | BytesIO | Any,
     *,
-    convert: Optional[str] = "RGB",   # e.g., "RGB"
+    convert: str | None = "RGB",   # e.g., "RGB"
     timeout: float = 20.0,
     user_agent: str = "Mozilla/5.0",
 ) -> Image.Image:
@@ -570,7 +572,7 @@ def load_image_auto(
         return img
 
     # 3) File-like
-    if hasattr(src, "read") and callable(getattr(src, "read")):
+    if hasattr(src, "read") and callable(src.read):
         data = src.read()
         if isinstance(data, str):
             data = data.encode("utf-8", errors="ignore")
@@ -667,9 +669,11 @@ def is_selfie_photo(model_path, img_url: str):
 
 class YuNet:
     def __init__(self,
-                 modelPath, inputSize=[320, 320],
+                 modelPath, inputSize=None,
                  confThreshold=0.6, nmsThreshold=0.3,
                  topK=5000, backendId=0, targetId=0):
+        if inputSize is None:
+            inputSize = [320, 320]
         self._modelPath = modelPath
         self._inputSize = tuple(inputSize) # [w, h]
         self._confThreshold = confThreshold
@@ -846,6 +850,8 @@ def sliced_duration(duration, clip_duration, number=None):
         return [[0, duration]]
 
 from pydub import AudioSegment
+
+
 def clip(url=None, start_ms=None, end_ms=None, output_file_path=None,
          timeout: float = _DEFAULT_TIMEOUT):
     """Download an mp3 from ``url`` and write the [start_ms, end_ms] slice."""
@@ -883,7 +889,7 @@ def sound_url_to_temp(url, slice: list | tuple = None, timeout: float = 30.0):
 
 # --- Added by patch: robust JSON cleanup for model outputs ---
 import re
-from typing import Optional
+
 
 def sanitize_json_text(text: str) -> str:
     """
@@ -904,7 +910,7 @@ def sanitize_json_text(text: str) -> str:
     # Strip leading/trailing non-json chars
     return text.strip()
 
-def extract_json_from_text(text: str) -> Optional[str]:
+def extract_json_from_text(text: str) -> str | None:
     """
     Extract the first *balanced* top-level JSON object {...} from text.
     Returns None if nothing balanced is found.

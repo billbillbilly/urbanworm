@@ -117,6 +117,13 @@ ignore = [
 "tests/*" = ["B011"]
 "__init__.py" = ["F401"]  # re-exports
 "urbanworm/inference/transformers.py" = ["E501"]  # entirely commented-out
+# Legacy modules use `from .utils.utils import *` and lazy in-function
+# imports for optional deps. Converting these to explicit imports would be
+# a large, error-prone refactor; suppress the related lint categories here.
+"urbanworm/dataset.py" = ["F403", "F405", "E402"]
+"urbanworm/utils/utils.py" = ["E402"]
+"urbanworm/utils/building.py" = ["F403", "F405"]
+"urbanworm/inference/llama.py" = ["F403", "F405", "E402"]
 
 # ----- pytest -----
 [tool.pytest.ini_options]

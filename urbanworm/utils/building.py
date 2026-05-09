@@ -115,10 +115,11 @@ def getGlobalMLBuilding(bbox: tuple | list, min_area: float | int = 0.0,
     Returns:
         gpd.GeoDataFrame: Filtered building footprints within the bounding box.
     """
-    import mercantile
-    from tqdm import tqdm
     import tempfile
+
+    import mercantile
     from shapely import geometry
+    from tqdm import tqdm
 
     def filter_area(data, minm=0, maxm=None):
         utm = data.estimate_utm_crs()

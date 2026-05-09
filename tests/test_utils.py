@@ -7,7 +7,6 @@ import pytest
 
 from urbanworm.utils import utils as U
 
-
 # ---- json repair ---------------------------------------------------------
 
 def test_sanitize_strips_code_fence_and_nbsp():

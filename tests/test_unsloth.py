@@ -17,7 +17,6 @@ import pytest
 
 from urbanworm.inference.unsloth import InferenceUnsloth
 
-
 # ----------------------------------------------------------------------
 # Helpers to build a fake unsloth + torch + processor stack
 # ----------------------------------------------------------------------
@@ -207,6 +206,7 @@ def test_skip_errors_returns_empty_response(monkeypatch, tmp_path):
 
 def test_skip_errors_false_raises(monkeypatch, tmp_path):
     from PIL import Image
+    from pydantic import ValidationError
     p = tmp_path / "x.png"
     Image.new("RGB", (16, 16)).save(p)
 
@@ -214,7 +214,7 @@ def test_skip_errors_false_raises(monkeypatch, tmp_path):
     inst = InferenceUnsloth(schema={"answer": (bool, ...)}, skip_errors=False)
     _patch_lazy_imports(monkeypatch, model, processor)
 
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         inst.one_inference(prompt="?", image=str(p))
 
 

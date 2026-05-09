@@ -24,7 +24,8 @@ constructed. Install the optional extra::
 from __future__ import annotations
 
 import logging
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 import pandas as pd
 from tqdm import tqdm
@@ -275,7 +276,7 @@ class InferenceUnsloth(Inference):
         # 1) Build chat-template messages and resolve images per item
         templated_texts: list[str] = []
         loaded_images: list[list] = []
-        for system, prompt, img_refs in zip(systems, prompts, images_per_prompt):
+        for system, prompt, img_refs in zip(systems, prompts, images_per_prompt, strict=True):
             content = [{"type": "image"} for _ in img_refs]
             content.append({"type": "text", "text": self._with_schema_hint(prompt, schema)})
             messages = []

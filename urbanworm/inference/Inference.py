@@ -1,6 +1,9 @@
 from __future__ import annotations
+
 import logging
+
 from ..dataset import GeoTaggedData
+
 
 def _pack(locations, dataset):
     """Group consecutive items in `dataset` by equal values in `locations`."""

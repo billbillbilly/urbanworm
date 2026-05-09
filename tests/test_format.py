@@ -8,9 +8,11 @@ from pydantic import ValidationError
 
 from urbanworm.inference.format import (
     create_format,
-    schema as build_item_schema,
     schema_dict,
     schema_json,
+)
+from urbanworm.inference.format import (
+    schema as build_item_schema,
 )
 
 

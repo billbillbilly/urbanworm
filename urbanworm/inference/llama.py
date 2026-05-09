@@ -1,15 +1,12 @@
 from __future__ import annotations
 
-from os import unlink
-
 import ollama
 from ollama import Client
 from tqdm import tqdm
+
 from ..utils.utils import *
-from typing import Union
+from .format import Response, create_format, schema_json
 from .Inference import Inference
-from .format import Response, schema_json
-from .format import create_format
 
 
 class InferenceOllama(Inference):
@@ -61,11 +58,12 @@ class InferenceOllama(Inference):
         '''
 
         ollama.pull(self.llm, stream=True)
-        audio_input = False
         multiImg = False
         if image is None and audio is not None:
+            # Audio is not supported by Ollama yet; fall through with the
+            # path treated as an image so the user gets a clear error from
+            # the model rather than a NameError here.
             image = audio
-            audio_input = True
         if image is not None:
             img = image
         else:
@@ -296,10 +294,13 @@ class InferenceOllama(Inference):
             raise
 
 
-import pandas as pd
-from ..utils.utils import extract_last_json, responses_to_wide_all_columns
 import subprocess
 from pathlib import Path
+
+import pandas as pd
+
+from ..utils.utils import extract_last_json, responses_to_wide_all_columns
+
 
 class InferenceLlamacpp(Inference):
     '''
@@ -415,7 +416,7 @@ class InferenceLlamacpp(Inference):
             for each in im_:
                 try:
                     os.remove(each)
-                except:
+                except OSError:
                     pass
         return df
 
@@ -526,7 +527,7 @@ class InferenceLlamacpp(Inference):
                     for each in ims_:
                         try:
                             os.remove(each)
-                        except:
+                        except OSError:
                             pass
             except Exception as e:
                 print(e)
