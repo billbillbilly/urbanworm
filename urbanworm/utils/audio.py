@@ -4,6 +4,7 @@ from __future__ import annotations
 from .utils import (
     clip,
     download_freesound_preview,
+    probe_audio_duration,
     sliced_duration,
     sound_url_to_temp,
 )
@@ -11,6 +12,7 @@ from .utils import (
 __all__ = [
     "clip",
     "download_freesound_preview",
+    "probe_audio_duration",
     "sliced_duration",
     "sound_url_to_temp",
 ]

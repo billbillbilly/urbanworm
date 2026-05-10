@@ -69,6 +69,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Gemma-3-4B-IT, Qwen2-VL-2B, Qwen2.5-VL-7B-bnb-4bit. Install with
   `pip install "urban-worm[unsloth]"`. Tests in `tests/test_unsloth.py`
   use mocks so they run on any CI without a GPU.
+- **Aporee audio source** — new `getSoundAporee()` and
+  `urbanworm.sources.aporee` module. Filters a Radio Aporee catalog
+  (CSV path or in-memory DataFrame with `url`, `latitude`, `longitude`
+  columns; optional `id`/`identifier`, `name`, `description`, `tags`,
+  `created`, `duration_s`) by spatial proximity using the same
+  semantics as the Freesound path. `getSound()` is now a dispatcher
+  with `source: str = 'freesound'` (default) or `'aporee'`.
+  `GeoTaggedData.get_sound_from_location` accepts matching `source=`,
+  `catalog=`, and `probe_durations=` parameters; existing Freesound
+  callers keep working unchanged. Output schema includes a
+  `preview-hq-mp3` alias of `url` so `download_to_dir` and the slicing
+  pipeline need no changes.
+- **`probe_audio_duration(url)`** in `urbanworm.utils.utils`
+  (re-exported from `urbanworm.utils.audio`). Downloads an mp3 to a
+  tempfile and reads its length via pydub (with mutagen as a fallback).
+  Used by the Aporee path when `slice_duration` is requested but the
+  catalog has no `duration_s` column.
+- **`enrich_aporee_catalog(catalog, out_path=None, min_duration=None,
+  skip_existing=True, timeout=60)`** in `urbanworm.dataset`. One-shot
+  helper that probes every URL in an Aporee catalog, populates
+  `duration_s`, optionally drops rows shorter than `min_duration`, and
+  optionally writes the result back to CSV.
+- **`fetch_aporee_catalog(bbox, year, hour, season, southern, rows,
+  verify_urls, out_path, enrich_durations, min_duration, timeout,
+  page_size)`** in `urbanworm.dataset`. Pulls the geolocated Aporee
+  catalog from Internet Archive's `radio-aporee-maps` collection via
+  the IA Scrape API. Server-side bbox + year filters; client-side hour
+  + hemisphere-aware season filters. Optional `verify_urls=True` looks
+  up the exact mp3 filename per identifier; default is the fast
+  `<id>.mp3` fallback. Output schema is compatible with
+  :func:`getSoundAporee` so a fetched DataFrame can be passed directly.
+- `getSoundAporee` now accepts the script-style column aliases
+  ``lat`` / ``lon`` / ``capture_time`` (renamed internally to the
+  canonical ``latitude`` / ``longitude`` / ``created``).
+- 33 unit tests in `tests/test_aporee.py` (filtering, dispatcher,
+  duration probing, enrichment, IA fetcher with mocked HTTP, alias
+  acceptance).
+- **`fov='auto'` for `getSV` / `get_svi_from_locations`** — sizes the
+  perspective field-of-view per image so the building footprint at the
+  query location is just framed (extent + 10% margin, clamped to
+  `[fov_min, fov_max]`). Two new helpers in `urbanworm.utils.utils`
+  (re-exported via `urbanworm.utils.geo`):
+    - `auto_fov_from_polygon(camera_lon, camera_lat, polygon, ...)` —
+      computes the angular extent of a `shapely` polygon as seen from
+      the camera. The polygon is taken from each unit's `row.geometry`
+      when `get_svi_from_locations` is called against building
+      footprints loaded by `getBuildings()`.
+    - `auto_fov_from_distance(distance_m, building_width_m=15, ...)` —
+      heuristic fallback when no polygon is available (e.g. the user
+      passed a bare coordinate to `getSV`).
+  `getSV` accepts `fov: int | float | str` and a new
+  `target_polygon=` parameter; `fov_margin`, `fov_min`, `fov_max`,
+  `building_height` control the auto sizing. Requires
+  `reoriented=True`.
+- **`fov='auto'` is height-aware.** Both `auto_fov_from_polygon` and
+  `auto_fov_from_distance` now take `building_height_m` (default 9 m,
+  ~3 stories) and `aspect_ratio` (image_width / image_height) and
+  return the wider of two requirements: horizontal extent of the
+  footprint *or* horizontal FOV needed so the rendered image's
+  derived vertical FOV (`vFOV = wFOV / aspect`) covers the building's
+  height. Tall, narrow buildings now have their roofs framed instead
+  of cropped. Set `building_height=0` to skip the height term.
+  15 unit tests in `tests/test_auto_fov.py`.
 - `.env.example` documenting environment variables for API keys.
 - `CHANGELOG.md` (this file).
 

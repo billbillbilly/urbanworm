@@ -338,6 +338,147 @@ def calculate_bearing(lat1, lon1, lat2, lon2):
     bearing = math.degrees(math.atan2(x, y))
     return (bearing + 360) % 360  # Normalize to 0-360
 
+
+def _signed_angle_offset(view_bearing_deg: float, vertex_bearing_deg: float) -> float:
+    """Signed angle (degrees) from view center to vertex.
+
+    Returns a value in (-180, 180]; positive = clockwise (right of view).
+    """
+    diff = (vertex_bearing_deg - view_bearing_deg + 540.0) % 360.0 - 180.0
+    return diff
+
+
+def _vertical_fov_for_height(distance_m: float, building_height_m: float) -> float:
+    """Vertical angular extent (degrees) of a vertical chord ``building_height_m``
+    centered on the camera, at ``distance_m`` away. Conservative — assumes the
+    building is vertically centered on the camera, which slightly overestimates
+    FOV vs. the more accurate cam-on-the-ground geometry, ensuring nothing is
+    cropped.
+    """
+    distance_m = max(1.0, float(distance_m))
+    return math.degrees(2.0 * math.atan((float(building_height_m) / 2.0) / distance_m))
+
+
+def _vertical_to_horizontal_fov(
+        vertical_fov_deg: float, aspect_ratio: float
+) -> float:
+    """Convert a vertical FOV to the horizontal FOV that produces it under
+    the renderer's aspect ratio. The Equirectangular renderer uses
+    ``hFOV = (image_height / image_width) * wFOV`` (i.e. vFOV = wFOV / aspect),
+    so ``wFOV_needed = vFOV * aspect``.
+    """
+    return float(vertical_fov_deg) * float(aspect_ratio)
+
+
+def auto_fov_from_polygon(
+        camera_lon: float,
+        camera_lat: float,
+        polygon,
+        view_bearing_deg: float | None = None,
+        margin: float = 0.10,
+        min_fov: float = 30.0,
+        max_fov: float = 120.0,
+        building_height_m: float = 9.0,
+        aspect_ratio: float = 1.0,
+) -> float:
+    """Compute the (horizontal) field-of-view degrees needed to just frame ``polygon``.
+
+    The returned FOV is the **larger** of two requirements:
+
+    1. The horizontal angular extent of the polygon as seen from the camera
+       (so the building's footprint fits side-to-side).
+    2. The horizontal FOV needed so the derived vertical FOV is wide enough
+       to fit a building of ``building_height_m`` at this distance — given
+       ``aspect_ratio = image_width / image_height``.
+
+    Whichever is larger drives the result. Then ``(1 + margin)`` padding is
+    applied and the value is clamped to ``[min_fov, max_fov]``.
+
+    Args:
+        camera_lon, camera_lat: Camera position in WGS84 degrees.
+        polygon: Anything with a ``.exterior.coords`` attribute (typically a
+            ``shapely.geometry.Polygon``). Coordinates are assumed to be
+            ``(lon, lat)`` in WGS84.
+        view_bearing_deg: Camera viewing direction (0=N, 90=E). If ``None``
+            (default) we point at the polygon centroid.
+        margin: Fractional padding added to the angular extent (0.10 = +10%).
+        min_fov: Lower clamp (degrees). Default 30°.
+        max_fov: Upper clamp (degrees). Default 120°.
+        building_height_m: Assumed building height (meters). Default 9
+            (≈ a typical 3-story residential building). Set to 0 to disable
+            the height-driven term.
+        aspect_ratio: ``image_width / image_height`` of the rendered
+            perspective image (default 1.0). Required to convert the vertical
+            FOV needed for the height into the equivalent horizontal FOV.
+
+    Returns:
+        Horizontal field of view in degrees, clamped to ``[min_fov, max_fov]``.
+    """
+    try:
+        coords = list(polygon.exterior.coords)
+    except AttributeError as e:
+        raise TypeError(
+            "polygon must expose .exterior.coords (e.g. shapely Polygon)"
+        ) from e
+    if not coords:
+        return float(min(max_fov, max(min_fov, 60.0)))
+
+    if view_bearing_deg is None:
+        cx, cy = polygon.centroid.x, polygon.centroid.y
+        view_bearing_deg = calculate_bearing(camera_lat, camera_lon, cy, cx)
+
+    # 1) Horizontal extent from the polygon
+    offsets = []
+    for vlon, vlat in coords:
+        b = calculate_bearing(camera_lat, camera_lon, vlat, vlon)
+        offsets.append(_signed_angle_offset(view_bearing_deg, b))
+    width_fov = max(offsets) - min(offsets)
+
+    # 2) Horizontal FOV needed for the building's vertical extent
+    height_fov = 0.0
+    if building_height_m and building_height_m > 0:
+        # Use distance from camera to the polygon centroid as the depth used
+        # for the vertical computation. (Near corners can be closer, but the
+        # vertical extent stays roughly the same across the visible facade.)
+        cx, cy = polygon.centroid.x, polygon.centroid.y
+        d_centroid = haversine_m(camera_lat, camera_lon, cy, cx)
+        v_fov = _vertical_fov_for_height(d_centroid, building_height_m)
+        height_fov = _vertical_to_horizontal_fov(v_fov, aspect_ratio)
+
+    fov = max(width_fov, height_fov) * (1.0 + float(margin))
+    return float(min(max_fov, max(min_fov, fov)))
+
+
+def auto_fov_from_distance(
+        distance_m: float,
+        building_width_m: float = 15.0,
+        margin: float = 0.10,
+        min_fov: float = 30.0,
+        max_fov: float = 120.0,
+        building_height_m: float = 9.0,
+        aspect_ratio: float = 1.0,
+) -> float:
+    """Heuristic FOV when no polygon is available.
+
+    Returns the larger of:
+      * horizontal FOV to fit ``building_width_m`` perpendicular at distance
+      * horizontal FOV to fit ``building_height_m`` (via aspect ratio)
+
+    Useful as a fallback for ``getSV(fov='auto', ...)`` callers that pass a
+    bare coordinate.
+    """
+    distance_m = max(1.0, float(distance_m))
+    width_fov = math.degrees(2.0 * math.atan((float(building_width_m) / 2.0) / distance_m))
+
+    height_fov = 0.0
+    if building_height_m and building_height_m > 0:
+        v_fov = _vertical_fov_for_height(distance_m, building_height_m)
+        height_fov = _vertical_to_horizontal_fov(v_fov, aspect_ratio)
+
+    fov_deg = max(width_fov, height_fov) * (1.0 + float(margin))
+    return float(min(max_fov, max(min_fov, fov_deg)))
+
+
 def save_base64(b64, fn = None):
     b64 = base64.b64decode(b64)
     with open(fn, "wb") as f:
@@ -848,6 +989,59 @@ def sliced_duration(duration, clip_duration, number=None):
         return [[start+i*clip_duration, end+i*clip_duration] for i in range(_num)]
     else:
         return [[0, duration]]
+
+
+def probe_audio_duration(url: str, timeout: float = _DEFAULT_TIMEOUT) -> float | None:
+    """Return the duration (seconds) of an mp3 fetched from ``url``, or ``None``.
+
+    Strategy:
+        1. Download the file to a tempfile (Aporee mp3s are typically small).
+        2. Read it with pydub (which uses ffprobe / ffmpeg under the hood).
+        3. Fall back to mutagen if pydub is unavailable.
+        4. Return ``None`` on any error so callers can skip the row.
+
+    Used by :func:`urbanworm.dataset.enrich_aporee_catalog` and by
+    :func:`urbanworm.dataset.getSoundAporee` when slicing is requested but
+    the catalog has no ``duration_s`` column.
+    """
+    tmp_path = None
+    try:
+        fd, tmp_path = tempfile.mkstemp(prefix="urban_worm_probe_", suffix=".mp3")
+        os.close(fd)
+        with requests.get(url, stream=True, timeout=timeout) as r:
+            r.raise_for_status()
+            with open(tmp_path, "wb") as f:
+                for chunk in r.iter_content(chunk_size=64 * 1024):
+                    if chunk:
+                        f.write(chunk)
+
+        # Preferred: pydub (uses ffmpeg/libav)
+        try:
+            from pydub import AudioSegment
+            audio = AudioSegment.from_file(tmp_path)
+            return len(audio) / 1000.0
+        except Exception as e:
+            logger.debug("pydub probe failed for %s: %s", url, e)
+
+        # Fallback: mutagen (pure-Python, no ffmpeg required)
+        try:
+            from mutagen import File as MutagenFile
+            mf = MutagenFile(tmp_path)
+            if mf is not None and mf.info is not None:
+                return float(mf.info.length)
+        except Exception as e:
+            logger.debug("mutagen probe failed for %s: %s", url, e)
+
+        return None
+    except Exception as e:
+        logger.warning("probe_audio_duration failed for %s: %s", url, e)
+        return None
+    finally:
+        if tmp_path is not None:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
 
 from pydub import AudioSegment
 

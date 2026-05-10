@@ -8,6 +8,8 @@ compatibility.
 from __future__ import annotations
 
 from .utils import (
+    auto_fov_from_distance,
+    auto_fov_from_polygon,
     calculate_bearing,
     degree2dis,
     dis2degree,
@@ -19,6 +21,8 @@ from .utils import (
 )
 
 __all__ = [
+    "auto_fov_from_distance",
+    "auto_fov_from_polygon",
     "calculate_bearing",
     "degree2dis",
     "dis2degree",
