@@ -100,43 +100,107 @@ class GeoTaggedData:
                      source: str = 'osm',
                      min_area: float | int = 0,
                      max_area: float | int = None,
-                     random_sample: int = None)-> None:
+                     random_sample: int = None,
+                     gba_path: str = None,
+                     gba_cache_dir: str = None) -> None:
         '''
-            Extract buildings from OpenStreetMap using the bbox.
+            Extract buildings from a public source using the bbox.
 
             Args:
-                bbox (list or tuple): The bounding box.
-                source (str): The source of the buildings. ['osm', 'microsoft']
-                min_area (float or int): The minimum area.
-                max_area (float or int): The maximum area.
-                random_sample (int): The number of random samples.
+                bbox (list or tuple): The bounding box (min_lon, min_lat, max_lon, max_lat).
+                source (str): One of:
+
+                  * ``'osm'`` (default) — OpenStreetMap via the Overpass API.
+                    Footprints only; no height.
+                  * ``'microsoft'`` — Microsoft GlobalMLBuildingFootprints
+                    (Bing). Footprints only; no height.
+                  * ``'globfp3d'`` — `3D-GloBFP <https://zenodo.org/records/15487037>`_
+                    (Che et al., ESSD 2024). **Footprints + per-building
+                    height.** Auto-fetches from Zenodo + Figshare and
+                    caches under ``gba_cache_dir`` (default
+                    ``~/.cache/urbanworm/globfp3d``). Pass ``gba_path``
+                    to load from a pre-downloaded local file. The
+                    resulting ``self.units`` keeps a ``height_m`` column.
+                  * ``'gba'`` — `GlobalBuildingAtlas <https://github.com/zhu-xlab/GlobalBuildingAtlas>`_
+                    (Zhu et al., ESSD 2025). **A different dataset from
+                    3D-GloBFP** — hosted on HuggingFace + mediaTUM. Auto-
+                    fetches polygon tiles from
+                    ``zhu-xlab/GBA.LoD1`` using ``representative/lod1.geojson``
+                    as the manifest. Caches under ``~/.cache/urbanworm/gba``.
+                    NOTE: GBA polygons ship without per-row height — heights
+                    live in a separate mediaTUM dataset (`m1837832`) which
+                    isn't joined yet (tracking issue in CHANGELOG). For
+                    per-building height today, use ``source='globfp3d'``.
+
+                min_area (float or int): The minimum area in m².
+                max_area (float or int): The maximum area in m².
+                random_sample (int): If set, randomly subsample to this many.
+                gba_path (str): Optional. Path to a pre-downloaded file
+                    (skips network calls). Used by both ``'globfp3d'`` and
+                    ``'gba'`` sources.
+                gba_cache_dir (str): Optional. Where to cache auto-fetched
+                    files. Defaults differ per source
+                    (``~/.cache/urbanworm/globfp3d`` or ``.../gba``).
         '''
 
-        if source not in ['osm', 'microsoft']:
-            raise ValueError(f'Unsupported building source {source!r}; '
-                             f'choose from "osm" or "microsoft".')
+        if source not in ('osm', 'microsoft', 'gba', 'globfp3d'):
+            raise ValueError(
+                f'Unsupported building source {source!r}; '
+                f'choose from "osm", "microsoft", "globfp3d", or "gba".'
+            )
 
         if source == 'osm':
             buildings = getOSMbuildings(bbox, min_area, max_area)
-        else:  # 'microsoft'
+        elif source == 'microsoft':
             buildings = getGlobalMLBuilding(bbox, min_area, max_area)
+        elif source == 'globfp3d':
+            buildings = getGloBFP3DBuildings(
+                bbox, gba_path=gba_path, min_area=min_area,
+                max_area=max_area, cache_dir=gba_cache_dir,
+            )
+        else:  # 'gba'
+            buildings = getGBABuildings(
+                bbox, gba_path=gba_path, min_area=min_area,
+                max_area=max_area, cache_dir=gba_cache_dir,
+            )
+
         if buildings is None or buildings.empty:
             if source == 'osm':
                 logger.warning(
                     "No buildings found in the bounding box. "
                     "Check https://overpass-turbo.eu/ for areas with buildings."
                 )
-            else:
+            elif source == 'microsoft':
                 logger.warning(
                     "No buildings found in the bounding box. "
                     "Check https://github.com/microsoft/GlobalMLBuildingFootprints "
                     "for areas with buildings."
                 )
+            elif source == 'globfp3d':
+                logger.warning(
+                    "No 3D-GloBFP buildings found in the bounding box %s "
+                    "(local: %s).", bbox, gba_path,
+                )
+            else:
+                logger.warning(
+                    "No GBA buildings found in the bounding box %s "
+                    "(local: %s).", bbox, gba_path,
+                )
             return None
         if random_sample is not None:
             buildings = buildings.sample(random_sample)
         self.units = buildings.to_crs(4326)
-        logger.info("%d buildings found in the bounding box.", len(buildings))
+        with_height = (
+            int(buildings["height_m"].notna().sum())
+            if "height_m" in buildings.columns else 0
+        )
+        if with_height:
+            logger.info(
+                "%d buildings found in the bounding box (%d with height_m).",
+                len(buildings), with_height,
+            )
+        else:
+            logger.info("%d buildings found in the bounding box.", len(buildings))
         return None
 
     def get_svi_from_locations(self,
@@ -223,6 +287,20 @@ class GeoTaggedData:
                 # back to its distance-based heuristic.
                 target_poly = getattr(row.geometry, "exterior", None)
                 target_poly = row.geometry if target_poly is not None else None
+
+                # Per-building height: if the units GeoDataFrame has a
+                # height_m column (e.g. from source='gba'), use that row's
+                # value. Fall back to the global ``building_height``
+                # parameter when the row is missing/NaN.
+                row_height = building_height
+                if "height_m" in self.units.columns:
+                    rh = row.get("height_m")
+                    try:
+                        if rh is not None and not pd.isna(rh) and float(rh) > 0:
+                            row_height = float(rh)
+                    except (TypeError, ValueError):
+                        pass
+
                 svis, output_df = getSV(
                     [row.geometry.centroid.x, row.geometry.centroid.y],
                     loc_id=loc_id,
@@ -237,7 +315,7 @@ class GeoTaggedData:
                     year=year, season=season, time_of_day=time_of_day,
                     target_polygon=target_poly,
                     fov_margin=fov_margin, fov_min=fov_min, fov_max=fov_max,
-                    building_height=building_height,
+                    building_height=row_height,
                     silent=silent,
                 )
                 if svis is None:

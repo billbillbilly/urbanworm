@@ -132,6 +132,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   height. Tall, narrow buildings now have their roofs framed instead
   of cropped. Set `building_height=0` to skip the height term.
   15 unit tests in `tests/test_auto_fov.py`.
+- **GlobalBuildingAtlas (`gba`) building source** with per-building
+  height. New `getGBABuildings(bbox, gba_path, ...)` in
+  `urbanworm.utils.building` loads a local GBA file
+  (GPKG / GeoJSON / GeoParquet — anything `geopandas.read_file`
+  understands), filters by bbox + area, and normalizes the height
+  column to `height_m` (recognises `height`, `h`, `bldg_height`,
+  `building_height`, `z` as aliases). `GeoTaggedData.getBuildings`
+  gains `source='gba'` (with a required `gba_path=`) and logs how
+  many of the loaded buildings carry a height value.
+- **Per-building height for `fov='auto'`.** When `self.units` has a
+  `height_m` column, `get_svi_from_locations` now uses each row's
+  actual height instead of the global `building_height` default.
+  Falls back gracefully on NaN / missing values.
+- **`source='globfp3d'`** in `getBuildings()` for the **3D-GloBFP**
+  dataset (Che et al., ESSD 2024). Auto-fetches `world_grid.zip` +
+  `data_links.txt` from Zenodo record `15487037`, intersects with the
+  bbox, then downloads matching per-tile shapefiles from Figshare. New
+  public helpers (canonical names, all in `urbanworm.utils.building`):
+  `getGloBFP3DBuildings`, `parse_globfp3d_data_links`,
+  `figshare_article_id`, `load_globfp3d_grid_manifest`,
+  `load_globfp3d_data_links`, `download_globfp3d_tile`,
+  `fetch_globfp3d_for_bbox`. Cached by default under
+  `~/.cache/urbanworm/globfp3d`.
+- **`source='gba'`** in `getBuildings()` is now the *real*
+  **GlobalBuildingAtlas** dataset (Zhu et al., ESSD 2025) — a
+  separate dataset hosted on HuggingFace + mediaTUM. New helpers:
+  `getGBABuildings`, `load_true_gba_polygon_manifest`,
+  `fetch_true_gba_for_bbox`. Auto-fetches polygon tiles from
+  `zhu-xlab/GBA.LoD1` using `representative/lod1.geojson` as the
+  manifest, reprojects from EPSG:3857 to EPSG:4326. Cached under
+  `~/.cache/urbanworm/gba`. Per-row heights from GBA.Height
+  (mediaTUM `m1837832`) are NOT yet joined — `include_heights=True`
+  is currently a no-op stub; tracking issue.
+- **Backwards-compat aliases** retained for the previous GBA-prefixed
+  names that actually pointed at the 3D-GloBFP pipeline:
+  `parse_gba_data_links`, `load_gba_grid_manifest`,
+  `load_gba_data_links`, `download_gba_tile`, `fetch_gba_for_bbox`,
+  `_default_gba_cache_dir`, `GBA_ZENODO_RECORD`/`GBA_GRID_URL`/etc.
+  Old code continues to work; new code should use the
+  `globfp3d`-prefixed names for clarity.
+- 23 unit tests in `tests/test_gba.py` covering local-file loaders for
+  both datasets, the new dispatcher in `getBuildings()` (validates all
+  four sources), parser helpers, figshare-id extraction, filename
+  matching, end-to-end fetch with mocked HTTP for both datasets.
 - `.env.example` documenting environment variables for API keys.
 - `CHANGELOG.md` (this file).
 
