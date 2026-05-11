@@ -17,7 +17,7 @@ Urban-WORM can support the batched analysis of images and sounds for investigati
 The investigation may cover topics about building conditions, street appearance, people's activities, etc.
 
 - Free software: MIT license
-- Website/Documentation: [https://digital-landscapes.github.io/urbanworm/](https://land-info-lab.github.io/urbanworm/)
+- Website/Documentation: [https://billbillbilly.github.io/urbanworm/](https://billbillbilly.github.io/urbanworm/)
 
 <picture>
   <img alt="workflow" src="docs/images/urabn_worm_diagram.png" width="90%">
@@ -39,6 +39,14 @@ The package `urban-worm` can be installed with `pip`:
 pip install urban-worm
 ```
 
+For optional features, install the appropriate extras:
+```sh
+pip install "urban-worm[ollama]"        # adds the Ollama Python client
+pip install "urban-worm[audio]"         # adds pydub for audio slicing
+pip install "urban-worm[all]"           # everything above
+pip install "urban-worm[dev]"           # dev tools (pytest, ruff, build)
+```
+
 ### 2 Inference with llama.cpp
 To run more pre-quantized models with vision capabilities, please install pre-built version of llama.cpp:
 ``` sh
@@ -54,7 +62,42 @@ More information about the installation
 More GGUF models can be found at the Hugging Face pages 
 [here](https://huggingface.co/collections/ggml-org/multimodal-ggufs-68244e01ff1f39e5bebeeedc) and [here](https://huggingface.co/models?pipeline_tag=image-text-to-text&sort=trending&search=gguf)
 
-### 3 Inference with Ollama client
+### 3 Inference with Unsloth (fast local VLM)
+
+For faster local VLM inference on a CUDA GPU (typically 2–4× faster than
+Ollama, with optional GPU batching), install the `unsloth` extra:
+
+```sh
+pip install "urban-worm[unsloth]"
+```
+
+Then:
+
+```python
+from urbanworm import InferenceUnsloth
+
+infer = InferenceUnsloth(
+    llm="unsloth/Qwen3-VL-3B-Instruct",   # or Qwen3-VL-8B, gemma-3-4b-it, etc.
+    load_in_4bit=True,
+    schema={"answer": (bool, ...), "explanation": (str, ...)},
+    images=["docs/data/img_1.jpg", "docs/data/img_2.jpg"],
+)
+df = infer.batch_inference(
+    system="You are analyzing urban scenes.",
+    prompt="Is there a tree?",
+    batch_size=4,            # batch >1 trades VRAM for throughput
+    max_new_tokens=256,
+)
+```
+
+Tested small VLMs: `unsloth/Qwen3-VL-3B-Instruct`, `unsloth/Qwen3-VL-8B-Instruct`,
+`unsloth/gemma-3-4b-it`, `unsloth/Qwen2-VL-2B-Instruct`,
+`unsloth/Qwen2.5-VL-7B-Instruct-bnb-4bit`. Any vision checkpoint that
+`unsloth.FastVisionModel` can load should work.
+
+Audio inference is not supported via Unsloth.
+
+### 4 Inference with Ollama client
 
 Please make sure [Ollama](https://ollama.com/) is installed before using urban-worm if you plan to rely on Ollama
 
@@ -120,6 +163,7 @@ The package is heavily built on llama.cpp and Ollama. Credit goes to the develop
 - [llama.cpp](https://github.com/ggml-org/llama.cpp/tree/master)
 - [ollama](https://github.com/ollama/ollama)
 - [ollama-python](https://github.com/ollama/ollama-python)
+- [unsloth]()
 
 
 The functionality about sourcing and processing GIS data and image processing is built on the following open projects. 

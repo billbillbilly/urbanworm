@@ -1,38 +1,40 @@
 ---
 name: Bug report
-about: Create a report to help us improve
-title: ''
-labels: ''
+about: Create a report to help us improve urban-worm
+title: "[bug] "
+labels: bug
 assignees: ''
-
 ---
 
 **Describe the bug**
 A clear and concise description of what the bug is.
 
-**To Reproduce**
-Steps to reproduce the behavior:
-1. Go to '...'
-2. Click on '....'
-3. Scroll down to '....'
-4. See error
+**To reproduce**
+Minimal Python snippet that triggers the bug:
+
+```python
+from urbanworm import GeoTaggedData
+# ...
+```
 
 **Expected behavior**
-A clear and concise description of what you expected to happen.
+What you expected to happen.
 
-**Screenshots**
-If applicable, add screenshots to help explain your problem.
+**Actual behavior / traceback**
+Paste the full traceback inside a fenced block:
 
-**Desktop (please complete the following information):**
- - OS: [e.g. iOS]
- - Browser [e.g. chrome, safari]
- - Version [e.g. 22]
+```
+Traceback (most recent call last):
+  ...
+```
 
-**Smartphone (please complete the following information):**
- - Device: [e.g. iPhone6]
- - OS: [e.g. iOS8.1]
- - Browser [e.g. stock browser, safari]
- - Version [e.g. 22]
+**Environment**
+- OS: [e.g. macOS 14.4 / Ubuntu 22.04 / Windows 11]
+- Python version: [output of `python --version`]
+- urban-worm version: [output of `python -c "import urbanworm; print(urbanworm.__version__)"`]
+- Inference backend: [Ollama / llama.cpp]
+- Model checkpoint (if relevant): [e.g. `hf.co/ggml-org/InternVL3-8B-Instruct-GGUF:Q8_0`]
 
 **Additional context**
-Add any other context about the problem here.
+- Sample image / audio URL (if relevant and shareable)
+- Whether the issue is reproducible or intermittent

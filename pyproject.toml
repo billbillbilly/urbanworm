@@ -1,37 +1,82 @@
 [build-system]
-requires = ["setuptools>=64"]
+requires = ["setuptools>=64", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "urban-worm"
-version = "0.1.9"
-dynamic = ["dependencies"]
+version = "0.2.0"
 description = "Workflow of reproducible multimodal inference for urban environment evaluation."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { file = "LICENSE" }
-keywords = ["urbanworm", "urban-worm"]
+keywords = ["urbanworm", "urban-worm", "street-view", "mapillary", "flickr", "freesound", "mllm"]
+authors = [{ name = "Xiaohao Yang", email = "xiaohaoy111@gmail.com" }]
 classifiers = [
-    "Development Status :: 2 - Pre-Alpha",
+    "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
     "Natural Language :: English",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: GIS",
+    "Topic :: Scientific/Engineering :: Image Recognition",
 ]
-authors = [{ name = "Xiaohao Yang", email = "xiaohaoy111@gmail.com" }]
+
+# Core runtime dependencies. Optional features (Ollama, llama.cpp, audio, dev)
+# live in [project.optional-dependencies] below.
+dependencies = [
+    "huggingface_hub>=0.20",
+    "pandas>=2.0",
+    "geopandas>=0.14",
+    "numpy>=1.24",
+    "pydantic>=2.0",
+    "Pillow>=10.0",
+    "opencv-python>=4.8",
+    "matplotlib>=3.7",
+    "requests>=2.31",
+    "tqdm>=4.66",
+    "pyproj>=3.6",
+    "shapely>=2.0",
+    "mercantile>=1.2",
+]
+
+[project.optional-dependencies]
+ollama = ["ollama>=0.3"]
+audio = ["pydub>=0.25"]
+llamacpp = []  # llama.cpp itself is installed separately (brew/winget)
+unsloth = [
+    # Heavy stack: torch + transformers + bitsandbytes pulled in by unsloth.
+    # Pinned loosely; users with custom CUDA setups should manage torch/bnb.
+    "unsloth>=2025.1.1",
+    "transformers>=4.45",
+    "accelerate>=0.34",
+]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "ruff>=0.6",
+    "build>=1.2",
+    "twine>=5.0",
+    "pre-commit>=3.7",
+]
+all = [
+    "ollama>=0.3",
+    "pydub>=0.25",
+]
 
 [project.urls]
 Homepage = "https://github.com/billbillbilly/urbanworm"
+Documentation = "https://billbillbilly.github.io/urbanworm/"
+Repository = "https://github.com/billbillbilly/urbanworm"
+Issues = "https://github.com/billbillbilly/urbanworm/issues"
+Changelog = "https://github.com/billbillbilly/urbanworm/blob/main/CHANGELOG.md"
 
 [tool.setuptools.packages.find]
 include = ["urbanworm*"]
-exclude = ["docs*"]
-
-[tool.setuptools.dynamic]
-dependencies = { file = ["requirements.txt"] }
+exclude = ["docs*", "tests*", "site*"]
 
 [tool.setuptools.package-data]
 urbanworm = ["models/*.onnx"]
@@ -39,8 +84,9 @@ urbanworm = ["models/*.onnx"]
 [tool.setuptools]
 include-package-data = true
 
+# ----- bumpversion -----
 [tool.bumpversion]
-current_version = "0.1.0"
+current_version = "0.2.0"
 commit = true
 tag = true
 
@@ -50,10 +96,40 @@ search = 'version = "{current_version}"'
 replace = 'version = "{new_version}"'
 
 [[tool.bumpversion.files]]
-filename = "urbanworm/__init__.py"
-search = '__version__ = "{current_version}"'
-replace = '__version__ = "{new_version}"'
+filename = "CITATION.cff"
+search = 'version: {current_version}'
+replace = 'version: {new_version}'
 
-[tool.flake8]
-exclude = ["docs"]
-max-line-length = 88
+# ----- ruff -----
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = ["docs", "site", ".idea"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP", "B"]
+ignore = [
+    "E501",  # line-length is enforced by formatter, not linter
+    "B008",  # function calls in defaults (we use `field(default_factory=...)` style only sometimes)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011"]
+"__init__.py" = ["F401"]  # re-exports
+"urbanworm/inference/transformers.py" = ["E501"]  # entirely commented-out
+# Legacy modules use `from .utils.utils import *` and lazy in-function
+# imports for optional deps. Converting these to explicit imports would be
+# a large, error-prone refactor; suppress the related lint categories here.
+"urbanworm/dataset.py" = ["F403", "F405", "E402"]
+"urbanworm/utils/utils.py" = ["E402"]
+"urbanworm/utils/building.py" = ["F403", "F405"]
+"urbanworm/inference/llama.py" = ["F403", "F405", "E402"]
+
+# ----- pytest -----
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = "-ra -q"
+filterwarnings = [
+    "ignore::DeprecationWarning:geopandas.*",
+]

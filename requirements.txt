@@ -1,13 +1,18 @@
-ollama
-huggingface_hub
-pandas
-geopandas
+# Runtime dependencies are declared in pyproject.toml.
+# This file is kept only for tooling that doesn't read PEP 621 metadata.
+# Prefer:  pip install -e ".[dev,all]"
+huggingface_hub>=0.20
+pandas>=2.0
+geopandas>=0.14
 numpy>=1.24
-pydantic
-pillow
-opencv-python
-pydantic
-matplotlib
-requests
-tqdm
-pydub
+pydantic>=2.0
+Pillow>=10.0
+opencv-python>=4.8
+matplotlib>=3.7
+requests>=2.31
+tqdm>=4.66
+pyproj>=3.6
+shapely>=2.0
+mercantile>=1.2
+ollama>=0.3
+pydub>=0.25

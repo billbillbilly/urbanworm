@@ -2,23 +2,26 @@
 The source code is adapted from https://github.com/fuenwang/Equirec2Perspec.git. Credit to the author @fuenwang.
 '''
 
+import base64
+from urllib.request import urlopen
+
 import cv2
 import numpy as np
-from urllib.request import urlopen
-import base64
+
 
 # Equirectangular to Perspective
-def read_url2img(url:str) -> np.ndarray:
+def read_url2img(url: str, timeout: float = 30.0) -> np.ndarray:
     '''
-    Read image from a URL
+    Read image from a URL.
 
     Args:
-        url (str): Image URL
+        url (str): Image URL.
+        timeout (float): Request timeout in seconds.
 
     Returns:
         np.ndarray: The image as a NumPy array.
     '''
-    resp = urlopen(url, timeout=9999)
+    resp = urlopen(url, timeout=timeout)
     image = np.asarray(bytearray(resp.read()), dtype="uint8")
     image = cv2.imdecode(image, cv2.IMREAD_COLOR)
     return image
@@ -37,9 +40,9 @@ class Equirectangular:
             img_path (str): Image path
             img_url (str): Image URL
         '''
-        if img_path != None:
+        if img_path is not None:
             self._img = cv2.imread(img_path, cv2.IMREAD_COLOR)
-        elif img_url != None:
+        elif img_url is not None:
             self._img = read_url2img(img_url)
         [self._height, self._width, _] = self._img.shape
 
@@ -47,8 +50,8 @@ class Equirectangular:
         """
         Convert an equirectangular panorama image to a perspective view.
 
-        This function computes the perspective projection of a 360° panorama image 
-        based on field of view and view angles, returning the perspective as a 
+        This function computes the perspective projection of a 360° panorama image
+        based on field of view and view angles, returning the perspective as a
         base64-encoded PNG image (useful for web/LLM APIs).
 
         Args:
@@ -91,7 +94,7 @@ class Equirectangular:
         xyz[:, :, 0] = (RADIUS / D * x_map)[:, :]
         xyz[:, :, 1] = (RADIUS / D * y_map)[:, :]
         xyz[:, :, 2] = (RADIUS / D * z_map)[:, :]
-        
+
         y_axis = np.array([0.0, 1.0, 0.0], np.float32)
         z_axis = np.array([0.0, 0.0, 1.0], np.float32)
         [R1, _] = cv2.Rodrigues(z_axis * np.radians(THETA))
@@ -109,7 +112,7 @@ class Equirectangular:
 
         idx3 = ((1 - idx1) * idx2).astype(np.bool_)
         idx4 = ((1 - idx1) * (1 - idx2)).astype(np.bool_)
-        
+
         lon[idx1] = theta[idx1]
         lon[idx3] = theta[idx3] + np.pi
         lon[idx4] = theta[idx4] - np.pi
@@ -118,10 +121,9 @@ class Equirectangular:
         lat = -lat.reshape([height, width]) / np.pi * 180
         lon = lon / 180 * equ_cx + equ_cx
         lat = lat / 90 * equ_cy + equ_cy
-    
+
         persp = cv2.remap(self._img, lon.astype(np.float32), lat.astype(np.float32), cv2.INTER_CUBIC, borderMode=cv2.BORDER_WRAP)
         # Convert for Ollama
         _, buffer = cv2.imencode('.png', persp)
         img_base64 = base64.b64encode(buffer).decode('utf-8')
         return img_base64
-        

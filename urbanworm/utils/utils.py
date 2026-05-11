@@ -1,30 +1,36 @@
 from __future__ import annotations
-import io
-import urllib
-from urllib.parse import urlparse
-import pandas as pd
-import numpy as np
-from pyproj import Transformer
-import math
-import requests
-import os
+
 import base64
-import cv2
-from datetime import datetime
-import tempfile
+import io
 import json
+import logging
+import math
+import os
+import tempfile
+from datetime import datetime
+from urllib.parse import urlparse
+
+import cv2
+import numpy as np
+import pandas as pd
+import requests
+from pyproj import Transformer
+
+logger = logging.getLogger("urbanworm")
+
+# Default request timeout for all helpers in this module (seconds).
+_DEFAULT_TIMEOUT = 30.0
 
 def is_url(url:str) -> bool:
     try:
         result = urlparse(url)
         # Check if both scheme and network location exist
         return all([result.scheme, result.netloc])
-    except:
+    except Exception:
         return False
 
 def is_base64(s):
     """Checks if a string is base64 encoded."""
-    import io
     from PIL import Image
     try:
         # Decode Base64
@@ -33,7 +39,7 @@ def is_base64(s):
         image = Image.open(io.BytesIO(decoded_data))
         image.verify()
         return True
-    except:
+    except Exception:
         return False
 
 
@@ -81,19 +87,20 @@ def projection(centroid, r):
     x_max, y_max = dis2degree(x_max, y_max, utm_epsg)
     return f'{x_min},{y_min},{x_max},{y_max}'
 
-def retry_request(url, retries=3):
+def retry_request(url, retries: int = 3, timeout: float = _DEFAULT_TIMEOUT):
+    """GET ``url`` up to ``retries`` times. Returns the last response or None."""
     response = None
-    for _ in range(retries):
-        # Check for rate limit or server error
+    for attempt in range(retries):
         try:
-            response = requests.get(url)
-            # If the response status code is in the list, wait and retry
-            if response.status_code != 200:
-                continue
-            else:
+            response = requests.get(url, timeout=timeout)
+            if response.status_code == 200:
                 return response
-        except:
-            pass
+            logger.debug(
+                "retry_request: attempt %d returned status %d",
+                attempt + 1, response.status_code,
+            )
+        except requests.RequestException as e:
+            logger.debug("retry_request: attempt %d raised %s", attempt + 1, e)
     return response
 
 # --- UTM -> degrees (WGS84) ---
@@ -145,27 +152,25 @@ def closest(location=None,
             season_start, season_end = season_[season.lower()]
             res_df1 = res_df[(res_df['month'] == season_start[0]) & (res_df['day'] >= season_start[1])]
             res_df2 = res_df[(res_df['month'] == season_end[0]) & (res_df['day'] <= season_end[1])]
+            # default empty mid-season frame so concat is always safe
+            res_df3 = res_df.iloc[0:0]
             if 'winter' in season_:
                 res_df3 = res_df[(res_df['month'] <= 2)]
-
-            if 'summer' in season_:
+            elif 'summer' in season_:
                 res_df3 = res_df[(res_df['month'] > 6) & (res_df['month'] < 9)]
-
-            if 'fall' in season_:
+            elif 'fall' in season_:
                 res_df3 = res_df[(res_df['month'] > 9) & (res_df['month'] < 12)]
-
-            if 'spring' in season_:
+            elif 'spring' in season_:
                 res_df3 = res_df[(res_df['month'] > 3) & (res_df['month'] < 6)]
 
-            res_df = pd.concat([res_df1, res_df2])
-            res_df = pd.concat([res_df, res_df3])
+            res_df = pd.concat([res_df1, res_df2, res_df3])
         if day_start is not None:
             res_df = res_df[(res_df['hour'] >= day_start) & (res_df['hour'] <= day_end)]
 
         if len(res_df) == 0:
             return None
     except Exception as e:
-        print(f"Error in filtering street views by time: {e}")
+        logger.warning("Error filtering street views by time: %s", e)
         return None
 
     # when year is None, select the street views captured in the latest year
@@ -253,7 +258,8 @@ def closest(location=None,
 
     else:
         if multi_num is not None and len(dis_array) > multi_num:
-            if multi_num > 3: multi_num = 3
+            if multi_num > 3:
+                multi_num = 3
             smallest_indices = np.argsort(dis_array)[:multi_num]
             return res_df.loc[res_df['id'].isin(id_array[smallest_indices])]
         return closest_df
@@ -332,27 +338,158 @@ def calculate_bearing(lat1, lon1, lat2, lon2):
     bearing = math.degrees(math.atan2(x, y))
     return (bearing + 360) % 360  # Normalize to 0-360
 
+
+def _signed_angle_offset(view_bearing_deg: float, vertex_bearing_deg: float) -> float:
+    """Signed angle (degrees) from view center to vertex.
+
+    Returns a value in (-180, 180]; positive = clockwise (right of view).
+    """
+    diff = (vertex_bearing_deg - view_bearing_deg + 540.0) % 360.0 - 180.0
+    return diff
+
+
+def _vertical_fov_for_height(distance_m: float, building_height_m: float) -> float:
+    """Vertical angular extent (degrees) of a vertical chord ``building_height_m``
+    centered on the camera, at ``distance_m`` away. Conservative — assumes the
+    building is vertically centered on the camera, which slightly overestimates
+    FOV vs. the more accurate cam-on-the-ground geometry, ensuring nothing is
+    cropped.
+    """
+    distance_m = max(1.0, float(distance_m))
+    return math.degrees(2.0 * math.atan((float(building_height_m) / 2.0) / distance_m))
+
+
+def _vertical_to_horizontal_fov(
+        vertical_fov_deg: float, aspect_ratio: float
+) -> float:
+    """Convert a vertical FOV to the horizontal FOV that produces it under
+    the renderer's aspect ratio. The Equirectangular renderer uses
+    ``hFOV = (image_height / image_width) * wFOV`` (i.e. vFOV = wFOV / aspect),
+    so ``wFOV_needed = vFOV * aspect``.
+    """
+    return float(vertical_fov_deg) * float(aspect_ratio)
+
+
+def auto_fov_from_polygon(
+        camera_lon: float,
+        camera_lat: float,
+        polygon,
+        view_bearing_deg: float | None = None,
+        margin: float = 0.10,
+        min_fov: float = 30.0,
+        max_fov: float = 120.0,
+        building_height_m: float = 9.0,
+        aspect_ratio: float = 1.0,
+) -> float:
+    """Compute the (horizontal) field-of-view degrees needed to just frame ``polygon``.
+
+    The returned FOV is the **larger** of two requirements:
+
+    1. The horizontal angular extent of the polygon as seen from the camera
+       (so the building's footprint fits side-to-side).
+    2. The horizontal FOV needed so the derived vertical FOV is wide enough
+       to fit a building of ``building_height_m`` at this distance — given
+       ``aspect_ratio = image_width / image_height``.
+
+    Whichever is larger drives the result. Then ``(1 + margin)`` padding is
+    applied and the value is clamped to ``[min_fov, max_fov]``.
+
+    Args:
+        camera_lon, camera_lat: Camera position in WGS84 degrees.
+        polygon: Anything with a ``.exterior.coords`` attribute (typically a
+            ``shapely.geometry.Polygon``). Coordinates are assumed to be
+            ``(lon, lat)`` in WGS84.
+        view_bearing_deg: Camera viewing direction (0=N, 90=E). If ``None``
+            (default) we point at the polygon centroid.
+        margin: Fractional padding added to the angular extent (0.10 = +10%).
+        min_fov: Lower clamp (degrees). Default 30°.
+        max_fov: Upper clamp (degrees). Default 120°.
+        building_height_m: Assumed building height (meters). Default 9
+            (≈ a typical 3-story residential building). Set to 0 to disable
+            the height-driven term.
+        aspect_ratio: ``image_width / image_height`` of the rendered
+            perspective image (default 1.0). Required to convert the vertical
+            FOV needed for the height into the equivalent horizontal FOV.
+
+    Returns:
+        Horizontal field of view in degrees, clamped to ``[min_fov, max_fov]``.
+    """
+    try:
+        coords = list(polygon.exterior.coords)
+    except AttributeError as e:
+        raise TypeError(
+            "polygon must expose .exterior.coords (e.g. shapely Polygon)"
+        ) from e
+    if not coords:
+        return float(min(max_fov, max(min_fov, 60.0)))
+
+    if view_bearing_deg is None:
+        cx, cy = polygon.centroid.x, polygon.centroid.y
+        view_bearing_deg = calculate_bearing(camera_lat, camera_lon, cy, cx)
+
+    # 1) Horizontal extent from the polygon
+    offsets = []
+    for vlon, vlat in coords:
+        b = calculate_bearing(camera_lat, camera_lon, vlat, vlon)
+        offsets.append(_signed_angle_offset(view_bearing_deg, b))
+    width_fov = max(offsets) - min(offsets)
+
+    # 2) Horizontal FOV needed for the building's vertical extent
+    height_fov = 0.0
+    if building_height_m and building_height_m > 0:
+        # Use distance from camera to the polygon centroid as the depth used
+        # for the vertical computation. (Near corners can be closer, but the
+        # vertical extent stays roughly the same across the visible facade.)
+        cx, cy = polygon.centroid.x, polygon.centroid.y
+        d_centroid = haversine_m(camera_lat, camera_lon, cy, cx)
+        v_fov = _vertical_fov_for_height(d_centroid, building_height_m)
+        height_fov = _vertical_to_horizontal_fov(v_fov, aspect_ratio)
+
+    fov = max(width_fov, height_fov) * (1.0 + float(margin))
+    return float(min(max_fov, max(min_fov, fov)))
+
+
+def auto_fov_from_distance(
+        distance_m: float,
+        building_width_m: float = 15.0,
+        margin: float = 0.10,
+        min_fov: float = 30.0,
+        max_fov: float = 120.0,
+        building_height_m: float = 9.0,
+        aspect_ratio: float = 1.0,
+) -> float:
+    """Heuristic FOV when no polygon is available.
+
+    Returns the larger of:
+      * horizontal FOV to fit ``building_width_m`` perpendicular at distance
+      * horizontal FOV to fit ``building_height_m`` (via aspect ratio)
+
+    Useful as a fallback for ``getSV(fov='auto', ...)`` callers that pass a
+    bare coordinate.
+    """
+    distance_m = max(1.0, float(distance_m))
+    width_fov = math.degrees(2.0 * math.atan((float(building_width_m) / 2.0) / distance_m))
+
+    height_fov = 0.0
+    if building_height_m and building_height_m > 0:
+        v_fov = _vertical_fov_for_height(distance_m, building_height_m)
+        height_fov = _vertical_to_horizontal_fov(v_fov, aspect_ratio)
+
+    fov_deg = max(width_fov, height_fov) * (1.0 + float(margin))
+    return float(min(max_fov, max(min_fov, fov_deg)))
+
+
 def save_base64(b64, fn = None):
     b64 = base64.b64decode(b64)
     with open(fn, "wb") as f:
         f.write(b64)
 
-def download_image_requests(image_url, save_path):
-    """
-    Downloads an image from a URL using the requests library and saves it locally.
-    """
-    try:
-        # Send a GET request to the URL
-        response = requests.get(image_url)
-        # Check if the request was successful (status code 200)
-        if response.status_code == 200:
-            # Open the file in write-binary mode ('wb') and write the content
-            with open(save_path, 'wb') as f:
-                f.write(response.content)
-        else:
-            print(f"Failed to download image. Status code: {response.status_code}")
-    except requests.exceptions.RequestException as e:
-        print(f"An error occurred: {e}")
+def download_image_requests(image_url, save_path, timeout: float = _DEFAULT_TIMEOUT):
+    """Download an image to ``save_path``. Raises on HTTP/network errors."""
+    response = requests.get(image_url, timeout=timeout)
+    response.raise_for_status()
+    with open(save_path, 'wb') as f:
+        f.write(response.content)
 
 
 # ------------------ ollama utils -------------------
@@ -360,8 +497,8 @@ def response2df(qna_dict):
     """
     Extracts filds from QnA objects as a single dictionary and convert it into a Dataframe.
     """
-    import pandas as pd
     import numpy as np
+    import pandas as pd
 
     def renameKey(qna_list):
         return [{f'{key}{i + 1}': qna_list[i][key] for key in qna_list[i]} for i in range(len(qna_list))]
@@ -382,7 +519,7 @@ def response2df(qna_dict):
             for field_i in range(len(fields)):
                 try:
                     dic[fields[field_i]] += [qna_[fields[field_i]]]
-                except:
+                except (KeyError, IndexError):
                     pass
         return dic
 
@@ -428,7 +565,9 @@ def responses_to_wide_all_columns(df: pd.DataFrame) -> pd.DataFrame:
     cols = [f"{col}_{i}" for i in range(1, n+1) for col in df.columns]
     return pd.DataFrame([row])[cols]
 
-from typing import Sequence
+from collections.abc import Sequence
+
+
 def pick_best_gguf(files: Sequence[str], prefer: Sequence[str]) -> str:
     # Main model: endswith .gguf and NOT mmproj
     candidates = [f for f in files if f.lower().endswith(".gguf") and "mmproj" not in f.lower()]
@@ -488,7 +627,7 @@ def base64img2temp(s: str) -> str:
     try:
         ok = cv2.imwrite(tmp_path, img)  # PNG supports alpha if present
         if not ok:
-            raise IOError("cv2.imwrite failed")
+            raise OSError("cv2.imwrite failed")
     except Exception:
         try:
             os.remove(tmp_path)
@@ -498,6 +637,8 @@ def base64img2temp(s: str) -> str:
     return tmp_path
 
 from .pano2pers import read_url2img
+
+
 def url2temp(url: str) -> str:
     img = read_url2img(url)
     fd, tmp_path = tempfile.mkstemp(prefix="urban_worm_", suffix=".jpg")
@@ -505,7 +646,7 @@ def url2temp(url: str) -> str:
     try:
         ok = cv2.imwrite(tmp_path, img)
         if not ok:
-            raise IOError("cv2.imwrite failed")
+            raise OSError("cv2.imwrite failed")
     except Exception:
         try:
             os.remove(tmp_path)
@@ -519,18 +660,17 @@ def url2temp(url: str) -> str:
 import re
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Optional, Union
-from urllib.parse import urlparse
+from typing import Any
 from urllib.request import Request, urlopen
-from PIL import Image
 
+from PIL import Image
 
 _DATA_URI_RE = re.compile(r"^data:image/[^;]+;base64,", re.IGNORECASE)
 
 def load_image_auto(
-    src: Union[str, Path, bytes, bytearray, BytesIO, Any],
+    src: str | Path | bytes | bytearray | BytesIO | Any,
     *,
-    convert: Optional[str] = "RGB",   # e.g., "RGB"
+    convert: str | None = "RGB",   # e.g., "RGB"
     timeout: float = 20.0,
     user_agent: str = "Mozilla/5.0",
 ) -> Image.Image:
@@ -573,7 +713,7 @@ def load_image_auto(
         return img
 
     # 3) File-like
-    if hasattr(src, "read") and callable(getattr(src, "read")):
+    if hasattr(src, "read") and callable(src.read):
         data = src.read()
         if isinstance(data, str):
             data = data.encode("utf-8", errors="ignore")
@@ -670,9 +810,11 @@ def is_selfie_photo(model_path, img_url: str):
 
 class YuNet:
     def __init__(self,
-                 modelPath, inputSize=[320, 320],
+                 modelPath, inputSize=None,
                  confThreshold=0.6, nmsThreshold=0.3,
                  topK=5000, backendId=0, targetId=0):
+        if inputSize is None:
+            inputSize = [320, 320]
         self._modelPath = modelPath
         self._inputSize = tuple(inputSize) # [w, h]
         self._confThreshold = confThreshold
@@ -789,11 +931,43 @@ def parse_taken(p):
     except Exception:
         return None
 
-def download_freesound_preview(preview_url: str, out_path: str | Path):
+
+def parse_iso_created(s: str | None):
+    """Parse Freesound's ``created`` timestamp ('YYYY-MM-DDTHH:MM:SS[.ffffff]')."""
+    if not s:
+        return None
+    for fmt in ("%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S"):
+        try:
+            return datetime.strptime(s, fmt)
+        except Exception:
+            pass
+    try:
+        return datetime.fromisoformat(s.replace("Z", ""))
+    except Exception:
+        return None
+
+
+def solr_year_range(year, with_z: bool = False):
+    """Build Solr-style ISO 'YYYY-...T...' range string for Freesound's ``created`` filter."""
+    if year is None:
+        return None
+    if not isinstance(year, (list, tuple)) or len(year) == 0:
+        raise ValueError("year must be a list/tuple like [2020] or (2020, 2022).")
+    if len(year) == 1:
+        y1 = y2 = int(year[0])
+    else:
+        y1, y2 = int(year[0]), int(year[1])
+        if y2 < y1:
+            y1, y2 = y2, y1
+    z = "Z" if with_z else ""
+    return f"{y1:04d}-01-01T00:00:00{z}", f"{y2:04d}-12-31T23:59:59{z}"
+
+def download_freesound_preview(preview_url: str, out_path: str | Path,
+                               timeout: float = _DEFAULT_TIMEOUT):
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with requests.get(preview_url, stream=True, timeout=999) as r:
+    with requests.get(preview_url, stream=True, timeout=timeout) as r:
         r.raise_for_status()
         with out_path.open("wb") as f:
             for chunk in r.iter_content(chunk_size=1024 * 1024):
@@ -816,40 +990,100 @@ def sliced_duration(duration, clip_duration, number=None):
     else:
         return [[0, duration]]
 
-from pydub import AudioSegment
-def clip(url=None, start_ms=None, end_ms=None, output_file_path=None):
+
+def probe_audio_duration(url: str, timeout: float = _DEFAULT_TIMEOUT) -> float | None:
+    """Return the duration (seconds) of an mp3 fetched from ``url``, or ``None``.
+
+    Strategy:
+        1. Download the file to a tempfile (Aporee mp3s are typically small).
+        2. Read it with pydub (which uses ffprobe / ffmpeg under the hood).
+        3. Fall back to mutagen if pydub is unavailable.
+        4. Return ``None`` on any error so callers can skip the row.
+
+    Used by :func:`urbanworm.dataset.enrich_aporee_catalog` and by
+    :func:`urbanworm.dataset.getSoundAporee` when slicing is requested but
+    the catalog has no ``duration_s`` column.
+    """
+    tmp_path = None
     try:
-        # Download the audio data using requests
-        res = requests.get(url)
-        # Use BytesIO to treat the downloaded content as a file in memory
+        fd, tmp_path = tempfile.mkstemp(prefix="urban_worm_probe_", suffix=".mp3")
+        os.close(fd)
+        with requests.get(url, stream=True, timeout=timeout) as r:
+            r.raise_for_status()
+            with open(tmp_path, "wb") as f:
+                for chunk in r.iter_content(chunk_size=64 * 1024):
+                    if chunk:
+                        f.write(chunk)
+
+        # Preferred: pydub (uses ffmpeg/libav)
+        try:
+            from pydub import AudioSegment
+            audio = AudioSegment.from_file(tmp_path)
+            return len(audio) / 1000.0
+        except Exception as e:
+            logger.debug("pydub probe failed for %s: %s", url, e)
+
+        # Fallback: mutagen (pure-Python, no ffmpeg required)
+        try:
+            from mutagen import File as MutagenFile
+            mf = MutagenFile(tmp_path)
+            if mf is not None and mf.info is not None:
+                return float(mf.info.length)
+        except Exception as e:
+            logger.debug("mutagen probe failed for %s: %s", url, e)
+
+        return None
+    except Exception as e:
+        logger.warning("probe_audio_duration failed for %s: %s", url, e)
+        return None
+    finally:
+        if tmp_path is not None:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+
+from pydub import AudioSegment
+
+
+def clip(url=None, start_ms=None, end_ms=None, output_file_path=None,
+         timeout: float = _DEFAULT_TIMEOUT):
+    """Download an mp3 from ``url`` and write the [start_ms, end_ms] slice."""
+    try:
+        res = requests.get(url, timeout=timeout)
+        res.raise_for_status()
         audio_data = BytesIO(res.content)
-        # Load the audio file
         audio = AudioSegment.from_file(audio_data, format="mp3")
-        # Extract the desired segment
         clipped_audio = audio[start_ms:end_ms]
-        # Export the clipped audio to a new file
         clipped_audio.export(output_file_path, format="mp3")
     except Exception as e:
-        print(f"An error occurred: {e}")
+        logger.warning("clip() failed for %s: %s", url, e)
+        raise
     return None
 
-def sound_url_to_temp(url, slice: list|tuple = None):
+def sound_url_to_temp(url, slice: list | tuple = None, timeout: float = 30.0):
     fd, tmp_path = tempfile.mkstemp(prefix="urban_worm_", suffix=".mp3")
     os.close(fd)
     try:
-        res = requests.get(url)
+        res = requests.get(url, timeout=timeout)
+        res.raise_for_status()
         audio_data = BytesIO(res.content)
         audio = AudioSegment.from_file(audio_data, format="mp3")
         if slice is not None:
             audio = audio[slice[0]:slice[1]]
         audio.export(tmp_path, format="mp3")
-    except:
-        os.remove(tmp_path)
-    return tmp_path
+        return tmp_path
+    except Exception:
+        # Clean up the empty placeholder file and surface the failure
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+        raise
 
 # --- Added by patch: robust JSON cleanup for model outputs ---
 import re
-from typing import Optional
+
 
 def sanitize_json_text(text: str) -> str:
     """
@@ -870,7 +1104,7 @@ def sanitize_json_text(text: str) -> str:
     # Strip leading/trailing non-json chars
     return text.strip()
 
-def extract_json_from_text(text: str) -> Optional[str]:
+def extract_json_from_text(text: str) -> str | None:
     """
     Extract the first *balanced* top-level JSON object {...} from text.
     Returns None if nothing balanced is found.

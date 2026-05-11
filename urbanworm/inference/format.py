@@ -1,11 +1,13 @@
 from __future__ import annotations
+
 import copy
 import json
-from typing import Any, Dict, Generic, List, Tuple, Type, TypeVar, Union, cast
+from typing import Any, Generic, TypeVar, cast
+
 from pydantic import BaseModel, ConfigDict, create_model
 
 T = TypeVar("T", bound=BaseModel)
-FieldSpec = Tuple[Any, Any]  # (type, default), e.g. (bool, ...)
+FieldSpec = tuple[Any, Any]  # (type, default), e.g. (bool, ...)
 
 
 class _ForbidExtraBase(BaseModel):
@@ -13,7 +15,7 @@ class _ForbidExtraBase(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-def schema(fields: Dict[str, FieldSpec], model_name: str = "QnA") -> Type[BaseModel]:
+def schema(fields: dict[str, FieldSpec], model_name: str = "QnA") -> type[BaseModel]:
     """
     Create a customized Pydantic model with customized fields.
 
@@ -39,15 +41,15 @@ def schema(fields: Dict[str, FieldSpec], model_name: str = "QnA") -> Type[BaseMo
 class Response(BaseModel, Generic[T]):
     """Wrapper schema: {"responses": [ ... ]}"""
     model_config = ConfigDict(extra="forbid")
-    responses: List[T]
+    responses: list[T]
 
 
 def create_format(
-    fields: Dict[str, FieldSpec],
+    fields: dict[str, FieldSpec],
     *,
     item_model_name: str = "QnA",
     wrapper_model_name: str | None = None,
-) -> Type[BaseModel]:
+) -> type[BaseModel]:
     """
     Create a typed `Response[CustomQnA]` model using a dynamically defined schema.
 
@@ -60,7 +62,7 @@ def create_format(
         A concrete Pydantic model class: Response[CustomQnA].
     """
     CustomQnA = schema(fields, model_name=item_model_name)
-    Model = cast(Type[BaseModel], Response[CustomQnA])  # concrete generic specialization
+    Model = cast(type[BaseModel], Response[CustomQnA])  # concrete generic specialization
 
     # Give the specialized model a stable readable name (optional)
     if wrapper_model_name is None:
@@ -73,7 +75,7 @@ def create_format(
     return Model
 
 
-def _inline_refs(schema: Dict[str, Any]) -> Dict[str, Any]:
+def _inline_refs(schema: dict[str, Any]) -> dict[str, Any]:
     """
     Inline #/$defs/* references to avoid $ref in the final schema.
 
@@ -113,10 +115,10 @@ def _inline_refs(schema: Dict[str, Any]) -> Dict[str, Any]:
     out = resolve(copy.deepcopy(schema), set())
     if isinstance(out, dict):
         out.pop("$defs", None)
-    return cast(Dict[str, Any], out)
+    return cast(dict[str, Any], out)
 
 
-def schema_dict(model: Type[BaseModel], *, inline_refs: bool = True) -> Dict[str, Any]:
+def schema_dict(model: type[BaseModel], *, inline_refs: bool = True) -> dict[str, Any]:
     """
     Build JSON schema dict from a Pydantic model.
 
@@ -132,7 +134,7 @@ def schema_dict(model: Type[BaseModel], *, inline_refs: bool = True) -> Dict[str
 
 
 def schema_json(
-    model: Type[BaseModel],
+    model: type[BaseModel],
     *,
     inline_refs: bool = True,
     compact: bool = True,

@@ -173,6 +173,14 @@ cython_debug/
 .DS_Store
 test.ipynb
 
-flickr_key.txt
-freesound_key.txt
-mapillary_key.txt
+# API key files (any path) — keep these out of source control
+*_key.txt
+*_token.txt
+*.pem
+*.key
+.env
+.env.*
+!.env.example
+
+# JetBrains IDE config
+.idea/
