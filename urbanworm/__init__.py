@@ -17,11 +17,14 @@ from .inference.llama import InferenceLlamacpp, InferenceOllama
 
 
 def __getattr__(name: str):
-    """Lazily expose InferenceUnsloth so importing urbanworm does not
-    trigger the heavy torch/unsloth stack unless the class is requested."""
+    """Lazily expose heavy optional backends so importing urbanworm does not
+    pull in torch/unsloth or provider SDKs unless the class is requested."""
     if name == "InferenceUnsloth":
         from .inference.unsloth import InferenceUnsloth as _IU
         return _IU
+    if name == "InferenceAPI":
+        from .inference.api import InferenceAPI as _IA
+        return _IA
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
@@ -30,6 +33,7 @@ __all__ = [
     "InferenceOllama",
     "InferenceLlamacpp",
     "InferenceUnsloth",
+    "InferenceAPI",
     "GeoTaggedData",
     "getSV",
     "getPhoto",

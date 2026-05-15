@@ -4,6 +4,12 @@ import ollama
 from ollama import Client
 from tqdm import tqdm
 
+from ..utils.checkpoint import (
+    _MockResponse,
+    append_inference_checkpoint,
+    load_inference_checkpoint,
+    restore_ollama_results,
+)
 from ..utils.utils import *
 from .format import Response, create_format, schema_json
 from .Inference import Inference
@@ -35,7 +41,8 @@ class InferenceOllama(Inference):
                       audio: str | list[str] | tuple[str] = None,
                       temp: float = 0.0,
                       top_k: int = 20.0,
-                      top_p: float = 0.8):
+                      top_p: float = 0.8,
+                      max_new_tokens: int = 512):
 
         '''
         Chat with MLLM model with one image.
@@ -48,6 +55,7 @@ class InferenceOllama(Inference):
             temp (float): The temperature value.
             top_k (int): The top_k value.
             top_p (float): The top_p value.
+            max_new_tokens (int): Maximum number of tokens to generate.  Default 512.
 
         Notes:
             Ollama currently does not support audio input.
@@ -82,6 +90,7 @@ class InferenceOllama(Inference):
                        system=system, prompt=prompt,
                        img=img,
                        temp=temp, top_k=top_k, top_p=top_p,
+                       num_predict=max_new_tokens,
                        schema=schema,
                        one_shot_lr=[],
                        multiImgInput=multiImg)
@@ -95,24 +104,28 @@ class InferenceOllama(Inference):
                         temp: float = 0.0,
                         top_k: int = 20,
                         top_p: float = 0.8,
-                        disableProgressBar: bool = False) -> dict:
+                        max_new_tokens: int = 512,
+                        disableProgressBar: bool = False,
+                        checkpoint_path: str | None = None) -> dict:
         '''
         Chat with MLLM model for each image.
 
         Args:
-            system (str, optinal): The system message.
+            system (str, optional): The system message.
             prompt (str): The prompt message.
             temp (float): The temperature value.
             top_k (float): The top_k value.
             top_p (float): The top_p value.
+            max_new_tokens (int): Maximum number of tokens to generate per call.  Default 512.
             disableProgressBar (bool): The progress bar for showing the progress of data analysis over the units.
+            checkpoint_path (str, optional): Path to a JSONL file for resume-safe checkpointing.
+                Already-completed items are skipped on the next run automatically.
 
         Returns:
             list A list of dictionaries. Each dict includes questions/messages, responses/answers, and image base64 (if required)
         '''
 
         ollama.pull(self.llm, stream=True)
-        dic = {'responses': [], 'data': []}
 
         if self.batch_images is not None:
             imgs = self.batch_images
@@ -125,13 +138,19 @@ class InferenceOllama(Inference):
         if isinstance(imgs[0], list) or isinstance(imgs[0], tuple):
             multiImgInput = True
 
-        for i in tqdm(range(len(imgs)), desc="Processing...", ncols=75, disable=disableProgressBar):
+        # ── resume from checkpoint ───────────────────────────────────────
+        done_records = load_inference_checkpoint(checkpoint_path) if checkpoint_path else []
+        start_idx = len(done_records)
+        dic = restore_ollama_results(done_records)
+
+        for i in tqdm(range(start_idx, len(imgs)), desc="Processing...", ncols=75, disable=disableProgressBar):
             img = imgs[i]
             try:
                 r = self._mtmd(model=self.llm,
                                system=system, prompt=prompt,
                                img=img if multiImgInput else [img],
                                temp=temp, top_k=top_k, top_p=top_p,
+                               num_predict=max_new_tokens,
                                schema=schema,
                                one_shot_lr=[],
                                multiImgInput=multiImgInput)
@@ -139,10 +158,22 @@ class InferenceOllama(Inference):
             except Exception as e:
                 # Log and continue; capture an error stub so downstream stays consistent
                 self.logger.warning("batch_inference: image %d failed (%s). Continuing.", i, e)
-                rr = {'error': str(e), 'data': None}
+                rr = []
 
             dic['responses'] += [rr]
             dic['data'] += [imgs[i]]
+
+            if checkpoint_path:
+                try:
+                    responses_dump = [item.model_dump() for item in rr]
+                except Exception:
+                    responses_dump = [dict(item) for item in rr] if rr else []
+                append_inference_checkpoint(checkpoint_path, {
+                    'idx': i,
+                    'responses': responses_dump,
+                    'data': imgs[i] if isinstance(imgs[i], str) else list(imgs[i]),
+                })
+
         self.results = dic
         return self.to_df(output=True)
 
@@ -165,6 +196,7 @@ class InferenceOllama(Inference):
 
     def _mtmd(self, model: str = None, system: str = None, prompt: str = None,
               img: list[str] = None, temp: float = None, top_k: float = None, top_p: float = None,
+              num_predict: int = 512,
               schema = None,
               one_shot_lr: list | tuple | None = None, multiImgInput: bool = False, audio_input: bool = False):
         if one_shot_lr is None:
@@ -172,7 +204,7 @@ class InferenceOllama(Inference):
 
         if prompt is not None and img is not None:
             if len(img) == 1:
-                return self._customized_chat(model, system, prompt, img[0], temp, top_k, top_p, schema, one_shot_lr)
+                return self._customized_chat(model, system, prompt, img[0], temp, top_k, top_p, num_predict, schema, one_shot_lr)
             elif len(img) >= 2:
                 system = (
                     "You are analyzing aerial or street view images. For street "
@@ -180,11 +212,11 @@ class InferenceOllama(Inference):
                     f"the middle. {system}"
                 )
                 if multiImgInput:
-                    return self._customized_chat(model, system, prompt, img, temp, top_k, top_p, schema, one_shot_lr)
+                    return self._customized_chat(model, system, prompt, img, temp, top_k, top_p, num_predict, schema, one_shot_lr)
                 # Per-image inference: pass img[i], not the full list.
                 res = []
                 for i in range(len(img)):
-                    r = self._customized_chat(model, system, prompt, img[i], temp, top_k, top_p, schema, one_shot_lr)
+                    r = self._customized_chat(model, system, prompt, img[i], temp, top_k, top_p, num_predict, schema, one_shot_lr)
                     res += [r.responses]
                 return res
             return None
@@ -194,6 +226,7 @@ class InferenceOllama(Inference):
     def _customized_chat(self, model: str = None,
                          system: str = None, prompt: str = None, img: str | list | tuple = None,
                          temp: float = None, top_k: float = None, top_p: float = None,
+                         num_predict: int = 512,
                          schema=None,
                          one_shot_lr: list | None = None,
                          audio_input: bool = False) -> Response:
@@ -252,7 +285,8 @@ class InferenceOllama(Inference):
                 options={
                     "temperature": temp,
                     "top_k": top_k,
-                    "top_p": top_p
+                    "top_p": top_p,
+                    "num_predict": num_predict,
                 }
             )
         else:
@@ -263,7 +297,8 @@ class InferenceOllama(Inference):
                 options={
                     "temperature": temp,
                     "top_k": top_k,
-                    "top_p": top_p
+                    "top_p": top_p,
+                    "num_predict": num_predict,
                 }
             )
 
@@ -299,6 +334,11 @@ from pathlib import Path
 
 import pandas as pd
 
+from ..utils.checkpoint import (
+    append_inference_checkpoint,
+    load_inference_checkpoint,
+    restore_llamacpp_results,
+)
 from ..utils.utils import extract_last_json, responses_to_wide_all_columns
 
 
@@ -329,6 +369,7 @@ class InferenceLlamacpp(Inference):
                       top_k: int = 20,
                       top_p: float = 0.8,
                       ctx_size: int = 4096,
+                      max_new_tokens: int = 512,
                       audio_input: bool = False
                       ) -> Any:
         '''
@@ -342,6 +383,7 @@ class InferenceLlamacpp(Inference):
                  top_k (int): The top_k value.
                  top_p (float): The top_p value.
                  ctx_size (int): Size of context (The default is 4096)
+                 max_new_tokens (int): Maximum number of tokens to generate.  Default 512.
                  audio_input (bool, optional): Whether to run inference with audio input
 
             Returns: response from MLLM as a dataframe
@@ -405,6 +447,7 @@ class InferenceLlamacpp(Inference):
                        top_k=top_k,
                        top_p=top_p,
                        ctx_size=ctx_size,
+                       max_new_tokens=max_new_tokens,
                        schema=schema,
                        audio_input=audio_input)
         r = extract_last_json(r)
@@ -429,8 +472,10 @@ class InferenceLlamacpp(Inference):
                         min_p: float = 0.0,
                         seed: int = 3407,
                         ctx_size: int = 4096,
+                        max_new_tokens: int = 512,
                         audio_input = False,
-                        disableProgressBar: bool = False):
+                        disableProgressBar: bool = False,
+                        checkpoint_path: str | None = None):
         '''
             Chat with MLLM model for each image in a list.
             Args:
@@ -442,12 +487,14 @@ class InferenceLlamacpp(Inference):
                 min_p (float): min-p sampling (default: 0.0, 0.0 = disabled)
                 seed (int): The seed value (Default is 3407)
                 ctx_size (int): Size of context (Default is 4096)
+                max_new_tokens (int): Maximum number of tokens to generate per call.  Default 512.
                 audio_input (bool): Whether to run inference with audio input
                 disableProgressBar (bool): Whether to disable progress bar.
+                checkpoint_path (str, optional): Path to a JSONL file for resume-safe checkpointing.
+                    Already-completed items are skipped on the next run automatically.
             Returns: response from MLLM as a dataframe
         '''
 
-        dic = {'responses': [], 'data': []}
         llm = self.llm
         mp = self.mp
         clips = None
@@ -465,7 +512,12 @@ class InferenceLlamacpp(Inference):
 
         schema = create_format(self.schema)
 
-        for i in tqdm(range(len(imgs)), desc="Processing...", ncols=75, disable=disableProgressBar):
+        # ── resume from checkpoint ───────────────────────────────────────
+        done_records = load_inference_checkpoint(checkpoint_path) if checkpoint_path else []
+        start_idx = len(done_records)
+        dic = restore_llamacpp_results(done_records)
+
+        for i in tqdm(range(start_idx, len(imgs)), desc="Processing...", ncols=75, disable=disableProgressBar):
             ims = [imgs[i]] if isinstance(imgs[i], str) else imgs[i]
 
             ims_origin = None
@@ -513,6 +565,7 @@ class InferenceLlamacpp(Inference):
                                    min_p=min_p,
                                    seed=seed,
                                    ctx_size=ctx_size,
+                                   max_new_tokens=max_new_tokens,
                                    schema=schema,
                                    audio_input=audio_input)
                     r = extract_last_json(r)
@@ -521,7 +574,15 @@ class InferenceLlamacpp(Inference):
                 if r is None:
                     r = 'Bad response'
                 dic['responses'] += [r]
-                dic['data'] += [ims] if ims_origin is None else [ims_origin]
+                stored_data = ims if ims_origin is None else ims_origin
+                dic['data'] += [stored_data]
+
+                if checkpoint_path:
+                    append_inference_checkpoint(checkpoint_path, {
+                        'idx': i,
+                        'responses': r,
+                        'data': stored_data,
+                    })
 
                 if len(ims_) >= 1:
                     for each in ims_:
@@ -580,6 +641,7 @@ class InferenceLlamacpp(Inference):
               min_p: float = 0.0,
               seed: int = 3407,
               ctx_size:int = 4096,
+              max_new_tokens: int = 512,
               # threads:int = -1,
               # batch_size:int = 512,
               # gpu_layers:int = -1,
@@ -627,7 +689,8 @@ class InferenceLlamacpp(Inference):
                      "--top-p", f"{top_p}",
                      "-c", f"{ctx_size}",
                      "-s", f"{seed}",
-                     "--min-p", f"{min_p}"
+                     "--min-p", f"{min_p}",
+                     "-n", f"{max_new_tokens}",
                      # "-t", f"{threads}",
                      # "-ub", f"{batch_size}",
                      # "-ngl", f"{gpu_layers}"

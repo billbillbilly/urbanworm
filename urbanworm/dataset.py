@@ -2,18 +2,31 @@ from __future__ import annotations
 
 import logging
 import os
+import warnings
 
 import pandas as pd
 from geopandas import GeoDataFrame
 from tqdm.auto import tqdm
 
 from .utils.building import *  # noqa: F401,F403  (also re-exports gpd, Path, etc.)
+from .utils.checkpoint import (
+    append_collection_checkpoint,
+    load_collection_checkpoint,
+    restore_audios_from_checkpoint,
+    restore_photos_from_checkpoint,
+    restore_svis_from_checkpoint,
+)
 from .utils.pano2pers import Equirectangular
 from .utils.utils import (
     calculate_bearing,
+    clip,
     closest,
+    download_freesound_preview,
+    download_image_requests,
+    is_url,
     projection,
     retry_request,
+    save_base64,
 )
 
 logger = logging.getLogger("urbanworm")
@@ -207,6 +220,7 @@ class GeoTaggedData:
                                id_column:str=None,
                                distance:int = 50,
                                key: str = None,
+                               source: str = "mapillary",
                                pano: bool = True, reoriented: bool = True,
                                multi_num: int = 1, interval: int = 1,
                                fov: int | float | str = 80, heading: int = None, pitch: int = 5,
@@ -216,46 +230,63 @@ class GeoTaggedData:
                                fov_min: float = 30.0,
                                fov_max: float = 120.0,
                                building_height: float = 9.0,
-                               silent: bool = True):
+                               silent: bool = True,
+                               checkpoint_path: str | None = None):
         """
             get_svi_from_locations
 
-            Retrieve the closest street view image(s) near each coordinate using the Mapillary API.
-            The street view image will be reoriented to look at the coordinate when `reoriented = True`.
+            Retrieve the closest street view image(s) near each coordinate.
+            The street view image will be reoriented to look at the coordinate when
+            ``reoriented=True`` (Mapillary) or always (Google).
 
             Args:
                 id_column (str, optional): The name of column that has unique identifier (or something similar) for each location.
-                distance (int): The max distance in meters between the centroid and the street view
-                key (str): Mapillary API access token.
-                pano (bool): Whether to search for pano street view images only. (Default is True)
-                reoriented (bool): Whether to reorient and crop street view images. (Default is True)
-                multi_num (int): The number of multiple SVIs (Default is 1).
-                interval (int): The interval in meters between each SVI (Default is 1).
+                distance (int): The max distance in meters between the centroid and the street view.
+                key (str): API access token for the chosen source.
+                    Mapillary — pass token or set env var ``MAPILLARY_API_KEY``.
+                    Google    — pass token or set env var ``GOOGLE_STREETVIEW_API_KEY``.
+                source (str): Street view data source. One of ``"mapillary"`` (default)
+                    or ``"google"``.
+                pano (bool): Whether to search for pano street view images only.
+                    Mapillary only — ignored for Google. (Default is True)
+                reoriented (bool): Whether to reorient and crop street view images.
+                    Mapillary only — Google always faces the target. (Default is True)
+                multi_num (int): The number of multiple SVIs.
+                    Mapillary only — Google always returns 1. (Default is 1)
+                interval (int): The interval in meters between each SVI.
+                    Mapillary only. (Default is 1)
                 fov (int | float | str): Field of view in degrees (default 80). Pass
                     ``'auto'`` (with ``reoriented=True``) to size the FOV per image
                     so the building footprint at each location is just framed.
                     The polygon used is each unit's ``row.geometry`` from
                     ``self.units`` — i.e. the building footprint loaded by
                     ``getBuildings()``. Falls back to a distance-based heuristic
-                    if a unit's geometry is a point.
+                    if a unit's geometry is a point. Mapillary only for ``'auto'``.
                 heading (int): Camera heading in degrees. If None, it will be computed based on the house orientation.
-                pitch (int): Camera pitch angle. (Default is 10).
-                height (int): Height in pixels of the returned image. (Default is 480).
-                width (int): Width in pixels of the returned image. (Default is 640).
+                pitch (int): Camera pitch angle. (Default is 5).
+                height (int): Height in pixels of the returned image. (Default is 500).
+                width (int): Width in pixels of the returned image. (Default is 700).
                 year (list[str], optional): Year of data (start year, end year).
-                season (str, optional): Season of data. One of ["spring","summer","fall","autumn","winter"]
-                time_of_day (str, optional): Time of data. One of ["day","night"] (Default is 'day')
+                    Mapillary only — ignored for Google with a warning.
+                season (str, optional): Season of data. One of ["spring","summer","fall","autumn","winter"].
+                    Mapillary only — ignored for Google with a warning.
+                time_of_day (str, optional): Time of data. One of ["day","night"] (Default is 'day').
+                    Mapillary only — ignored for Google with a warning.
                 fov_margin (float): When ``fov='auto'``, fractional padding added to the
-                    auto-computed FOV (0.10 = +10%). Default 0.10.
+                    auto-computed FOV (0.10 = +10%). Default 0.10. Mapillary only.
                 fov_min (float): Lower clamp for ``fov='auto'`` (degrees). Default 30°.
+                    Mapillary only.
                 fov_max (float): Upper clamp for ``fov='auto'`` (degrees). Default 120°.
+                    Mapillary only.
                 building_height (float): Assumed building height in meters used by
-                    ``fov='auto'`` (default 9 m, ~3 stories). The auto path
-                    returns the wider of the horizontal extent (footprint) and
-                    the vertical extent (height projected through the image's
-                    aspect ratio) so a tall building's roof isn't cropped. Set
-                    to 0 to skip the height term.
+                    ``fov='auto'`` (default 9 m, ~3 stories). Mapillary only.
                 silent (bool): If True, do not show error traceback (Default is True).
+                checkpoint_path (str, optional): Path to a JSONL file for
+                    resume-safe checkpointing. When provided, each successfully
+                    fetched location is written to the file immediately, and
+                    base64 images are saved to a companion directory
+                    (``<checkpoint_stem>_files/`` next to the JSONL) so the
+                    session can be resumed after a crash.
             """
 
         self.svis = {
@@ -270,17 +301,38 @@ class GeoTaggedData:
             id_column = 'loc_id'
             if id_column not in self.units.columns:
                 self.units[id_column] = [i for i in range(len(self.units))]
-        # Resolve API key once with env var fallback
-        resolved_key = key or os.getenv("MAPILLARY_API_KEY")
+        # Resolve API key once with env var fallback.
+        # Use the appropriate env var depending on the source.
+        _env_var = "GOOGLE_STREETVIEW_API_KEY" if source.lower() == "google" else "MAPILLARY_API_KEY"
+        resolved_key = key or os.getenv(_env_var)
         if not resolved_key:
             raise ValueError(
                 "Missing Mapillary access token. Pass key=... or set env var MAPILLARY_API_KEY."
             )
+
+        # ── resume from checkpoint ────────────────────────────────────────
+        # The checkpoint records which loc_ids have been fetched and stores
+        # the raw fetched data (base64 strings or URLs) so the full
+        # self.svis payload can be restored without re-hitting the API.
+        # File downloading is handled separately by download_to_dir().
+        done_ids: set = set()
+        if checkpoint_path is not None:
+            done_ids, ckpt_records = load_collection_checkpoint(checkpoint_path)
+            restored_svis, restored_frames = restore_svis_from_checkpoint(ckpt_records)
+            self.svis = restored_svis
+        else:
+            restored_frames = []
+
         # Accumulate per-location frames and concat once for O(n) instead of O(n^2)
-        frames: list[pd.DataFrame] = []
+        frames: list[pd.DataFrame] = list(restored_frames)
         skip_count = 0
         for _index, row in tqdm(self.units.iterrows(), total=len(self.units)):
             loc_id = row[id_column]
+
+            # Skip already-checkpointed locations
+            if loc_id in done_ids:
+                continue
+
             try:
                 # Pass the unit's polygon to enable fov='auto' framing.
                 # Points (no `.exterior`) become None, so getSV will fall
@@ -306,6 +358,7 @@ class GeoTaggedData:
                     loc_id=loc_id,
                     distance=distance,
                     key=resolved_key,
+                    source=source,
                     pano=pano,
                     reoriented=reoriented,
                     multi_num=multi_num,
@@ -325,6 +378,19 @@ class GeoTaggedData:
                 self.svis['data'] += svis
                 self.svis['loc_id'] += output_df['loc_id'].tolist()
                 self.svis['id'] += output_df['id'].tolist()
+
+                # ── checkpoint: record the fetched data ──────────────────
+                # Stores raw fetched data (base64 or URLs) so the session
+                # can be fully restored without re-hitting the Mapillary API.
+                # File downloading remains the responsibility of download_to_dir().
+                if checkpoint_path is not None:
+                    append_collection_checkpoint(checkpoint_path, {
+                        'loc_id': loc_id,
+                        'ids': output_df['id'].tolist(),
+                        'paths': [],           # populated later by download_to_dir()
+                        'data': svis,          # base64 strings or URLs as returned by getSV
+                        'metadata': output_df.to_dict(orient='records'),
+                    })
 
                 frames.append(output_df)
             except Exception as e:
@@ -357,6 +423,7 @@ class GeoTaggedData:
                                 exclude_personal_photo: bool = True,
                                 exclude_from_location:int = None,
                                 silent = True,
+                                checkpoint_path: str | None = None,
                                 ):
         '''
             get_photo_from_location
@@ -393,10 +460,22 @@ class GeoTaggedData:
             id_column = 'loc_id'
             if id_column not in self.units.columns:
                 self.units[id_column] = list(range(len(self.units)))
-        frames: list[pd.DataFrame] = []
+
+        # ── resume from checkpoint ────────────────────────────────────────
+        done_ids_ph: set = set()
+        if checkpoint_path is not None:
+            done_ids_ph, ckpt_records_ph = load_collection_checkpoint(checkpoint_path)
+            restored_photos, restored_frames_ph = restore_photos_from_checkpoint(ckpt_records_ph)
+            self.photos = restored_photos
+        else:
+            restored_frames_ph = []
+
+        frames: list[pd.DataFrame] = list(restored_frames_ph)
         skip_count = 0
         for _index, row in tqdm(self.units.iterrows(), total=len(self.units)):
             loc_id = row[id_column]
+            if loc_id in done_ids_ph:
+                continue
             try:
                 output_df = getPhoto([row.geometry.centroid.x, row.geometry.centroid.y],
                                      loc_id,
@@ -427,6 +506,16 @@ class GeoTaggedData:
                 self.photos['loc_id'] += output_df['loc_id'].tolist()
                 self.photos['data'] += output_df['url'].tolist()
                 self.photos['id'] += output_df['id'].tolist()
+
+                if checkpoint_path is not None:
+                    append_collection_checkpoint(checkpoint_path, {
+                        'loc_id': loc_id,
+                        'ids': output_df['id'].tolist(),
+                        'paths': [],
+                        'data': output_df['url'].tolist(),
+                        'metadata': output_df.to_dict(orient='records'),
+                    })
+
                 frames.append(output_df)
             except Exception as e:
                 if not silent:
@@ -458,7 +547,8 @@ class GeoTaggedData:
                                 slice_duration: int = None,
                                 slice_max_num: int = None,
                                 probe_durations: bool = True,
-                                silent: bool = True
+                                silent: bool = True,
+                                checkpoint_path: str | None = None,
                                 ):
 
         '''
@@ -510,10 +600,22 @@ class GeoTaggedData:
             id_column = 'loc_id'
             if id_column not in self.units.columns:
                 self.units[id_column] = list(range(len(self.units)))
-        frames: list[pd.DataFrame] = []
+
+        # ── resume from checkpoint ────────────────────────────────────────
+        done_ids_au: set = set()
+        if checkpoint_path is not None:
+            done_ids_au, ckpt_records_au = load_collection_checkpoint(checkpoint_path)
+            restored_audios, restored_frames_au = restore_audios_from_checkpoint(ckpt_records_au)
+            self.audios = restored_audios
+        else:
+            restored_frames_au = []
+
+        frames: list[pd.DataFrame] = list(restored_frames_au)
         skip_count = 0
         for _index, row in tqdm(self.units.iterrows(), total=len(self.units)):
             loc_id = row[id_column]
+            if loc_id in done_ids_au:
+                continue
             try:
                 output_df = getSound([row.geometry.centroid.x, row.geometry.centroid.y],
                                      loc_id=loc_id,
@@ -560,10 +662,30 @@ class GeoTaggedData:
                     self.audios['data'] += repeated_data
                     self.audios['id'] += repeated_id
                     self.audios['slice'] += flattened_slice_list
+
+                    if checkpoint_path is not None:
+                        append_collection_checkpoint(checkpoint_path, {
+                            'loc_id': loc_id,
+                            'ids': repeated_id,
+                            'paths': [],
+                            'data': repeated_data,
+                            'slices': flattened_slice_list,
+                            'metadata': output_df.to_dict(orient='records'),
+                        })
                 else:
                     self.audios['loc_id'] += output_df['loc_id'].tolist()
                     self.audios['data'] += output_df['preview-hq-mp3'].tolist()
                     self.audios['id'] += output_df['id'].tolist()
+
+                    if checkpoint_path is not None:
+                        append_collection_checkpoint(checkpoint_path, {
+                            'loc_id': loc_id,
+                            'ids': output_df['id'].tolist(),
+                            'paths': [],
+                            'data': output_df['preview-hq-mp3'].tolist(),
+                            'slices': None,
+                            'metadata': output_df.to_dict(orient='records'),
+                        })
 
                 frames.append(output_df)
             except Exception as e:
@@ -583,7 +705,16 @@ class GeoTaggedData:
         '''
             download_to_dir
 
-            Download retrieved data to a directory.
+            Download retrieved data (fetched by get_svi_from_locations,
+            get_photo_from_location, or get_sound_from_location) to a local
+            directory and populate the corresponding ``path`` list on the
+            dataset object.
+
+            This method is **resume-safe by default**: if a file already
+            exists at its target path it is never re-downloaded.  You can
+            safely re-run this call after a crash and it will only fetch
+            the files that are still missing, then rebuild the complete
+            path list from what is on disk.
 
             Args:
                 data (str): Type of data to download: ['svi', 'audio', 'photo'].
@@ -668,6 +799,130 @@ class GeoTaggedData:
                 self.photos['path'] += [p]
         return None
 
+    def export(
+        self,
+        output_dir: str,
+        data: str = 'svi',
+        labels: pd.DataFrame = None,
+    ) -> str:
+        """Export collected data as an organized dataset folder.
+
+        Creates::
+
+            output_dir/
+                metadata.csv          # loc_id, file_id, file_type, file_path
+                                      # + optional label columns from `labels`
+                images/               # when data in {'svi', 'photo'}
+                    {loc_id}_{file_id}.png
+                audio/                # when data == 'audio'
+                    {loc_id}_{file_id}.mp3
+
+        If a file already exists on disk at the target path it is not
+        downloaded again, so the method is safe to call repeatedly.
+
+        Args:
+            output_dir: Root directory for the exported dataset.
+            data: Which modality to export. One of ``'svi'``, ``'photo'``,
+                or ``'audio'``.
+            labels: Optional DataFrame produced by ``batch_inference()``.
+                Must contain a ``loc_id`` column; it is left-joined onto the
+                metadata table so each file row gets the matching label
+                columns.
+
+        Returns:
+            Absolute path to the created ``metadata.csv``.
+        """
+        if data not in ('svi', 'photo', 'audio'):
+            raise ValueError(
+                "data must be one of 'svi', 'photo', 'audio'; "
+                f"got {data!r}"
+            )
+
+        out_root = Path(output_dir)
+
+        if data in ('svi', 'photo'):
+            files_dir = out_root / 'images'
+        else:
+            files_dir = out_root / 'audio'
+        files_dir.mkdir(parents=True, exist_ok=True)
+
+        payload = (
+            self.svis if data == 'svi'
+            else self.photos if data == 'photo'
+            else self.audios
+        )
+
+        if not payload['id']:
+            logger.warning("export: no %s data to export.", data)
+            return str(out_root / 'metadata.csv')
+
+        ext = '.png' if data != 'audio' else '.mp3'
+        rows: list[dict] = []
+
+        for i in range(len(payload['id'])):
+            loc_id = payload['loc_id'][i]
+            file_id = payload['id'][i]
+            source = payload['data'][i]
+            existing_path = payload['path'][i] if i < len(payload['path']) else ''
+
+            fname = f"{loc_id}_{file_id}{ext}"
+            local_path = str(files_dir / fname)
+
+            # Download / copy only if the file is not already in place
+            if not Path(local_path).exists():
+                try:
+                    if existing_path and Path(existing_path).exists():
+                        import shutil as _shutil
+                        _shutil.copy2(existing_path, local_path)
+                    elif data != 'audio':
+                        if is_url(source):
+                            download_image_requests(source, local_path)
+                        elif is_image_path(source):
+                            import shutil as _shutil
+                            _shutil.copy2(source, local_path)
+                        else:
+                            # assume base64
+                            save_base64(source, local_path)
+                    else:
+                        # audio
+                        slices = (
+                            payload['slice'][i]
+                            if 'slice' in payload and i < len(payload['slice'])
+                            else None
+                        )
+                        if slices is not None:
+                            clip(source, slices[0], slices[1], local_path)
+                        else:
+                            download_freesound_preview(source, local_path)
+                except Exception as _dl_err:
+                    logger.warning(
+                        "export: could not save %s (loc_id=%s, file_id=%s): %s",
+                        local_path, loc_id, file_id, _dl_err,
+                    )
+
+            rows.append({
+                'loc_id': loc_id,
+                'file_id': file_id,
+                'file_type': data,
+                'file_path': local_path,
+                'source_data': source if is_url(source) else '<local>',
+            })
+
+        meta_df = pd.DataFrame(rows)
+
+        if labels is not None:
+            if 'loc_id' in labels.columns:
+                meta_df = meta_df.merge(labels, on='loc_id', how='left')
+            else:
+                logger.warning(
+                    "export: labels DataFrame has no 'loc_id' column; skipping merge."
+                )
+
+        out_csv = out_root / 'metadata.csv'
+        meta_df.to_csv(out_csv, index=False)
+        logger.info("export: wrote %d rows to %s", len(meta_df), out_csv)
+        return str(out_csv)
+
     def set_images(self, img_type: str):
         '''
             set_images
@@ -734,74 +989,13 @@ class GeoTaggedData:
 
 
 # Get street view images from Mapillary
-def getSV(location: list|tuple,
-          loc_id: int | str = None,
-          distance:int = 50,
-          key: str = None,
-          pano: bool = False,
-          reoriented: bool = False,
-          multi_num: int = 1,
-          interval: int = 1,
-          fov: int | float | str = 80, heading: int = None, pitch: int = 5,
-          height: int = 500, width: int = 700,
-          year: list | tuple = None,
-          season: str = None,
-          time_of_day: str = None,
-          target_polygon=None,
-          fov_margin: float = 0.10,
-          fov_min: float = 30.0,
-          fov_max: float = 120.0,
-          building_height: float = 9.0,
-          output_df: bool = True,
-          silent: bool = False) -> pd.DataFrame | list | None:
-    """
-        getSV
-
-        Retrieve the closest street view image(s) near a coordinate using the Mapillary API.
-        The street view image will be reoriented to look at the coordinate.
-
-        Args:
-            location: coordinates (longitude/x and latitude/y)
-            loc_id (int|str, optional): The id of the location
-            distance (int): The max distance in meters between the centroid and the street view
-            key (str): Mapillary API access token.
-            pano (bool): Whether to search for pano street view images only. (Default is True)
-            reoriented (bool): Whether to reorient and crop street view images. (Default is True)
-            multi_num (int): The number of multiple SVIs (Default is 1).
-            interval (int): The interval in meters between each SVI (Default is 1).
-            fov (int | float | str): Field of view in degrees for the perspective image
-                (default 80). Pass ``'auto'`` together with ``reoriented=True`` to
-                size the FOV per image so the target building is just framed —
-                see ``target_polygon`` / ``fov_margin`` / ``fov_min`` / ``fov_max``.
-                When ``target_polygon`` is None, ``'auto'`` falls back to a
-                distance-based heuristic (assumes ~15 m wide building).
-            heading (int): Camera heading in degrees. If None, it will be computed based on the location orientation.
-            pitch (int): Camera pitch angle. (Default is 10).
-            height (int): Height in pixels of the returned image. (Default is 480).
-            width (int): Width in pixels of the returned image. (Default is 640).
-            year (list[str], optional): Year of data (start year, end year).
-            season (str, optional): Season of data.
-            time_of_day (str, optional): Time of data.
-            target_polygon (shapely.geometry.Polygon, optional): Building footprint
-                used by ``fov='auto'`` to compute the angular extent of the target.
-                Coordinates are assumed to be ``(lon, lat)`` in WGS84.
-            fov_margin (float): Fractional padding added to the auto-computed
-                FOV (0.10 = +10%). Default 0.10.
-            fov_min (float): Lower clamp for ``fov='auto'`` (degrees). Default 30°.
-            fov_max (float): Upper clamp for ``fov='auto'`` (degrees). Default 120°.
-            building_height (float): Assumed building height in meters used by
-                ``fov='auto'`` (default 9 m, ~3 stories). The auto path returns
-                the wider of the horizontal extent (footprint) and the vertical
-                extent (height projected through the image's aspect ratio) so a
-                tall building's roof isn't cropped. Set to 0 to skip the
-                height term.
-            output_df (bool, optional): Whether to return a dataframe containing only the closest. (Default is True)
-            silent (bool, optional): Whether to silence output (Default is False).
-
-        Returns:
-            list[str]: A list of images in base64 format
-            DataFrame: A dataframe containing metadata about the closest street view images.
-    """
+def _getSV_mapillary(location, loc_id, distance, key,
+                     pano, reoriented, multi_num, interval,
+                     fov, heading, pitch, height, width,
+                     year, season, time_of_day,
+                     target_polygon, fov_margin, fov_min, fov_max,
+                     building_height, output_df, silent):
+    """Retrieve street view image(s) from Mapillary. Called by :func:`getSV`."""
     # Resolve auto-fov mode upfront so per-image computation can branch.
     auto_fov = isinstance(fov, str) and fov.strip().lower() == "auto"
     if auto_fov and not reoriented:
@@ -929,6 +1123,259 @@ def getSV(location: list|tuple,
         if output_df:
             return None, None
         return None
+
+
+def _getSV_google(location, loc_id, distance, key,
+                  fov, heading, pitch, height, width,
+                  output_df, silent):
+    """Retrieve a street view image from Google Static Street View. Called by :func:`getSV`.
+
+    Notes:
+        - ``multi_num``, ``pano``, ``reoriented``, ``year``, ``season``, and
+          ``time_of_day`` are not supported and are handled by the dispatcher.
+        - The image is always returned as a base64-encoded JPEG string to match
+          the Mapillary output format.
+        - ``captured_at`` uses the format ``"YYYY-MM-1-1"`` (day and hour are
+          nominal placeholders) because the Google Street View Metadata API only
+          exposes year and month.
+    """
+    import base64
+
+    api_key = key or os.getenv("GOOGLE_STREETVIEW_API_KEY")
+    if not api_key:
+        raise ValueError(
+            "Missing Google Street View API key. "
+            "Pass key=... or set env var GOOGLE_STREETVIEW_API_KEY."
+        )
+
+    svi_df = {
+        "id": [],
+        "sequence": [],
+        "captured_at": [],
+        "compass_angle": [],
+        "image_lon": [],
+        "image_lat": [],
+        "url": [],
+        "loc_id": [],
+    }
+    if loc_id is None:
+        del svi_df["loc_id"]
+
+    try:
+        # 1. Metadata API — find the actual panorama position and capture date.
+        meta_url = (
+            "https://maps.googleapis.com/maps/api/streetview/metadata"
+            f"?location={location[1]},{location[0]}"
+            f"&radius={distance}"
+            f"&key={api_key}"
+        )
+        meta_resp = retry_request(meta_url)
+        if meta_resp is None or meta_resp.json().get("status") != "OK":
+            if not silent:
+                logger.warning("skip location %s: no Google Street View data found", location)
+            if output_df:
+                return None, None
+            return None
+
+        meta = meta_resp.json()
+        pano_lat = meta["location"]["lat"]
+        pano_lon = meta["location"]["lng"]
+        pano_id  = meta.get("pano_id", "")
+        date_str = meta.get("date", "")      # "YYYY-MM" or ""
+
+        # Build a consistent captured_at string: "YYYY-MM-1-1".
+        # Day and hour are nominal placeholders (Google only provides year-month).
+        if date_str:
+            captured_at = f"{date_str}-1-1"
+        else:
+            captured_at = None
+
+        # 2. Compute absolute heading so the camera faces the target.
+        effective_heading = (
+            heading if heading is not None
+            else calculate_bearing(pano_lat, pano_lon, location[1], location[0])
+        )
+
+        # Clamp fov to Google's supported range [10, 120].
+        effective_fov = max(10, min(120, float(fov)))
+
+        # 3. Static Street View API — returns a perspective JPEG directly.
+        # Build two variants: a live URL for fetching, and a sanitized one (key
+        # replaced with the literal "key") safe to store in the output DataFrame.
+        _base = "https://maps.googleapis.com/maps/api/streetview"
+        _params = (
+            f"?size={width}x{height}"
+            f"&pano={pano_id}"
+            f"&heading={effective_heading}"
+            f"&pitch={pitch}"
+            f"&fov={effective_fov}"
+        )
+        img_url        = _base + _params + f"&key={api_key}"
+        img_url_stored = _base + _params + "&key=key"
+        img_resp = retry_request(img_url)
+        if img_resp is None or img_resp.status_code != 200:
+            if not silent:
+                logger.warning("skip location %s: Google Street View image fetch failed", location)
+            if output_df:
+                return None, None
+            return None
+
+        img_b64 = base64.b64encode(img_resp.content).decode()
+
+        if output_df:
+            svi_df["id"].append(pano_id)
+            svi_df["sequence"].append(None)
+            svi_df["captured_at"].append(captured_at)
+            svi_df["compass_angle"].append(effective_heading)
+            svi_df["image_lon"].append(pano_lon)
+            svi_df["image_lat"].append(pano_lat)
+            svi_df["url"].append(img_url_stored)
+            if "loc_id" in svi_df:
+                svi_df["loc_id"].append(loc_id)
+            return [img_b64], pd.DataFrame(svi_df)
+        return [img_b64]
+
+    except Exception as e:
+        if not silent:
+            logger.warning("skip location %s: %s", location, e)
+        if output_df:
+            return None, None
+        return None
+
+
+def getSV(location: list|tuple,
+          loc_id: int | str = None,
+          distance:int = 50,
+          key: str = None,
+          source: str = "mapillary",
+          pano: bool = False,
+          reoriented: bool = False,
+          multi_num: int = 1,
+          interval: int = 1,
+          fov: int | float | str = 80, heading: int = None, pitch: int = 5,
+          height: int = 500, width: int = 700,
+          year: list | tuple = None,
+          season: str = None,
+          time_of_day: str = None,
+          target_polygon=None,
+          fov_margin: float = 0.10,
+          fov_min: float = 30.0,
+          fov_max: float = 120.0,
+          building_height: float = 9.0,
+          output_df: bool = True,
+          silent: bool = False) -> pd.DataFrame | list | None:
+    """
+        getSV
+
+        Retrieve the closest street view image(s) near a coordinate.
+        Supports multiple sources; the image is reoriented to face the target
+        coordinate when ``reoriented=True`` (Mapillary) or always (Google).
+
+        Args:
+            location: coordinates (longitude/x and latitude/y)
+            loc_id (int|str, optional): The id of the location.
+            distance (int): The max distance in meters between the centroid and the street view.
+            key (str): API access token for the chosen source.
+                Mapillary — pass token or set env var ``MAPILLARY_API_KEY``.
+                Google    — pass token or set env var ``GOOGLE_STREETVIEW_API_KEY``.
+            source (str): Street view data source. One of ``"mapillary"`` (default)
+                or ``"google"``.
+            pano (bool): Whether to search for panoramic images only.
+                Mapillary only — ignored for Google. (Default is False)
+            reoriented (bool): Whether to reorient and crop street view images to face
+                the target. Mapillary only — Google always faces the target.
+                (Default is False)
+            multi_num (int): The number of multiple SVIs. Mapillary only — Google
+                always returns 1. (Default is 1)
+            interval (int): The interval in meters between each SVI.
+                Mapillary only. (Default is 1)
+            fov (int | float | str): Field of view in degrees for the perspective image
+                (default 80). Pass ``'auto'`` together with ``reoriented=True`` to
+                size the FOV per image so the target building is just framed —
+                see ``target_polygon`` / ``fov_margin`` / ``fov_min`` / ``fov_max``.
+                When ``target_polygon`` is None, ``'auto'`` falls back to a
+                distance-based heuristic (assumes ~15 m wide building).
+                Mapillary only — for Google, ``fov`` is passed directly to the API
+                and clamped to [10, 120]; ``'auto'`` is not supported.
+            heading (int): Camera heading in degrees. If None, computed from the
+                bearing to the target location.
+            pitch (int): Camera pitch angle. (Default is 5)
+            height (int): Height in pixels of the returned image. (Default is 500)
+            width (int): Width in pixels of the returned image. (Default is 700)
+            year (list[str], optional): Year of data (start year, end year).
+                Mapillary only — ignored for Google with a warning.
+            season (str, optional): Season of data.
+                Mapillary only — ignored for Google with a warning.
+            time_of_day (str, optional): Time of data.
+                Mapillary only — ignored for Google with a warning.
+            target_polygon (shapely.geometry.Polygon, optional): Building footprint
+                used by ``fov='auto'`` to compute the angular extent of the target.
+                Coordinates are assumed to be ``(lon, lat)`` in WGS84.
+                Mapillary only.
+            fov_margin (float): Fractional padding added to the auto-computed
+                FOV (0.10 = +10%). Default 0.10. Mapillary only.
+            fov_min (float): Lower clamp for ``fov='auto'`` (degrees). Default 30°.
+                Mapillary only.
+            fov_max (float): Upper clamp for ``fov='auto'`` (degrees). Default 120°.
+                Mapillary only.
+            building_height (float): Assumed building height in meters used by
+                ``fov='auto'`` (default 9 m, ~3 stories). Mapillary only.
+            output_df (bool, optional): Whether to also return a DataFrame of metadata.
+                (Default is True)
+            silent (bool, optional): Whether to silence warnings. (Default is False)
+
+        Returns:
+            list[str]: A list of images in base64 format.
+            DataFrame: A dataframe containing metadata about the street view images.
+                ``captured_at`` format is ``"YYYY-M-D-H"`` for Mapillary and
+                ``"YYYY-MM-1-1"`` for Google (day and hour are nominal placeholders).
+    """
+    source = source.lower().strip()
+
+    if source == "google":
+        # Warn about params that Google does not support.
+        # warnings.warn() deduplicates by call-site, so each message appears
+        # only once even when getSV() is called in a loop (e.g. from
+        # get_svi_from_locations), unlike logger.warning() which fires every time.
+        if multi_num > 1:
+            warnings.warn(
+                "getSV: multi_num > 1 is not supported for source='google'; using 1.",
+                stacklevel=2,
+            )
+        if any([year, season, time_of_day]):
+            warnings.warn(
+                "getSV: year/season/time_of_day filtering is not supported for "
+                "source='google' (API does not expose historical imagery). "
+                "These parameters will be ignored.",
+                stacklevel=2,
+            )
+        if isinstance(fov, str) and fov.strip().lower() == "auto":
+            warnings.warn(
+                "getSV: fov='auto' is not supported for source='google'. "
+                "Falling back to fov=80.",
+                stacklevel=2,
+            )
+            fov = 80
+        return _getSV_google(
+            location=location, loc_id=loc_id, distance=distance, key=key,
+            fov=fov, heading=heading, pitch=pitch, height=height, width=width,
+            output_df=output_df, silent=silent,
+        )
+
+    if source == "mapillary":
+        return _getSV_mapillary(
+            location=location, loc_id=loc_id, distance=distance, key=key,
+            pano=pano, reoriented=reoriented, multi_num=multi_num, interval=interval,
+            fov=fov, heading=heading, pitch=pitch, height=height, width=width,
+            year=year, season=season, time_of_day=time_of_day,
+            target_polygon=target_polygon, fov_margin=fov_margin,
+            fov_min=fov_min, fov_max=fov_max, building_height=building_height,
+            output_df=output_df, silent=silent,
+        )
+
+    raise ValueError(
+        f"getSV: unknown source '{source}'. Choose 'mapillary' or 'google'."
+    )
 
 
 from .utils.utils import season_months, tod_hours, year_range

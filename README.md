@@ -24,12 +24,12 @@ The investigation may cover topics about building conditions, street appearance,
 </picture>
 
 ## Features
-- Collect geotagged data (Mapillary street views, Flickr photos, and Freesound audios) via APIs 
+- Collect geotagged data (Mapillary/Google street views, Flickr photos, and Freesound/Aporee audios) via APIs 
 within the proximity of building footprints (or other POIs)
 - Calibrate the orientation of the panorama street views to look at given locations
 - Filter out personal photo using face detection
 - Divide sound recording to multiple clips with given duration
-- Support (batched) multiple data input with multimodal models
+- Support (batched) multiple data input with multimodal models and GPU accelerators
 
 ## Installation
 
@@ -163,7 +163,7 @@ The package is heavily built on llama.cpp and Ollama. Credit goes to the develop
 - [llama.cpp](https://github.com/ggml-org/llama.cpp/tree/master)
 - [ollama](https://github.com/ollama/ollama)
 - [ollama-python](https://github.com/ollama/ollama-python)
-- [unsloth]()
+- [unsloth](https://github.com/unslothai/unsloth)
 
 
 The functionality about sourcing and processing GIS data and image processing is built on the following open projects. 

@@ -30,6 +30,12 @@ from typing import Any
 import pandas as pd
 from tqdm import tqdm
 
+from ..utils.checkpoint import (
+    _MockResponse,
+    append_inference_checkpoint,
+    load_inference_checkpoint,
+    restore_ollama_results,
+)
 from ..utils.utils import (
     extract_json_from_text,
     is_base64,
@@ -181,6 +187,7 @@ class InferenceUnsloth(Inference):
         max_new_tokens: int = 512,
         batch_size: int = 1,
         disableProgressBar: bool = False,
+        checkpoint_path: str | None = None,
     ) -> pd.DataFrame:
         """Run inference over ``self.batch_images`` with optional GPU batching.
 
@@ -189,6 +196,10 @@ class InferenceUnsloth(Inference):
                 ``1`` (default) matches :class:`InferenceOllama` behavior.
                 Larger values trade VRAM for throughput. Practical sweet spot
                 for 7-8B VLMs on a 24GB GPU is ~4–8.
+            checkpoint_path: Path to a JSONL file for resume-safe
+                checkpointing.  Already-completed items are skipped on the
+                next run.  Note: resume granularity is one ``batch_size``
+                chunk — the last incomplete chunk is re-processed on resume.
 
         Returns:
             DataFrame, same shape as :meth:`InferenceOllama.batch_inference`.
@@ -206,12 +217,18 @@ class InferenceUnsloth(Inference):
         ]
 
         schema = create_format(self.schema)
-        all_responses: list = []
+
+        # ── resume from checkpoint ───────────────────────────────────────
+        done_records = load_inference_checkpoint(checkpoint_path) if checkpoint_path else []
+        bs = max(1, int(batch_size))
+        # Align start to the nearest chunk boundary so we never replay a
+        # half-finished chunk (at most bs-1 items are re-run on resume).
+        start_idx = (len(done_records) // bs) * bs
+        dic = restore_ollama_results(done_records[:start_idx])
 
         n = len(items)
-        bs = max(1, int(batch_size))
-        with tqdm(total=n, desc="Processing", ncols=75, disable=disableProgressBar) as pbar:
-            for start in range(0, n, bs):
+        with tqdm(total=n - start_idx, desc="Processing", ncols=75, disable=disableProgressBar) as pbar:
+            for start in range(start_idx, n, bs):
                 chunk = items[start:start + bs]
                 try:
                     chunk_resp = self._generate_batch(
@@ -224,18 +241,35 @@ class InferenceUnsloth(Inference):
                         top_p=top_p,
                         max_new_tokens=max_new_tokens,
                     )
-                    for r in chunk_resp:
-                        all_responses.append(r.responses)
+                    for j, r in enumerate(chunk_resp):
+                        img_idx = start + j
+                        responses = r.responses
+                        dic["responses"].append(responses)
+                        dic["data"].append(imgs[img_idx])
+
+                        if checkpoint_path:
+                            try:
+                                responses_dump = [item.model_dump() for item in responses]
+                            except Exception:
+                                responses_dump = [dict(item) for item in responses] if responses else []
+                            append_inference_checkpoint(checkpoint_path, {
+                                "idx": img_idx,
+                                "responses": responses_dump,
+                                "data": imgs[img_idx] if isinstance(imgs[img_idx], str)
+                                        else list(imgs[img_idx]),
+                            })
                 except Exception as e:
                     logger.warning(
                         "batch_inference: chunk [%d, %d) failed (%s); "
                         "filling stub responses.", start, start + len(chunk), e,
                     )
-                    for _ in chunk:
-                        all_responses.append({"error": str(e), "data": None})
+                    for k in range(len(chunk)):
+                        img_idx = start + k
+                        dic["responses"].append([])
+                        dic["data"].append(imgs[img_idx])
                 pbar.update(len(chunk))
 
-        self.results = {"responses": all_responses, "data": imgs}
+        self.results = dic
         return self.to_df(output=True)
 
     def to_df(self, output: bool = True) -> pd.DataFrame | None:
