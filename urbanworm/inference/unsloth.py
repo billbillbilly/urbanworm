@@ -31,7 +31,6 @@ import pandas as pd
 from tqdm import tqdm
 
 from ..utils.checkpoint import (
-    _MockResponse,
     append_inference_checkpoint,
     load_inference_checkpoint,
     restore_ollama_results,

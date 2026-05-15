@@ -5,9 +5,9 @@ from ollama import Client
 from tqdm import tqdm
 
 from ..utils.checkpoint import (
-    _MockResponse,
     append_inference_checkpoint,
     load_inference_checkpoint,
+    restore_llamacpp_results,
     restore_ollama_results,
 )
 from ..utils.utils import *
@@ -334,11 +334,6 @@ from pathlib import Path
 
 import pandas as pd
 
-from ..utils.checkpoint import (
-    append_inference_checkpoint,
-    load_inference_checkpoint,
-    restore_llamacpp_results,
-)
 from ..utils.utils import extract_last_json, responses_to_wide_all_columns
 
 

@@ -61,7 +61,8 @@ from ..utils.utils import (
     is_url,
     response2df,
 )
-from .format import schema as _make_inner_schema, schema_dict
+from .format import schema as _make_inner_schema
+from .format import schema_dict
 from .Inference import Inference
 
 logger = logging.getLogger("urbanworm")
