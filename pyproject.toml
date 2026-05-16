@@ -23,6 +23,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: GIS",
     "Topic :: Scientific/Engineering :: Image Recognition",
+    "Topic :: Scientific/Engineering :: Sound Recognition",
 ]
 
 # Core runtime dependencies. Optional features (Ollama, llama.cpp, audio, dev)
