@@ -1058,9 +1058,15 @@ def _load_audio_segment():
         ImportError: If pydub is not installed (``pip install 'urban-worm[audio]'``).
     """
     import warnings
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", category=SyntaxWarning, module="pydub")
-        from pydub import AudioSegment  # optional [audio] extra
+    try:
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=SyntaxWarning, module="pydub")
+            from pydub import AudioSegment  # optional [audio] extra
+    except ImportError as exc:  # pragma: no cover - environment dependent
+        raise ImportError(
+            "pydub is required for audio features. Install with "
+            "`pip install 'urban-worm[audio]'`."
+        ) from exc
     return AudioSegment
 
 
