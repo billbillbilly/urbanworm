@@ -30,6 +30,11 @@ from typing import Any
 import pandas as pd
 from tqdm import tqdm
 
+from ..utils.checkpoint import (
+    append_inference_checkpoint,
+    load_inference_checkpoint,
+    restore_ollama_results,
+)
 from ..utils.utils import (
     extract_json_from_text,
     is_base64,
@@ -67,8 +72,15 @@ class InferenceUnsloth(Inference):
             small quality cost. Default ``True``.
         max_seq_length: Maximum tokenized prompt+generation length passed to
             ``FastVisionModel.from_pretrained``. Default 4096.
-        device: Override the device map. ``None`` lets Unsloth choose
-            (typically ``"cuda"`` if available, else ``"mps"`` / ``"cpu"``).
+        device: Override the device map string (e.g. ``"cuda:0"``,
+            ``"auto"``).  ``None`` (default) auto-detects: uses
+            ``device_map="auto"`` when multiple CUDA GPUs are present so the
+            model is spread across all of them, otherwise falls back to a
+            single GPU or CPU.
+        max_memory: Per-device VRAM budget passed to ``from_pretrained`` as
+            ``max_memory``.  ``None`` (default) auto-computes 90 % of each
+            GPU's total capacity when multi-GPU is detected.  Example:
+            ``{0: "10GiB", 1: "10GiB"}``.
         dtype: Override the compute dtype. ``None`` = auto.
         skip_errors: If ``True`` (default), schema-validation failures yield
             an empty ``Response(responses=[])`` so batch loops continue
@@ -85,6 +97,7 @@ class InferenceUnsloth(Inference):
         load_in_4bit: bool = True,
         max_seq_length: int = 4096,
         device: str | None = None,
+        max_memory: dict | None = None,
         dtype: Any = None,
         skip_errors: bool = True,
         **kwargs,
@@ -94,6 +107,7 @@ class InferenceUnsloth(Inference):
         self.load_in_4bit = load_in_4bit
         self.max_seq_length = max_seq_length
         self.device = device
+        self.max_memory = max_memory
         self.dtype = dtype
         self.skip_errors = skip_errors
         self._model = None
@@ -106,13 +120,43 @@ class InferenceUnsloth(Inference):
         if self._model is not None:
             return
         FastVisionModel = _lazy_imports()
+        import torch
+
+        # ── resolve device_map ───────────────────────────────────────────
+        device_map = self.device
+        max_memory = self.max_memory
+
+        if device_map is None:
+            n_gpus = torch.cuda.device_count()
+            if n_gpus > 1:
+                # Spread the model across all visible GPUs.  Reserve 90 % of
+                # each GPU's capacity so the activation memory has headroom.
+                device_map = "auto"
+                if max_memory is None:
+                    max_memory = {
+                        i: f"{int(torch.cuda.get_device_properties(i).total_memory * 0.90 / (1024 ** 3))}GiB"
+                        for i in range(n_gpus)
+                    }
+                logger.info(
+                    "Detected %d GPUs; using device_map='auto' with max_memory=%s",
+                    n_gpus, max_memory,
+                )
+            elif n_gpus == 1:
+                device_map = "cuda:0"
+            else:
+                device_map = "cpu"
+
         logger.info("Loading Unsloth model %s (4bit=%s)", self.llm, self.load_in_4bit)
-        self._model, self._processor = FastVisionModel.from_pretrained(
-            self.llm,
+        load_kwargs: dict = dict(
             load_in_4bit=self.load_in_4bit,
             max_seq_length=self.max_seq_length,
             dtype=self.dtype,
-            device_map=self.device,
+            device_map=device_map,
+        )
+        if max_memory is not None:
+            load_kwargs["max_memory"] = max_memory
+        self._model, self._processor = FastVisionModel.from_pretrained(
+            self.llm, **load_kwargs,
         )
         FastVisionModel.for_inference(self._model)
 
@@ -181,6 +225,7 @@ class InferenceUnsloth(Inference):
         max_new_tokens: int = 512,
         batch_size: int = 1,
         disableProgressBar: bool = False,
+        checkpoint_path: str | None = None,
     ) -> pd.DataFrame:
         """Run inference over ``self.batch_images`` with optional GPU batching.
 
@@ -189,6 +234,10 @@ class InferenceUnsloth(Inference):
                 ``1`` (default) matches :class:`InferenceOllama` behavior.
                 Larger values trade VRAM for throughput. Practical sweet spot
                 for 7-8B VLMs on a 24GB GPU is ~4–8.
+            checkpoint_path: Path to a JSONL file for resume-safe
+                checkpointing.  Already-completed items are skipped on the
+                next run.  Note: resume granularity is one ``batch_size``
+                chunk — the last incomplete chunk is re-processed on resume.
 
         Returns:
             DataFrame, same shape as :meth:`InferenceOllama.batch_inference`.
@@ -206,12 +255,18 @@ class InferenceUnsloth(Inference):
         ]
 
         schema = create_format(self.schema)
-        all_responses: list = []
+
+        # ── resume from checkpoint ───────────────────────────────────────
+        done_records = load_inference_checkpoint(checkpoint_path) if checkpoint_path else []
+        bs = max(1, int(batch_size))
+        # Align start to the nearest chunk boundary so we never replay a
+        # half-finished chunk (at most bs-1 items are re-run on resume).
+        start_idx = (len(done_records) // bs) * bs
+        dic = restore_ollama_results(done_records[:start_idx])
 
         n = len(items)
-        bs = max(1, int(batch_size))
-        with tqdm(total=n, desc="Processing", ncols=75, disable=disableProgressBar) as pbar:
-            for start in range(0, n, bs):
+        with tqdm(total=n - start_idx, desc="Processing", ncols=75, disable=disableProgressBar) as pbar:
+            for start in range(start_idx, n, bs):
                 chunk = items[start:start + bs]
                 try:
                     chunk_resp = self._generate_batch(
@@ -224,18 +279,97 @@ class InferenceUnsloth(Inference):
                         top_p=top_p,
                         max_new_tokens=max_new_tokens,
                     )
-                    for r in chunk_resp:
-                        all_responses.append(r.responses)
+                    for j, r in enumerate(chunk_resp):
+                        img_idx = start + j
+                        responses = r.responses
+                        dic["responses"].append(responses)
+                        dic["data"].append(imgs[img_idx])
+
+                        if checkpoint_path:
+                            try:
+                                responses_dump = [item.model_dump() for item in responses]
+                            except Exception:
+                                responses_dump = [dict(item) for item in responses] if responses else []
+                            append_inference_checkpoint(checkpoint_path, {
+                                "idx": img_idx,
+                                "responses": responses_dump,
+                                "data": imgs[img_idx] if isinstance(imgs[img_idx], str)
+                                        else list(imgs[img_idx]),
+                            })
                 except Exception as e:
-                    logger.warning(
-                        "batch_inference: chunk [%d, %d) failed (%s); "
-                        "filling stub responses.", start, start + len(chunk), e,
+                    import torch
+                    is_oom = isinstance(e, torch.cuda.OutOfMemoryError) or (
+                        "out of memory" in str(e).lower()
                     )
-                    for _ in chunk:
-                        all_responses.append({"error": str(e), "data": None})
+                    if is_oom and len(chunk) > 1:
+                        # OOM on a multi-item chunk: clear the cache and retry
+                        # each item individually so we lose as little data as
+                        # possible.  The recompile-limit cascade is also caused
+                        # by OOM, so recovering cleanly here prevents it.
+                        logger.warning(
+                            "batch_inference: chunk [%d, %d) OOM; clearing cache "
+                            "and retrying item-by-item.", start, start + len(chunk),
+                        )
+                        torch.cuda.empty_cache()
+                        for k, single_item in enumerate(chunk):
+                            img_idx = start + k
+                            try:
+                                single_resp = self._generate_batch(
+                                    systems=[system],
+                                    prompts=[prompt],
+                                    images_per_prompt=[single_item],
+                                    schema=schema,
+                                    temp=temp,
+                                    top_k=top_k,
+                                    top_p=top_p,
+                                    max_new_tokens=max_new_tokens,
+                                )
+                                responses = single_resp[0].responses
+                                torch.cuda.empty_cache()
+                            except Exception as e2:
+                                logger.warning(
+                                    "batch_inference: item %d failed after OOM retry "
+                                    "(%s); filling stub.", img_idx, e2,
+                                )
+                                torch.cuda.empty_cache()
+                                responses = []
+                            dic["responses"].append(responses)
+                            dic["data"].append(imgs[img_idx])
+                            if checkpoint_path and responses:
+                                try:
+                                    responses_dump = [item.model_dump() for item in responses]
+                                except Exception:
+                                    responses_dump = [dict(item) for item in responses] if responses else []
+                                append_inference_checkpoint(checkpoint_path, {
+                                    "idx": img_idx,
+                                    "responses": responses_dump,
+                                    "data": imgs[img_idx] if isinstance(imgs[img_idx], str)
+                                            else list(imgs[img_idx]),
+                                })
+                    else:
+                        logger.warning(
+                            "batch_inference: chunk [%d, %d) failed (%s); "
+                            "filling stub responses.", start, start + len(chunk), e,
+                        )
+                        if is_oom:
+                            import torch as _torch
+                            _torch.cuda.empty_cache()
+                        for k in range(len(chunk)):
+                            img_idx = start + k
+                            dic["responses"].append([])
+                            dic["data"].append(imgs[img_idx])
+                else:
+                    # Successful chunk — proactively free the allocator's
+                    # reserved-but-unused pool to keep fragmentation low.
+                    try:
+                        import torch as _torch
+                        if _torch.cuda.is_available():
+                            _torch.cuda.empty_cache()
+                    except Exception:
+                        pass
                 pbar.update(len(chunk))
 
-        self.results = {"responses": all_responses, "data": imgs}
+        self.results = dic
         return self.to_df(output=True)
 
     def to_df(self, output: bool = True) -> pd.DataFrame | None:
@@ -300,12 +434,16 @@ class InferenceUnsloth(Inference):
         else:
             processor_images = loaded_images
 
+        # With device_map="auto" the model is split across several GPUs and
+        # has no single .device attribute.  Move inputs to whichever device
+        # holds the first parameter (= the embedding / input layer).
+        first_device = next(self._model.parameters()).device
         inputs = self._processor(
             text=templated_texts,
             images=processor_images,
             return_tensors="pt",
             padding=True,
-        ).to(self._model.device)
+        ).to(first_device)
 
         # 3) Generate
         do_sample = bool(temp and temp > 0)
