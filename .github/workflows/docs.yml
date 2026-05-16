@@ -1,0 +1,29 @@
+name: Deploy Docs
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write   # needed for mkdocs gh-deploy to push to gh-pages
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history so mkdocs git-dates plugin works if added later
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install docs dependencies
+        run: pip install -e ".[docs]"
+
+      - name: Deploy to GitHub Pages
+        run: mkdocs gh-deploy --force
