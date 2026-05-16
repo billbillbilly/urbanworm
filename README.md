@@ -62,11 +62,8 @@ GPU-specific torch must be installed **before** the `unsloth` extra, otherwise p
 a slow CPU-only build:
 
 ```sh
-# CUDA 12.4 (most modern NVIDIA GPUs):
+# CUDA (most modern NVIDIA GPUs):
 pip install torch --index-url https://download.pytorch.org/whl/cu124
-
-# CUDA 12.1:
-pip install torch --index-url https://download.pytorch.org/whl/cu121
 
 # macOS Apple Silicon (MPS):
 pip install torch          # MPS is enabled by default on macOS
