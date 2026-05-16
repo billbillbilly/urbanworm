@@ -1017,7 +1017,7 @@ def probe_audio_duration(url: str, timeout: float = _DEFAULT_TIMEOUT) -> float |
 
         # Preferred: pydub (uses ffmpeg/libav)
         try:
-            from pydub import AudioSegment
+            AudioSegment = _load_audio_segment()
             audio = AudioSegment.from_file(tmp_path)
             return len(audio) / 1000.0
         except Exception as e:
@@ -1043,14 +1043,32 @@ def probe_audio_duration(url: str, timeout: float = _DEFAULT_TIMEOUT) -> float |
             except OSError:
                 pass
 
+def _load_audio_segment():
+    """Import ``pydub.AudioSegment`` while suppressing known SyntaxWarnings.
+
+    pydub 0.25.x contains invalid escape sequences that trigger
+    ``SyntaxWarning`` on Python 3.12+.  These come from pydub's own source
+    and are harmless, but noisy.  This helper centralises the suppression so
+    every call site gets consistent behaviour with no duplicated filter logic.
+
+    Returns:
+        AudioSegment: The imported class from pydub.
+
+    Raises:
+        ImportError: If pydub is not installed (``pip install 'urban-worm[audio]'``).
+    """
+    import warnings
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=SyntaxWarning, module="pydub")
+        from pydub import AudioSegment  # optional [audio] extra
+    return AudioSegment
+
+
 def clip(url=None, start_ms=None, end_ms=None, output_file_path=None,
          timeout: float = _DEFAULT_TIMEOUT):
     """Download an mp3 from ``url`` and write the [start_ms, end_ms] slice."""
     try:
-        import warnings
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", category=SyntaxWarning, module="pydub")
-            from pydub import AudioSegment  # optional [audio] extra
+        AudioSegment = _load_audio_segment()
     except ImportError as exc:
         raise ImportError(
             "clip() requires pydub. Install with: pip install 'urban-worm[audio]'"
@@ -1069,10 +1087,7 @@ def clip(url=None, start_ms=None, end_ms=None, output_file_path=None,
 
 def sound_url_to_temp(url, slice: list | tuple = None, timeout: float = 30.0):
     try:
-        import warnings
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", category=SyntaxWarning, module="pydub")
-            from pydub import AudioSegment  # optional [audio] extra
+        AudioSegment = _load_audio_segment()
     except ImportError as exc:
         raise ImportError(
             "sound_url_to_temp() requires pydub. Install with: pip install 'urban-worm[audio]'"
