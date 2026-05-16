@@ -13,12 +13,18 @@ except PackageNotFoundError:  # package is not installed (e.g. running from sour
 
 # from .inference.transformers import InferenceTrans
 from .dataset import GeoTaggedData, getPhoto, getSound, getSV
-from .inference.llama import InferenceLlamacpp, InferenceOllama
 
 
 def __getattr__(name: str):
-    """Lazily expose heavy optional backends so importing urbanworm does not
-    pull in torch/unsloth or provider SDKs unless the class is requested."""
+    """Lazily expose all inference backends so importing urbanworm does not
+    pull in optional dependencies (ollama, torch, unsloth, provider SDKs)
+    unless the class is actually requested."""
+    if name == "InferenceOllama":
+        from .inference.llama import InferenceOllama as _IO
+        return _IO
+    if name == "InferenceLlamacpp":
+        from .inference.llama import InferenceLlamacpp as _IL
+        return _IL
     if name == "InferenceUnsloth":
         from .inference.unsloth import InferenceUnsloth as _IU
         return _IU
