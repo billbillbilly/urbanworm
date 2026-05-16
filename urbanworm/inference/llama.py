@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import ollama
-from ollama import Client
 from tqdm import tqdm
 
 from ..utils.checkpoint import (
@@ -13,6 +11,19 @@ from ..utils.checkpoint import (
 from ..utils.utils import *
 from .format import Response, create_format, schema_json
 from .Inference import Inference
+
+
+def _lazy_ollama():
+    """Import ollama lazily so the module can be imported without it installed."""
+    try:
+        import ollama
+        from ollama import Client
+        return ollama, Client
+    except ImportError as exc:
+        raise ImportError(
+            "InferenceOllama requires the 'ollama' extra. "
+            "Install with: pip install 'urban-worm[ollama]'"
+        ) from exc
 
 
 class InferenceOllama(Inference):
@@ -65,6 +76,7 @@ class InferenceOllama(Inference):
             dict: A dictionary includes questions/messages, responses/answers
         '''
 
+        ollama, _ = _lazy_ollama()
         ollama.pull(self.llm, stream=True)
         multiImg = False
         if image is None and audio is not None:
@@ -125,6 +137,7 @@ class InferenceOllama(Inference):
             list A list of dictionaries. Each dict includes questions/messages, responses/answers, and image base64 (if required)
         '''
 
+        ollama, _ = _lazy_ollama()
         ollama.pull(self.llm, stream=True)
 
         if self.batch_images is not None:
@@ -273,6 +286,7 @@ class InferenceOllama(Inference):
                            }
                        ]
 
+        ollama, Client = _lazy_ollama()
         if (self.ollama_key is not None) and (self.ollama_key != ''):
             client = Client(
                 host="https://ollama.com",

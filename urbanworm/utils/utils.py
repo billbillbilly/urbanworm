@@ -1047,7 +1047,10 @@ def clip(url=None, start_ms=None, end_ms=None, output_file_path=None,
          timeout: float = _DEFAULT_TIMEOUT):
     """Download an mp3 from ``url`` and write the [start_ms, end_ms] slice."""
     try:
-        from pydub import AudioSegment  # optional [audio] extra
+        import warnings
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=SyntaxWarning, module="pydub")
+            from pydub import AudioSegment  # optional [audio] extra
     except ImportError as exc:
         raise ImportError(
             "clip() requires pydub. Install with: pip install 'urban-worm[audio]'"
@@ -1066,7 +1069,10 @@ def clip(url=None, start_ms=None, end_ms=None, output_file_path=None,
 
 def sound_url_to_temp(url, slice: list | tuple = None, timeout: float = 30.0):
     try:
-        from pydub import AudioSegment  # optional [audio] extra
+        import warnings
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=SyntaxWarning, module="pydub")
+            from pydub import AudioSegment  # optional [audio] extra
     except ImportError as exc:
         raise ImportError(
             "sound_url_to_temp() requires pydub. Install with: pip install 'urban-worm[audio]'"
