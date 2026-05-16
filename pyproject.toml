@@ -46,16 +46,44 @@ dependencies = [
 [project.optional-dependencies]
 ollama = ["ollama>=0.3"]
 audio = ["pydub>=0.25"]
-llamacpp = []  # llama.cpp itself is installed separately (brew/winget)
+
+# llama-cpp-python provides the Python binding for llama.cpp.
+# CPU build (works out of the box):
+#   pip install llama-cpp-python
+# CUDA build (compile with GPU support):
+#   CMAKE_ARGS="-DGGML_CUDA=on" pip install llama-cpp-python
+# Metal build (macOS):
+#   CMAKE_ARGS="-DGGML_METAL=on" pip install llama-cpp-python
+# The llama-mtmd-cli binary that urbanworm shells out to must also be
+# installed separately — see https://github.com/ggml-org/llama.cpp
+llamacpp = ["llama-cpp-python>=0.3"]
+
+# ── unsloth (GPU-accelerated local VLM) ───────────────────────────────────
+# IMPORTANT — install the right torch BEFORE this extra, otherwise pip
+# will fall back to a CPU-only wheel:
+#
+#   # CUDA 12.4 (most common on modern NVIDIA GPUs):
+#   pip install torch --index-url https://download.pytorch.org/whl/cu124
+#   # CUDA 12.1:
+#   pip install torch --index-url https://download.pytorch.org/whl/cu121
+#   # macOS MPS (Apple Silicon):
+#   pip install torch          # MPS is the default on macOS
+#
+# Then install this extra:
+#   pip install "urban-worm[unsloth]"
+#
+# If you skip the step above, a CPU-only torch is installed automatically
+# and inference will be very slow.
 unsloth = [
-    # Heavy stack: torch + transformers + bitsandbytes pulled in by unsloth.
-    # Pinned loosely; users with custom CUDA setups should manage torch/bnb.
-    "unsloth>=2025.1.1",
+    "torch>=2.1",              # CPU wheel installed by default; override with CUDA wheel first (see above)
+    "bitsandbytes>=0.43",      # 4-bit / 8-bit quantisation (required for load_in_4bit=True)
     "transformers>=4.45",
     "accelerate>=0.34",
+    "unsloth>=2025.1.1",
 ]
+
 api = [
-    # Install at least one provider SDK; all three are listed for convenience.
+    # Install all three or only the provider(s) you need.
     "anthropic>=0.30",   # provider="anthropic"
     "openai>=1.0",       # provider="openai"
     "google-genai>=1.0", # provider="google"
@@ -68,9 +96,24 @@ dev = [
     "twine>=5.0",
     "pre-commit>=3.7",
 ]
+
+# "all" — recommended full install (GPU torch must be configured first;
+# see the [unsloth] block above for the one-liner).
+# Audio support is intentionally excluded; add [audio] if you need it:
+#   pip install "urban-worm[all,audio]"
 all = [
+    # inference backends
     "ollama>=0.3",
-    "pydub>=0.25",
+    "llama-cpp-python>=0.3",
+    "torch>=2.1",
+    "bitsandbytes>=0.43",
+    "transformers>=4.45",
+    "accelerate>=0.34",
+    "unsloth>=2025.1.1",
+    # cloud API providers
+    "anthropic>=0.30",
+    "openai>=1.0",
+    "google-genai>=1.0",
 ]
 
 [project.urls]
