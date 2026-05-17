@@ -89,8 +89,17 @@ class InferenceOllama(Inference):
         ollama, _ = _lazy_ollama()
         if self.model_dir is not None:
             import os
+            _prev_ollama_models = os.environ.get("OLLAMA_MODELS")
             os.environ["OLLAMA_MODELS"] = self.model_dir
-        ollama.pull(self.llm, stream=True)
+            try:
+                ollama.pull(self.llm, stream=True)
+            finally:
+                if _prev_ollama_models is None:
+                    os.environ.pop("OLLAMA_MODELS", None)
+                else:
+                    os.environ["OLLAMA_MODELS"] = _prev_ollama_models
+        else:
+            ollama.pull(self.llm, stream=True)
         multiImg = False
         if image is None and audio is not None:
             # Audio is not supported by Ollama yet; fall through with the
@@ -153,8 +162,17 @@ class InferenceOllama(Inference):
         ollama, _ = _lazy_ollama()
         if self.model_dir is not None:
             import os
+            _prev_ollama_models = os.environ.get("OLLAMA_MODELS")
             os.environ["OLLAMA_MODELS"] = self.model_dir
-        ollama.pull(self.llm, stream=True)
+            try:
+                ollama.pull(self.llm, stream=True)
+            finally:
+                if _prev_ollama_models is None:
+                    os.environ.pop("OLLAMA_MODELS", None)
+                else:
+                    os.environ["OLLAMA_MODELS"] = _prev_ollama_models
+        else:
+            ollama.pull(self.llm, stream=True)
 
         if self.batch_images is not None:
             imgs = self.batch_images
@@ -696,13 +714,25 @@ class InferenceLlamacpp(Inference):
             seed (int): random seed
             ctx_size (int): size of the prompt context (default: 4096, 0 = loaded from model)
         '''
+        # Security: subprocess is invoked with a list (shell=False, the default),
+        # so each element is passed as a separate argv token to the OS — there is
+        # no shell interpolation and no injection risk from the dynamic values
+        # below.  All user-supplied paths go through pathlib.Path which rejects
+        # null bytes; the prompt/system strings are positional arguments, not
+        # shell metacharacters.  shlex.escape() is intentionally omitted because
+        # it is only needed for shell=True invocations.
+        if llm is None:
+            raise ValueError("llm must not be None")
+        if "\x00" in (system_message or "") or "\x00" in (prompt or ""):
+            raise ValueError("Null byte detected in system_message or prompt")
+
         if imgs is not None:
             imgs = [Path(img) for img in imgs]
             imgs = [["--image" if not audio_input else "--audio", str(i)] for i in imgs]
             imgs = [item for sublist in imgs for item in sublist]
 
         cmd = ["llama-mtmd-cli",
-               "-p", system_message + prompt
+               "-p", (system_message or "") + (prompt or "")
         ]
 
         if mp is not None:

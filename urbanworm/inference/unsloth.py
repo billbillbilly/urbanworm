@@ -106,11 +106,13 @@ def clear_compile_cache() -> None:
     import tempfile
     from pathlib import Path
 
-    candidates = {
-        Path(tempfile.gettempdir()) / "unsloth_compiled_cache",
-        Path(os.environ.get("TEMP", "")) / "unsloth_compiled_cache",
-        Path(os.environ.get("TMP", "")) / "unsloth_compiled_cache",
-    }
+    candidates = {Path(tempfile.gettempdir()) / "unsloth_compiled_cache"}
+    # Only add env-derived paths when the variable is actually set and
+    # non-empty; Path("") resolves to cwd and would delete the wrong dir.
+    for var in ("TEMP", "TMP"):
+        val = os.environ.get(var, "")
+        if val:
+            candidates.add(Path(val) / "unsloth_compiled_cache")
     for p in candidates:
         if p.exists():
             shutil.rmtree(p, ignore_errors=True)
@@ -527,7 +529,9 @@ class InferenceUnsloth(Inference):
                     if hint:
                         logger.warning("[urbanworm|HINT] %s", hint)
                     if current_bs == 1:
-                        # Final retry exhausted — fill stubs and log failures.
+                        # Final retry exhausted.
+                        if not self.skip_errors:
+                            raise
                         err_str = str(exc)
                         for i in sub_idx:
                             abs_idx = start + i
