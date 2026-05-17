@@ -517,8 +517,11 @@ class InferenceUnsloth(Inference):
                     )
                     for list_pos, i in enumerate(sub_idx):
                         results[i] = (sub_resp[list_pos].responses, None)
-                    if torch.cuda.is_available():
-                        torch.cuda.empty_cache()
+                    try:
+                        if torch.cuda.is_available():
+                            torch.cuda.empty_cache()
+                    except Exception:
+                        pass
                 except Exception as exc:
                     hint = _classify_error(exc)
                     if hint:
@@ -533,8 +536,11 @@ class InferenceUnsloth(Inference):
                                 "filling stub.", abs_idx, err_str[:120],
                             )
                             results[i] = ([], err_str)
-                    if torch.cuda.is_available():
-                        torch.cuda.empty_cache()
+                    try:
+                        if torch.cuda.is_available():
+                            torch.cuda.empty_cache()
+                    except Exception:
+                        pass
 
             current_bs //= 2
 
@@ -622,11 +628,15 @@ class InferenceUnsloth(Inference):
         # as float32, but BF16/FP16 models expect their native dtype.
         # Cast every floating-point tensor in the batch to the model dtype.
         # Integer tensors (input_ids, attention_mask, etc.) are left as-is.
-        model_dtype = getattr(self, "_model_dtype", None) or next(self._model.parameters()).dtype
-        for key in list(inputs.keys()):
-            val = inputs[key]
-            if torch.is_tensor(val) and val.is_floating_point():
-                inputs[key] = val.to(model_dtype)
+        # Guard with hasattr so the block is safely skipped when torch is
+        # mocked (e.g. in unit tests that stub out the heavy stack).
+        _TensorCls = getattr(torch, "Tensor", None)
+        if _TensorCls is not None:
+            model_dtype = getattr(self, "_model_dtype", None) or next(self._model.parameters()).dtype
+            for key in list(inputs.keys()):
+                val = inputs[key]
+                if isinstance(val, _TensorCls) and val.is_floating_point():
+                    inputs[key] = val.to(model_dtype)
 
         # 3) Generate
         do_sample = bool(temp and temp > 0)
