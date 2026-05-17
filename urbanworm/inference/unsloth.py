@@ -120,6 +120,7 @@ def clear_compile_cache() -> None:
 def _log_runtime_versions() -> None:
     """Log key dependency versions at INFO level for debugging."""
     import importlib
+
     import torch
     logger.info("torch %s | CUDA %s | GPU: %s",
                 torch.__version__,
@@ -371,6 +372,7 @@ class InferenceUnsloth(Inference):
             DataFrame, same shape as :meth:`InferenceOllama.batch_inference`.
         """
         import csv
+
         import torch
 
         self._ensure_loaded()
