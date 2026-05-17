@@ -62,6 +62,7 @@ schema = {
         load_in_4bit=True,
         geo_tagged_data=gtd,
         schema=schema,
+        model_dir="/data/models",   # optional: override HF cache dir
     )
 
     df = infer.batch_inference(
@@ -81,6 +82,25 @@ schema = {
         llm="hf.co/ggml-org/InternVL3-8B-Instruct-GGUF:Q8_0",
         geo_tagged_data=gtd,
         schema=schema,
+        model_dir="/data/models",   # optional: sets OLLAMA_MODELS
+    )
+
+    df = infer.batch_inference(
+        prompt="Does this house look occupied or vacant?",
+        checkpoint_path="run/labels.jsonl",
+    )
+    ```
+
+=== "llama.cpp"
+
+    ```python
+    from urbanworm import InferenceLlamacpp
+
+    infer = InferenceLlamacpp(
+        llm="ggml-org/InternVL3-8B-Instruct-GGUF:Q8_0",
+        geo_tagged_data=gtd,
+        schema=schema,
+        model_dir="/data/models",   # optional: sets HF_HUB_CACHE
     )
 
     df = infer.batch_inference(
@@ -130,6 +150,45 @@ infer = InferenceUnsloth(
     llm="unsloth/Qwen3-VL-8B-Instruct",
     load_in_4bit=True,
     max_memory={0: "10GiB", 1: "10GiB"},  # e.g. two 12 GB cards
+    schema=schema,
+)
+```
+
+---
+
+## Custom model directory
+
+All three local backends accept a `model_dir` parameter so you can control
+where downloaded model weights are stored — useful on shared servers or when
+the default home directory is on a small partition.
+
+| Backend | Effect of `model_dir` |
+|---|---|
+| `InferenceUnsloth` | Sets `cache_dir` in `FastVisionModel.from_pretrained()` (HuggingFace Hub cache) |
+| `InferenceOllama` | Sets the `OLLAMA_MODELS` env var before each `ollama.pull()` call |
+| `InferenceLlamacpp` | Sets `HF_HUB_CACHE` in the `llama-mtmd-cli` subprocess environment (only applies when downloading via `-hf`; has no effect on local GGUF paths) |
+
+```python
+# Unsloth — store weights on a large data drive
+infer = InferenceUnsloth(
+    llm="unsloth/Qwen2-VL-7B-Instruct",
+    model_dir="/data/models",
+    schema=schema,
+)
+
+# Ollama — point the client at a non-default model store
+# Note: the Ollama server itself must also be started with OLLAMA_MODELS
+# pointing to the same directory for new downloads to land there.
+infer = InferenceOllama(
+    llm="hf.co/ggml-org/InternVL3-8B-Instruct-GGUF:Q8_0",
+    model_dir="/data/models",
+    schema=schema,
+)
+
+# llama.cpp — redirect HuggingFace GGUF downloads
+infer = InferenceLlamacpp(
+    llm="ggml-org/InternVL3-8B-Instruct-GGUF:Q8_0",
+    model_dir="/data/models",
     schema=schema,
 )
 ```

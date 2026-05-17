@@ -33,17 +33,27 @@ class InferenceOllama(Inference):
     Args:
         llm (str): model checkpoint.
         ollama_key (str): The Ollama API key.
+        model_dir (str, optional): Directory where Ollama stores downloaded
+            models.  Sets the ``OLLAMA_MODELS`` environment variable before
+            each ``ollama.pull`` call.  **Note:** for the running Ollama
+            server to store *new* downloads here, it must also have been
+            started with ``OLLAMA_MODELS`` pointing to the same directory
+            (e.g. ``OLLAMA_MODELS=/data/models ollama serve``).  If the
+            server is already running with a different directory, this setting
+            affects only where the client *looks*, not where the server saves.
         **kwargs: image (str|list[str]|tuple[str]), images (list|tuple), data constructor (GeoTaggedData), and schema (dict)
     '''
 
     def __init__(self,
                  llm: str = None,
                  ollama_key: str = None,
+                 model_dir: str | None = None,
                  **kwargs) -> None:
         super().__init__(**kwargs)
         self.llm = llm
         self.skip_errors = True
         self.ollama_key = ollama_key
+        self.model_dir = model_dir
 
     def one_inference(self,
                       system: str = '',
@@ -77,7 +87,19 @@ class InferenceOllama(Inference):
         '''
 
         ollama, _ = _lazy_ollama()
-        ollama.pull(self.llm, stream=True)
+        if self.model_dir is not None:
+            import os
+            _prev_ollama_models = os.environ.get("OLLAMA_MODELS")
+            os.environ["OLLAMA_MODELS"] = self.model_dir
+            try:
+                ollama.pull(self.llm, stream=True)
+            finally:
+                if _prev_ollama_models is None:
+                    os.environ.pop("OLLAMA_MODELS", None)
+                else:
+                    os.environ["OLLAMA_MODELS"] = _prev_ollama_models
+        else:
+            ollama.pull(self.llm, stream=True)
         multiImg = False
         if image is None and audio is not None:
             # Audio is not supported by Ollama yet; fall through with the
@@ -138,7 +160,19 @@ class InferenceOllama(Inference):
         '''
 
         ollama, _ = _lazy_ollama()
-        ollama.pull(self.llm, stream=True)
+        if self.model_dir is not None:
+            import os
+            _prev_ollama_models = os.environ.get("OLLAMA_MODELS")
+            os.environ["OLLAMA_MODELS"] = self.model_dir
+            try:
+                ollama.pull(self.llm, stream=True)
+            finally:
+                if _prev_ollama_models is None:
+                    os.environ.pop("OLLAMA_MODELS", None)
+                else:
+                    os.environ["OLLAMA_MODELS"] = _prev_ollama_models
+        else:
+            ollama.pull(self.llm, stream=True)
 
         if self.batch_images is not None:
             imgs = self.batch_images
@@ -356,18 +390,27 @@ class InferenceLlamacpp(Inference):
     Constructor for vision inference using MLLMs with llama.cpp
 
     Args:
-        llm (str, optional): model checkpoint to download (e.g. ggml-org/InternVL3-8B-Instruct-GGUF:Q8_0) or
-        a local path to model file (.gguf)
-        mp (str, optional): If `llm` is provided as a local path to model file (.gguf),
-        `mp` has to be provided as a local path to multimodal projector file (*mproj*.gguf).
+        llm (str, optional): model checkpoint to download (e.g.
+            ``ggml-org/InternVL3-8B-Instruct-GGUF:Q8_0``) or a local path
+            to a ``.gguf`` model file.
+        mp (str, optional): If ``llm`` is a local ``.gguf`` path, ``mp``
+            must be the local path to the multimodal projector file
+            (``*mmproj*.gguf``).
+        model_dir (str, optional): Directory used as ``HF_HUB_CACHE`` when
+            llama-mtmd-cli downloads a model via the ``-hf`` flag.  GGUF
+            files from HuggingFace will be cached here instead of the
+            default ``~/.cache/huggingface/hub``.  Has no effect when
+            ``llm`` is already a local file path.
         **kwargs: image (str|list[str]|tuple[str]), images (list|tuple), data constructor (GeoTaggedData), and schema (dict)
     '''
 
-    def __init__(self, llm:str = None, mp:str = None,
+    def __init__(self, llm: str = None, mp: str = None,
+                 model_dir: str | None = None,
                  **kwargs):
         super().__init__(**kwargs)
         self.llm = llm
         self.mp = mp
+        self.model_dir = model_dir
 
     def one_inference(self,
                       system: str = '',
@@ -671,13 +714,25 @@ class InferenceLlamacpp(Inference):
             seed (int): random seed
             ctx_size (int): size of the prompt context (default: 4096, 0 = loaded from model)
         '''
+        # Security: subprocess is invoked with a list (shell=False, the default),
+        # so each element is passed as a separate argv token to the OS — there is
+        # no shell interpolation and no injection risk from the dynamic values
+        # below.  All user-supplied paths go through pathlib.Path which rejects
+        # null bytes; the prompt/system strings are positional arguments, not
+        # shell metacharacters.  shlex.escape() is intentionally omitted because
+        # it is only needed for shell=True invocations.
+        if llm is None:
+            raise ValueError("llm must not be None")
+        if "\x00" in (system_message or "") or "\x00" in (prompt or ""):
+            raise ValueError("Null byte detected in system_message or prompt")
+
         if imgs is not None:
             imgs = [Path(img) for img in imgs]
             imgs = [["--image" if not audio_input else "--audio", str(i)] for i in imgs]
             imgs = [item for sublist in imgs for item in sublist]
 
         cmd = ["llama-mtmd-cli",
-               "-p", system_message + prompt
+               "-p", (system_message or "") + (prompt or "")
         ]
 
         if mp is not None:
@@ -705,8 +760,14 @@ class InferenceLlamacpp(Inference):
                      # "-ngl", f"{gpu_layers}"
                      ]
 
+        env = None
+        if self.model_dir is not None:
+            import os
+            env = os.environ.copy()
+            env["HF_HUB_CACHE"] = self.model_dir
+
         try:
-            res = subprocess.run(cmd, check=True, text=True, capture_output=True)
+            res = subprocess.run(cmd, check=True, text=True, capture_output=True, env=env)
         except subprocess.CalledProcessError as e:
             print("===== STDERR =====")
             print(e.stderr)
