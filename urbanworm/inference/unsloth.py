@@ -2,10 +2,10 @@
 
 Tested small VLM checkpoints (pass via ``llm=...``):
 
-* ``unsloth/Qwen3-VL-3B-Instruct``        — fastest, lowest VRAM
-* ``unsloth/Qwen3-VL-8B-Instruct``        — strongest 8B-class
-* ``unsloth/gemma-3-4b-it``               — Gemma 3 multimodal, balanced
-* ``unsloth/Qwen2-VL-2B-Instruct``        — older, very small
+* ``unsloth/Qwen3-VL-4B-Instruct``            — recommended default, T4-friendly
+* ``unsloth/Qwen3-VL-3B-Instruct``            — lowest VRAM
+* ``unsloth/Qwen3-VL-8B-Instruct``            — strongest 8B-class
+* ``unsloth/gemma-3-4b-it``                   — Gemma 3 multimodal, balanced
 * ``unsloth/Qwen2.5-VL-7B-Instruct-bnb-4bit`` — 4-bit weights
 
 Any vision model that ``unsloth.FastVisionModel`` can load should work; the
@@ -43,7 +43,7 @@ from ..utils.utils import (
     response2df,
     sanitize_json_text,
 )
-from .format import create_format
+from .format import create_format, schema_dict
 from .Inference import Inference
 
 logger = logging.getLogger("urbanworm")
@@ -797,9 +797,16 @@ class InferenceUnsloth(Inference):
     # ------------------------------------------------------------------
     @staticmethod
     def _with_schema_hint(prompt: str, schema) -> str:
-        """Append a JSON-only instruction so the model emits parseable output."""
+        """Append a JSON-only instruction so the model emits parseable output.
+
+        Uses schema_dict(..., inline_refs=True) instead of model_json_schema()
+        directly so that Pydantic's $defs/$ref indirection is flattened into a
+        single, self-contained JSON object.  Small VLMs often ignore the wrapper
+        structure when they encounter an unfamiliar $ref and return the inner
+        fields directly, which fails schema validation.
+        """
         try:
-            schema_text = schema.model_json_schema()
+            schema_text = schema_dict(schema, inline_refs=True)
         except Exception:
             return prompt
         import json
