@@ -224,6 +224,7 @@ class InferenceUnsloth(Inference):
         self.skip_errors = skip_errors
         self._model = None
         self._processor = None
+        self._model_dtype = None   # set by _ensure_loaded; cached to avoid repeated next(parameters())
 
     # ------------------------------------------------------------------
     # Lazy model load
@@ -245,8 +246,13 @@ class InferenceUnsloth(Inference):
                 # each GPU's capacity so the activation memory has headroom.
                 device_map = "auto"
                 if max_memory is None:
+                    # Use *free* VRAM (not total) so that memory already
+                    # occupied by the CUDA runtime, driver, and any other
+                    # processes is not double-counted.  Reserve 90 % of what
+                    # is currently free to leave headroom for activations.
+                    # mem_get_info returns (free_bytes, total_bytes).
                     max_memory = {
-                        i: f"{int(torch.cuda.get_device_properties(i).total_memory * 0.90 / (1024 ** 3))}GiB"
+                        i: f"{int(torch.cuda.mem_get_info(i)[0] * 0.90 / (1024 ** 3))}GiB"
                         for i in range(n_gpus)
                     }
                 logger.info(
@@ -392,8 +398,13 @@ class InferenceUnsloth(Inference):
 
         # ── resume from checkpoint ───────────────────────────────────────
         done_records = load_inference_checkpoint(checkpoint_path) if checkpoint_path else []
-        start_idx = (len(done_records) // bs) * bs
-        dic = restore_ollama_results(done_records[:start_idx])
+        # Resume from exactly where we left off.  The old formula
+        # ``(len // bs) * bs`` rounded down to the nearest batch boundary,
+        # which caused the trailing partial batch to be re-processed on every
+        # restart.  Since checkpoints are written per-item (not per-batch),
+        # len(done_records) is always the exact number of completed items.
+        start_idx = len(done_records)
+        dic = restore_ollama_results(done_records)
 
         # ── task-chunk boundaries for progress reporting ─────────────────
         tcs = int(task_chunk_size) if task_chunk_size and task_chunk_size > 0 else None
@@ -528,6 +539,17 @@ class InferenceUnsloth(Inference):
                     hint = _classify_error(exc)
                     if hint:
                         logger.warning("[urbanworm|HINT] %s", hint)
+                    if current_bs > 1:
+                        # Retry with a smaller sub-batch.  Log the failure so
+                        # it is visible in the run log rather than silently
+                        # discarded — previously these exceptions were swallowed
+                        # with no diagnostic output at all.
+                        logger.warning(
+                            "_run_chunk_with_retry: batch of %d failed "
+                            "(will retry at bs=%d): %s: %s",
+                            current_bs, current_bs // 2,
+                            type(exc).__name__, str(exc)[:200],
+                        )
                     if current_bs == 1:
                         # Final retry exhausted.
                         if not self.skip_errors:
@@ -569,6 +591,94 @@ class InferenceUnsloth(Inference):
     # ------------------------------------------------------------------
     # Internal: batched generate
     # ------------------------------------------------------------------
+    def _apply_dtype_hooks_once(self) -> None:
+        """
+        Register forward pre-hooks on the vision encoder and every ViT block
+        so that all floating-point inputs are cast to the model dtype before
+        each forward pass.  Called once on the first _generate_batch
+        invocation, after the model has been lazily loaded.
+
+        Root cause: with device_map='auto' across multiple GPUs, accelerate
+        splits ViT blocks between devices and moves tensors without re-casting
+        their dtype.  The image processor emits float32 pixel_values; these
+        reach bf16 layer norms inside the ViT and raise:
+            RuntimeError: expected scalar type BFloat16 but found Float
+
+        Fix: PyTorch's register_forward_pre_hook fires before accelerate's own
+        device-dispatch hook (accelerate monkey-patches module.forward directly,
+        so PyTorch's hook machinery runs first).  We cast every floating tensor
+        to the model dtype before accelerate touches it.
+        """
+        import torch
+
+        if getattr(self, "_dtype_hooks_applied", False):
+            return
+
+        # Guard: model must be live before we can inspect its dtype or walk its
+        # modules.  _ensure_loaded() is always called before _generate_batch,
+        # so this path is only reachable if someone calls _apply_dtype_hooks_once
+        # directly without loading the model first.
+        model = getattr(self, "_model", None)
+        if model is None:
+            return
+
+        # Mark applied only after confirming the model is present, so a future
+        # call after the model IS loaded will still apply the hooks correctly.
+        self._dtype_hooks_applied = True
+
+        try:
+            model_dtype = next(model.parameters()).dtype
+        except StopIteration:
+            return
+
+        if model_dtype == torch.float32:
+            return  # image processor and model already agree; nothing to do
+
+        def _cast_float_args(module, args):
+            return tuple(
+                a.to(model_dtype)
+                if (
+                    isinstance(a, torch.Tensor)
+                    and a.is_floating_point()
+                    and a.dtype != model_dtype
+                )
+                else a
+                for a in args
+            )
+
+        # 1. Hook the top-level vision encoder (pixel_values entry point).
+        vision_mod = None
+        for _attr in ("visual", "vision_model", "vision_tower", "image_encoder"):
+            _candidate = getattr(model, _attr, None)
+            if _candidate is None:
+                _inner = getattr(model, "model", None)
+                _candidate = getattr(_inner, _attr, None) if _inner is not None else None
+            if _candidate is not None:
+                vision_mod = _candidate
+                vision_mod.register_forward_pre_hook(_cast_float_args)
+                break
+
+        # 2. Hook every individual ViT transformer block so that inter-block
+        #    hidden_states are cast when blocks are split across GPUs.
+        #    Blocks are identified by: has norm1 + (attn or self_attn).
+        _seen_ids: set = set()
+        _search_roots = [model]
+        if hasattr(model, "model"):
+            _search_roots.append(model.model)
+        if vision_mod is not None:
+            _search_roots.append(vision_mod)
+
+        for _root in _search_roots:
+            for _name, _submod in _root.named_modules():
+                if id(_submod) in _seen_ids:
+                    continue
+                if hasattr(_submod, "norm1") and (
+                    hasattr(_submod, "attn") or hasattr(_submod, "self_attn")
+                ):
+                    _seen_ids.add(id(_submod))
+                    _submod.register_forward_pre_hook(_cast_float_args)
+
+
     def _generate_batch(
         self,
         systems: Sequence[str],
@@ -586,6 +696,7 @@ class InferenceUnsloth(Inference):
         prompt ``i``. We resolve each reference (path/url/base64) into a PIL
         image via ``load_image_auto``, then feed everything to the processor.
         """
+        self._apply_dtype_hooks_once()
         import torch
 
         assert len(systems) == len(prompts) == len(images_per_prompt)

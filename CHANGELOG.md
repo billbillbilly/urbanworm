@@ -5,6 +5,151 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3] — 2026-05-17
+
+### Fixed
+
+- **Multi-GPU BFloat16 dtype mismatch in vendored `urbanworm/inference/unsloth.py`**
+  (`InferenceUnsloth._generate_batch`) — with `device_map='auto'` across two
+  GPUs, accelerate splits ViT blocks between devices and moves tensors without
+  re-casting their dtype. The image processor always emits `float32`
+  `pixel_values`, which caused `RuntimeError: expected scalar type BFloat16
+  but found Float` deep inside the vision encoder. Fixed by adding a new
+  `_apply_dtype_hooks_once()` method that registers
+  `register_forward_pre_hook` on the top-level vision encoder and every ViT
+  transformer block (identified by `norm1 + attn/self_attn`) to cast
+  floating-point tensors to the model's compute dtype before each forward
+  pass. The hook registration is deferred until after the model is loaded
+  (lazy load happens inside `batch_inference`, not `__init__`) and is
+  idempotent.
+- **Dtype-hook flag applied too early** — `_dtype_hooks_applied` was set to
+  `True` before the `model is None` guard, so a subsequent call after the
+  model became available would skip hook registration entirely. Flag is now
+  set only after the model reference is confirmed live.
+- **VRAM budget used total memory instead of free memory** — `max_memory`
+  was computed as `total_memory * 0.90`, which could trigger OOM on a GPU
+  already partially occupied by other processes. Changed to
+  `mem_get_info(i)[0] * 0.90` (free VRAM at load time).
+- **Checkpoint resume re-processed trailing partial batch** —
+  `start_idx = (len(done_records) // bs) * bs` rounded down to the nearest
+  batch boundary, causing the last partial batch of a prior run to be
+  re-inferred on every restart. Changed to `start_idx = len(done_records)`,
+  with `done_records` (not `done_records[:start_idx]`) written to the
+  result to match.
+- **Silent exceptions in `_run_chunk_with_retry` halving cascade** — when a
+  batch failed and `current_bs > 1`, the error was swallowed with no log
+  output, making it impossible to diagnose why inference kept slowing down.
+  Added `logger.warning(...)` before the retry to surface the exception
+  type, message, and new batch size.
+- **Missing `_model_dtype` attribute initialisation in `__init__`** — added
+  `self._model_dtype = None` alongside the other `None`-initialised
+  attributes for clarity and to avoid potential `AttributeError` on early
+  attribute access.
+
+### Changed
+
+- **`classify_outdoor_unsloth.py`** — removed the now-redundant
+  `_patch_infer_for_dtype_safety` runtime monkey-patch and its
+  `_apply_model_dtype_hooks` helper; the dtype fix is applied inside the
+  vendored package. Also removed the unused `import functools` and reordered
+  `packages` in `print_runtime_versions_and_devices()` so `unsloth` appears
+  before `transformers` (matching unsloth's own import-order requirement).
+
+### Added
+
+- **`patch_urbanworm.py`** — surgical patch script that locates the
+  installed `urbanworm` package via `importlib`, uses `ast` to find the
+  exact insertion point inside `InferenceUnsloth._generate_batch`, and
+  injects the `_apply_dtype_hooks_once()` call. Supports `--check`
+  (idempotency test), `--revert` (restore from `.bak`), and creates a
+  `.bak` backup on first run.
+
+## [0.2.2] — 2026-05-17
+
+### Added
+- **Multi-GPU support for `InferenceUnsloth`** — when more than one CUDA GPU
+  is detected, `device_map="auto"` is set automatically and each GPU's VRAM
+  budget is capped at 90 % of its capacity. Override with
+  `max_memory={0: "10GiB", 1: "10GiB"}`. The `device` constructor parameter
+  can still force a specific device map.
+- **`model_dir` parameter** on all three local inference backends. Controls
+  where downloaded model weights are stored:
+  - `InferenceUnsloth` — passed as `cache_dir` to
+    `FastVisionModel.from_pretrained` (HuggingFace Hub cache).
+  - `InferenceOllama` — sets `OLLAMA_MODELS` around `ollama.pull` (saved and
+    restored so other instances are not affected).
+  - `InferenceLlamacpp` — sets `HF_HUB_CACHE` in the `llama-mtmd-cli`
+    subprocess environment (applies when downloading via `-hf`; no effect on
+    local GGUF paths).
+- **Stability utilities for large-scale `InferenceUnsloth` jobs:**
+  - `configure_runtime(disable_compile=True)` — sets
+    `UNSLOTH_COMPILE_DISABLE`, `UNSLOTH_DISABLE_FAST_GENERATION`, and
+    `TORCH_COMPILE_DISABLE` before Unsloth/Torch are imported. Called
+    automatically in `__init__` (default `disable_compile=True`). Prevents
+    the `AlignDevicesHook`/Torch-Dynamo recompile crashes that surface on runs
+    of ~10 k+ samples.
+  - `clear_compile_cache()` — removes the Unsloth compiled-model cache from
+    system temp dirs; useful when a stale cache causes recompile errors.
+  - `task_chunk_size` parameter on `batch_inference` — logical job-partition
+    size independent of `batch_size`; reports progress at the task-chunk level
+    for long runs.
+  - `failed_log_path` parameter on `batch_inference` — appends permanently
+    failed sample indices and error messages to a CSV so they can be rerun
+    later.
+  - `_log_runtime_versions()` — logs torch, CUDA, GPU, transformers,
+    accelerate, and unsloth versions at `INFO` level on model load.
+  - `_classify_error()` — identifies known recoverable patterns (compile/hook
+    conflict, CUDA OOM, dtype mismatch) and emits a human-readable hint.
+- **Halving retry cascade in `InferenceUnsloth._run_chunk_with_retry`** —
+  on failure, the batch is retried at half the original size all the way down
+  to 1, then fills stubs (or re-raises if `skip_errors=False`).
+- **MkDocs documentation site** — `mkdocs.yml` with Material theme
+  (light-blue/green + purple/green palette), mkdocstrings, mkdocs-jupyter,
+  autorefs, and git-revision-date-localized. Auto-deployed to GitHub Pages on
+  push to `main` via `.github/workflows/docs.yml`. Docs added:
+  `docs/index.md`, `docs/installation.md`, `docs/quickstart.md`,
+  `docs/api/inference.md`, `docs/api/dataset.md`, `docs/api/sources.md`,
+  `docs/changelog.md`.
+
+### Fixed
+- **BFloat16 / Float32 dtype mismatch in `InferenceUnsloth._generate_batch`**
+  — the image processor always emits `pixel_values` as float32, but BF16
+  models raised `expected scalar type BFloat16 but found Float`. All
+  floating-point input tensors are now cast to the model's compute dtype
+  after the processor call.
+- **`ModuleNotFoundError: No module named 'ollama'`** when importing
+  `InferenceUnsloth` in environments without Ollama — caused by an eager
+  `import ollama` at the top of `llama.py` and an eager import of `llama.py`
+  in `__init__.py`. All four backends (`InferenceOllama`, `InferenceLlamacpp`,
+  `InferenceUnsloth`, `InferenceAPI`) are now lazy via `__getattr__` in
+  `urbanworm/__init__.py`. `llama.py` exposes a `_lazy_ollama()` helper that
+  raises a descriptive `ImportError` only when Ollama is actually used.
+- **`pydub` `SyntaxWarning` spam on Python 3.12** — pydub's own source
+  contains invalid escape sequences. The module-level
+  `from pydub import AudioSegment` import is replaced by a
+  `_load_audio_segment()` helper that suppresses the warning with
+  `warnings.filterwarnings`. All three call sites (`probe_audio_duration`,
+  `clip`, `sound_url_to_temp`) updated.
+- **`skip_errors=False` ignored in `InferenceUnsloth` retry ladder** — when
+  the final single-item retry was exhausted, stub responses were always filled
+  regardless of `skip_errors`. The flag is now checked and the exception is
+  re-raised when `skip_errors=False`.
+- **`clear_compile_cache` silent cwd deletion** — when `TEMP` or `TMP` env
+  vars are unset, `Path("") / "unsloth_compiled_cache"` resolved to a
+  relative path in cwd. Env-derived candidates are now only added when the
+  variable is non-empty.
+- **`OLLAMA_MODELS` global mutation** — `InferenceOllama.one_inference` and
+  `.batch_inference` now save and restore (or remove) `OLLAMA_MODELS` around
+  `ollama.pull` so concurrent instances with different `model_dir` values do
+  not clobber each other.
+- **Subprocess safety in `InferenceLlamacpp._mtmd`** — added null-byte
+  validation on `system_message` and `prompt`, a `None` guard on `llm`, and
+  a comment documenting why list-based invocation is safe without
+  `shlex.escape()`.
+- Multi-GPU input preparation: `.to(self._model.device)` raised
+  `AttributeError` when `device_map="auto"` splits the model across GPUs.
+  Fixed by using `next(self._model.parameters()).device` instead.
+
 ## [0.2.0] — 2026-05-11 (dev2 branch)
 
 ### Fixed
