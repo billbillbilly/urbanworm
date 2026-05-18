@@ -631,7 +631,7 @@ class InferenceUnsloth(Inference):
         except StopIteration:
             return
 
-        if model_dtype == torch.float32:
+        if model_dtype == getattr(torch, "float32", None):
             return  # image processor and model already agree; nothing to do
 
         def _cast_float_args(module, args):
