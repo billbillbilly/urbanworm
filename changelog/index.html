@@ -837,8 +837,153 @@
 <p>All notable changes to this project will be documented in this file.</p>
 <p>The format is based on <a href="https://keepachangelog.com/en/1.1.0/">Keep a Changelog</a>,
 and this project adheres to <a href="https://semver.org/spec/v2.0.0.html">Semantic Versioning</a>.</p>
-<h2 id="020-2026-05-11-dev2-branch">[0.2.0] — 2026-05-11 (dev2 branch)<a class="headerlink" href="#020-2026-05-11-dev2-branch" title="Permanent link">&para;</a></h2>
+<h2 id="023-2026-05-17">[0.2.3] — 2026-05-17<a class="headerlink" href="#023-2026-05-17" title="Permanent link">&para;</a></h2>
 <h3 id="fixed">Fixed<a class="headerlink" href="#fixed" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Multi-GPU BFloat16 dtype mismatch in vendored <code>urbanworm/inference/unsloth.py</code></strong>
+  (<code>InferenceUnsloth._generate_batch</code>) — with <code>device_map='auto'</code> across two
+  GPUs, accelerate splits ViT blocks between devices and moves tensors without
+  re-casting their dtype. The image processor always emits <code>float32</code>
+  <code>pixel_values</code>, which caused <code>RuntimeError: expected scalar type BFloat16
+  but found Float</code> deep inside the vision encoder. Fixed by adding a new
+  <code>_apply_dtype_hooks_once()</code> method that registers
+  <code>register_forward_pre_hook</code> on the top-level vision encoder and every ViT
+  transformer block (identified by <code>norm1 + attn/self_attn</code>) to cast
+  floating-point tensors to the model's compute dtype before each forward
+  pass. The hook registration is deferred until after the model is loaded
+  (lazy load happens inside <code>batch_inference</code>, not <code>__init__</code>) and is
+  idempotent.</li>
+<li><strong>Dtype-hook flag applied too early</strong> — <code>_dtype_hooks_applied</code> was set to
+  <code>True</code> before the <code>model is None</code> guard, so a subsequent call after the
+  model became available would skip hook registration entirely. Flag is now
+  set only after the model reference is confirmed live.</li>
+<li><strong>VRAM budget used total memory instead of free memory</strong> — <code>max_memory</code>
+  was computed as <code>total_memory * 0.90</code>, which could trigger OOM on a GPU
+  already partially occupied by other processes. Changed to
+  <code>mem_get_info(i)[0] * 0.90</code> (free VRAM at load time).</li>
+<li><strong>Checkpoint resume re-processed trailing partial batch</strong> —
+  <code>start_idx = (len(done_records) // bs) * bs</code> rounded down to the nearest
+  batch boundary, causing the last partial batch of a prior run to be
+  re-inferred on every restart. Changed to <code>start_idx = len(done_records)</code>,
+  with <code>done_records</code> (not <code>done_records[:start_idx]</code>) written to the
+  result to match.</li>
+<li><strong>Silent exceptions in <code>_run_chunk_with_retry</code> halving cascade</strong> — when a
+  batch failed and <code>current_bs &gt; 1</code>, the error was swallowed with no log
+  output, making it impossible to diagnose why inference kept slowing down.
+  Added <code>logger.warning(...)</code> before the retry to surface the exception
+  type, message, and new batch size.</li>
+<li><strong>Missing <code>_model_dtype</code> attribute initialisation in <code>__init__</code></strong> — added
+  <code>self._model_dtype = None</code> alongside the other <code>None</code>-initialised
+  attributes for clarity and to avoid potential <code>AttributeError</code> on early
+  attribute access.</li>
+</ul>
+<h3 id="changed">Changed<a class="headerlink" href="#changed" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>classify_outdoor_unsloth.py</code></strong> — removed the now-redundant
+  <code>_patch_infer_for_dtype_safety</code> runtime monkey-patch and its
+  <code>_apply_model_dtype_hooks</code> helper; the dtype fix is applied inside the
+  vendored package. Also removed the unused <code>import functools</code> and reordered
+  <code>packages</code> in <code>print_runtime_versions_and_devices()</code> so <code>unsloth</code> appears
+  before <code>transformers</code> (matching unsloth's own import-order requirement).</li>
+</ul>
+<h3 id="added">Added<a class="headerlink" href="#added" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>patch_urbanworm.py</code></strong> — surgical patch script that locates the
+  installed <code>urbanworm</code> package via <code>importlib</code>, uses <code>ast</code> to find the
+  exact insertion point inside <code>InferenceUnsloth._generate_batch</code>, and
+  injects the <code>_apply_dtype_hooks_once()</code> call. Supports <code>--check</code>
+  (idempotency test), <code>--revert</code> (restore from <code>.bak</code>), and creates a
+  <code>.bak</code> backup on first run.</li>
+</ul>
+<h2 id="022-2026-05-17">[0.2.2] — 2026-05-17<a class="headerlink" href="#022-2026-05-17" title="Permanent link">&para;</a></h2>
+<h3 id="added_1">Added<a class="headerlink" href="#added_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Multi-GPU support for <code>InferenceUnsloth</code></strong> — when more than one CUDA GPU
+  is detected, <code>device_map="auto"</code> is set automatically and each GPU's VRAM
+  budget is capped at 90 % of its capacity. Override with
+  <code>max_memory={0: "10GiB", 1: "10GiB"}</code>. The <code>device</code> constructor parameter
+  can still force a specific device map.</li>
+<li><strong><code>model_dir</code> parameter</strong> on all three local inference backends. Controls
+  where downloaded model weights are stored:</li>
+<li><code>InferenceUnsloth</code> — passed as <code>cache_dir</code> to
+    <code>FastVisionModel.from_pretrained</code> (HuggingFace Hub cache).</li>
+<li><code>InferenceOllama</code> — sets <code>OLLAMA_MODELS</code> around <code>ollama.pull</code> (saved and
+    restored so other instances are not affected).</li>
+<li><code>InferenceLlamacpp</code> — sets <code>HF_HUB_CACHE</code> in the <code>llama-mtmd-cli</code>
+    subprocess environment (applies when downloading via <code>-hf</code>; no effect on
+    local GGUF paths).</li>
+<li><strong>Stability utilities for large-scale <code>InferenceUnsloth</code> jobs:</strong></li>
+<li><code>configure_runtime(disable_compile=True)</code> — sets
+    <code>UNSLOTH_COMPILE_DISABLE</code>, <code>UNSLOTH_DISABLE_FAST_GENERATION</code>, and
+    <code>TORCH_COMPILE_DISABLE</code> before Unsloth/Torch are imported. Called
+    automatically in <code>__init__</code> (default <code>disable_compile=True</code>). Prevents
+    the <code>AlignDevicesHook</code>/Torch-Dynamo recompile crashes that surface on runs
+    of ~10 k+ samples.</li>
+<li><code>clear_compile_cache()</code> — removes the Unsloth compiled-model cache from
+    system temp dirs; useful when a stale cache causes recompile errors.</li>
+<li><code>task_chunk_size</code> parameter on <code>batch_inference</code> — logical job-partition
+    size independent of <code>batch_size</code>; reports progress at the task-chunk level
+    for long runs.</li>
+<li><code>failed_log_path</code> parameter on <code>batch_inference</code> — appends permanently
+    failed sample indices and error messages to a CSV so they can be rerun
+    later.</li>
+<li><code>_log_runtime_versions()</code> — logs torch, CUDA, GPU, transformers,
+    accelerate, and unsloth versions at <code>INFO</code> level on model load.</li>
+<li><code>_classify_error()</code> — identifies known recoverable patterns (compile/hook
+    conflict, CUDA OOM, dtype mismatch) and emits a human-readable hint.</li>
+<li><strong>Halving retry cascade in <code>InferenceUnsloth._run_chunk_with_retry</code></strong> —
+  on failure, the batch is retried at half the original size all the way down
+  to 1, then fills stubs (or re-raises if <code>skip_errors=False</code>).</li>
+<li><strong>MkDocs documentation site</strong> — <code>mkdocs.yml</code> with Material theme
+  (light-blue/green + purple/green palette), mkdocstrings, mkdocs-jupyter,
+  autorefs, and git-revision-date-localized. Auto-deployed to GitHub Pages on
+  push to <code>main</code> via <code>.github/workflows/docs.yml</code>. Docs added:
+  <code>docs/index.md</code>, <code>docs/installation.md</code>, <code>docs/quickstart.md</code>,
+  <code>docs/api/inference.md</code>, <code>docs/api/dataset.md</code>, <code>docs/api/sources.md</code>,
+  <code>docs/changelog.md</code>.</li>
+</ul>
+<h3 id="fixed_1">Fixed<a class="headerlink" href="#fixed_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>BFloat16 / Float32 dtype mismatch in <code>InferenceUnsloth._generate_batch</code></strong>
+  — the image processor always emits <code>pixel_values</code> as float32, but BF16
+  models raised <code>expected scalar type BFloat16 but found Float</code>. All
+  floating-point input tensors are now cast to the model's compute dtype
+  after the processor call.</li>
+<li><strong><code>ModuleNotFoundError: No module named 'ollama'</code></strong> when importing
+  <code>InferenceUnsloth</code> in environments without Ollama — caused by an eager
+  <code>import ollama</code> at the top of <code>llama.py</code> and an eager import of <code>llama.py</code>
+  in <code>__init__.py</code>. All four backends (<code>InferenceOllama</code>, <code>InferenceLlamacpp</code>,
+  <code>InferenceUnsloth</code>, <code>InferenceAPI</code>) are now lazy via <code>__getattr__</code> in
+  <code>urbanworm/__init__.py</code>. <code>llama.py</code> exposes a <code>_lazy_ollama()</code> helper that
+  raises a descriptive <code>ImportError</code> only when Ollama is actually used.</li>
+<li><strong><code>pydub</code> <code>SyntaxWarning</code> spam on Python 3.12</strong> — pydub's own source
+  contains invalid escape sequences. The module-level
+  <code>from pydub import AudioSegment</code> import is replaced by a
+  <code>_load_audio_segment()</code> helper that suppresses the warning with
+  <code>warnings.filterwarnings</code>. All three call sites (<code>probe_audio_duration</code>,
+  <code>clip</code>, <code>sound_url_to_temp</code>) updated.</li>
+<li><strong><code>skip_errors=False</code> ignored in <code>InferenceUnsloth</code> retry ladder</strong> — when
+  the final single-item retry was exhausted, stub responses were always filled
+  regardless of <code>skip_errors</code>. The flag is now checked and the exception is
+  re-raised when <code>skip_errors=False</code>.</li>
+<li><strong><code>clear_compile_cache</code> silent cwd deletion</strong> — when <code>TEMP</code> or <code>TMP</code> env
+  vars are unset, <code>Path("") / "unsloth_compiled_cache"</code> resolved to a
+  relative path in cwd. Env-derived candidates are now only added when the
+  variable is non-empty.</li>
+<li><strong><code>OLLAMA_MODELS</code> global mutation</strong> — <code>InferenceOllama.one_inference</code> and
+  <code>.batch_inference</code> now save and restore (or remove) <code>OLLAMA_MODELS</code> around
+  <code>ollama.pull</code> so concurrent instances with different <code>model_dir</code> values do
+  not clobber each other.</li>
+<li><strong>Subprocess safety in <code>InferenceLlamacpp._mtmd</code></strong> — added null-byte
+  validation on <code>system_message</code> and <code>prompt</code>, a <code>None</code> guard on <code>llm</code>, and
+  a comment documenting why list-based invocation is safe without
+  <code>shlex.escape()</code>.</li>
+<li>Multi-GPU input preparation: <code>.to(self._model.device)</code> raised
+  <code>AttributeError</code> when <code>device_map="auto"</code> splits the model across GPUs.
+  Fixed by using <code>next(self._model.parameters()).device</code> instead.</li>
+</ul>
+<h2 id="020-2026-05-11-dev2-branch">[0.2.0] — 2026-05-11 (dev2 branch)<a class="headerlink" href="#020-2026-05-11-dev2-branch" title="Permanent link">&para;</a></h2>
+<h3 id="fixed_2">Fixed<a class="headerlink" href="#fixed_2" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Version mismatch across <code>pyproject.toml</code>, <code>urbanworm/__init__.py</code>, and
   <code>CITATION.cff</code>. <code>__version__</code> is now resolved at runtime via
@@ -869,7 +1014,7 @@ and this project adheres to <a href="https://semver.org/spec/v2.0.0.html">Semant
 <li><code>InferenceOllama</code> <code>skip_errors=True</code> now actually suppresses validation
   errors and returns an empty <code>Response</code> instead of re-raising.</li>
 </ul>
-<h3 id="changed">Changed<a class="headerlink" href="#changed" title="Permanent link">&para;</a></h3>
+<h3 id="changed_1">Changed<a class="headerlink" href="#changed_1" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Replaced <code>requirements.txt</code> as the source of truth: dependencies and
   optional extras (<code>ollama</code>, <code>audio</code>, <code>llamacpp</code>, <code>dev</code>, <code>all</code>) now live in
@@ -886,7 +1031,7 @@ and this project adheres to <a href="https://semver.org/spec/v2.0.0.html">Semant
   <code>getSound</code>) consolidated to top-level <code>solr_year_range</code> and
   <code>parse_iso_created</code> in <code>urbanworm.utils.utils</code>.</li>
 </ul>
-<h3 id="added">Added<a class="headerlink" href="#added" title="Permanent link">&para;</a></h3>
+<h3 id="added_2">Added<a class="headerlink" href="#added_2" title="Permanent link">&para;</a></h3>
 <ul>
 <li><code>tests/test_utils.py</code>, <code>tests/test_format.py</code>, <code>tests/test_dataset.py</code>,
   <code>tests/test_inference_helpers.py</code> — pure-logic unit tests.</li>

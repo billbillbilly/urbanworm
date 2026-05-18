@@ -1481,7 +1481,8 @@ instead of crashing. Mirrors :class:<code>InferenceOllama</code>.</p>
 <span class="normal"><a href="#__codelineno-0-223">223</a></span>
 <span class="normal"><a href="#__codelineno-0-224">224</a></span>
 <span class="normal"><a href="#__codelineno-0-225">225</a></span>
-<span class="normal"><a href="#__codelineno-0-226">226</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-200" name="__codelineno-0-200"></a><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+<span class="normal"><a href="#__codelineno-0-226">226</a></span>
+<span class="normal"><a href="#__codelineno-0-227">227</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-200" name="__codelineno-0-200"></a><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
 <a id="__codelineno-0-201" name="__codelineno-0-201"></a>    <span class="bp">self</span><span class="p">,</span>
 <a id="__codelineno-0-202" name="__codelineno-0-202"></a>    <span class="n">llm</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <a id="__codelineno-0-203" name="__codelineno-0-203"></a>    <span class="n">load_in_4bit</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
@@ -1508,6 +1509,7 @@ instead of crashing. Mirrors :class:<code>InferenceOllama</code>.</p>
 <a id="__codelineno-0-224" name="__codelineno-0-224"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">skip_errors</span> <span class="o">=</span> <span class="n">skip_errors</span>
 <a id="__codelineno-0-225" name="__codelineno-0-225"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_model</span> <span class="o">=</span> <span class="kc">None</span>
 <a id="__codelineno-0-226" name="__codelineno-0-226"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_processor</span> <span class="o">=</span> <span class="kc">None</span>
+<a id="__codelineno-0-227" name="__codelineno-0-227"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_model_dtype</span> <span class="o">=</span> <span class="kc">None</span>   <span class="c1"># set by _ensure_loaded; cached to avoid repeated next(parameters())</span>
 </code></pre></div></td></tr></table></div>
                   </details>
 
@@ -1542,13 +1544,7 @@ instead of crashing. Mirrors :class:<code>InferenceOllama</code>.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>urbanworm/inference/unsloth.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-287">287</a></span>
-<span class="normal"><a href="#__codelineno-0-288">288</a></span>
-<span class="normal"><a href="#__codelineno-0-289">289</a></span>
-<span class="normal"><a href="#__codelineno-0-290">290</a></span>
-<span class="normal"><a href="#__codelineno-0-291">291</a></span>
-<span class="normal"><a href="#__codelineno-0-292">292</a></span>
-<span class="normal"><a href="#__codelineno-0-293">293</a></span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-293">293</a></span>
 <span class="normal"><a href="#__codelineno-0-294">294</a></span>
 <span class="normal"><a href="#__codelineno-0-295">295</a></span>
 <span class="normal"><a href="#__codelineno-0-296">296</a></span>
@@ -1592,57 +1588,63 @@ instead of crashing. Mirrors :class:<code>InferenceOllama</code>.</p>
 <span class="normal"><a href="#__codelineno-0-334">334</a></span>
 <span class="normal"><a href="#__codelineno-0-335">335</a></span>
 <span class="normal"><a href="#__codelineno-0-336">336</a></span>
-<span class="normal"><a href="#__codelineno-0-337">337</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-287" name="__codelineno-0-287"></a><span class="k">def</span><span class="w"> </span><span class="nf">one_inference</span><span class="p">(</span>
-<a id="__codelineno-0-288" name="__codelineno-0-288"></a>    <span class="bp">self</span><span class="p">,</span>
-<a id="__codelineno-0-289" name="__codelineno-0-289"></a>    <span class="n">system</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="p">,</span>
-<a id="__codelineno-0-290" name="__codelineno-0-290"></a>    <span class="n">prompt</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="p">,</span>
-<a id="__codelineno-0-291" name="__codelineno-0-291"></a>    <span class="n">image</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">list</span> <span class="o">|</span> <span class="nb">tuple</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-292" name="__codelineno-0-292"></a>    <span class="n">audio</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">list</span> <span class="o">|</span> <span class="nb">tuple</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-293" name="__codelineno-0-293"></a>    <span class="n">temp</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
-<a id="__codelineno-0-294" name="__codelineno-0-294"></a>    <span class="n">top_k</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">20</span><span class="p">,</span>
-<a id="__codelineno-0-295" name="__codelineno-0-295"></a>    <span class="n">top_p</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.8</span><span class="p">,</span>
-<a id="__codelineno-0-296" name="__codelineno-0-296"></a>    <span class="n">max_new_tokens</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">512</span><span class="p">,</span>
-<a id="__codelineno-0-297" name="__codelineno-0-297"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
-<a id="__codelineno-0-298" name="__codelineno-0-298"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Run inference on a single image (or list of images for one prompt).</span>
-<a id="__codelineno-0-299" name="__codelineno-0-299"></a>
-<a id="__codelineno-0-300" name="__codelineno-0-300"></a><span class="sd">    Returns a one-row DataFrame in the same shape as</span>
-<a id="__codelineno-0-301" name="__codelineno-0-301"></a><span class="sd">    :meth:`InferenceOllama.one_inference`.</span>
-<a id="__codelineno-0-302" name="__codelineno-0-302"></a><span class="sd">    &quot;&quot;&quot;</span>
-<a id="__codelineno-0-303" name="__codelineno-0-303"></a>    <span class="k">if</span> <span class="n">audio</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-304" name="__codelineno-0-304"></a>        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span>
-<a id="__codelineno-0-305" name="__codelineno-0-305"></a>            <span class="s2">&quot;Unsloth VLMs do not currently support audio input.&quot;</span>
-<a id="__codelineno-0-306" name="__codelineno-0-306"></a>        <span class="p">)</span>
-<a id="__codelineno-0-307" name="__codelineno-0-307"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_ensure_loaded</span><span class="p">()</span>
-<a id="__codelineno-0-308" name="__codelineno-0-308"></a>
-<a id="__codelineno-0-309" name="__codelineno-0-309"></a>    <span class="n">img</span> <span class="o">=</span> <span class="n">image</span> <span class="k">if</span> <span class="n">image</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">img</span>
-<a id="__codelineno-0-310" name="__codelineno-0-310"></a>    <span class="k">if</span> <span class="n">img</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-311" name="__codelineno-0-311"></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;No image provided to one_inference().&quot;</span><span class="p">)</span>
-<a id="__codelineno-0-312" name="__codelineno-0-312"></a>    <span class="n">imgs</span> <span class="o">=</span> <span class="p">[</span><span class="n">img</span><span class="p">]</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">img</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="k">else</span> <span class="nb">list</span><span class="p">(</span><span class="n">img</span><span class="p">)</span>
-<a id="__codelineno-0-313" name="__codelineno-0-313"></a>    <span class="c1"># If a list, validate it&#39;s flat str list</span>
-<a id="__codelineno-0-314" name="__codelineno-0-314"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">imgs</span><span class="p">):</span>
-<a id="__codelineno-0-315" name="__codelineno-0-315"></a>        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;`image` must be a path/url/base64 string or a flat list of those.&quot;</span><span class="p">)</span>
-<a id="__codelineno-0-316" name="__codelineno-0-316"></a>
-<a id="__codelineno-0-317" name="__codelineno-0-317"></a>    <span class="n">schema</span> <span class="o">=</span> <span class="n">create_format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">schema</span><span class="p">)</span>
-<a id="__codelineno-0-318" name="__codelineno-0-318"></a>    <span class="c1"># Single-prompt call: one batch of one (or one batch of N images for</span>
-<a id="__codelineno-0-319" name="__codelineno-0-319"></a>    <span class="c1"># a multi-image-per-prompt scenario).</span>
-<a id="__codelineno-0-320" name="__codelineno-0-320"></a>    <span class="n">responses</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_generate_batch</span><span class="p">(</span>
-<a id="__codelineno-0-321" name="__codelineno-0-321"></a>        <span class="n">systems</span><span class="o">=</span><span class="p">[</span><span class="n">system</span><span class="p">],</span>
-<a id="__codelineno-0-322" name="__codelineno-0-322"></a>        <span class="n">prompts</span><span class="o">=</span><span class="p">[</span><span class="n">prompt</span><span class="p">],</span>
-<a id="__codelineno-0-323" name="__codelineno-0-323"></a>        <span class="n">images_per_prompt</span><span class="o">=</span><span class="p">[</span><span class="n">imgs</span><span class="p">],</span>
-<a id="__codelineno-0-324" name="__codelineno-0-324"></a>        <span class="n">schema</span><span class="o">=</span><span class="n">schema</span><span class="p">,</span>
-<a id="__codelineno-0-325" name="__codelineno-0-325"></a>        <span class="n">temp</span><span class="o">=</span><span class="n">temp</span><span class="p">,</span>
-<a id="__codelineno-0-326" name="__codelineno-0-326"></a>        <span class="n">top_k</span><span class="o">=</span><span class="n">top_k</span><span class="p">,</span>
-<a id="__codelineno-0-327" name="__codelineno-0-327"></a>        <span class="n">top_p</span><span class="o">=</span><span class="n">top_p</span><span class="p">,</span>
-<a id="__codelineno-0-328" name="__codelineno-0-328"></a>        <span class="n">max_new_tokens</span><span class="o">=</span><span class="n">max_new_tokens</span><span class="p">,</span>
-<a id="__codelineno-0-329" name="__codelineno-0-329"></a>    <span class="p">)</span>
-<a id="__codelineno-0-330" name="__codelineno-0-330"></a>    <span class="n">dic</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;responses&quot;</span><span class="p">:</span> <span class="p">[</span><span class="n">responses</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">responses</span><span class="p">],</span> <span class="s2">&quot;data&quot;</span><span class="p">:</span> <span class="p">[</span><span class="n">imgs</span><span class="p">]}</span>
-<a id="__codelineno-0-331" name="__codelineno-0-331"></a>    <span class="k">try</span><span class="p">:</span>
-<a id="__codelineno-0-332" name="__codelineno-0-332"></a>        <span class="k">return</span> <span class="n">response2df</span><span class="p">(</span><span class="n">dic</span><span class="p">)</span>
-<a id="__codelineno-0-333" name="__codelineno-0-333"></a>    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-<a id="__codelineno-0-334" name="__codelineno-0-334"></a>        <span class="c1"># Empty/malformed responses (e.g. skip_errors path) — return a</span>
-<a id="__codelineno-0-335" name="__codelineno-0-335"></a>        <span class="c1"># minimally-shaped frame instead of crashing.</span>
-<a id="__codelineno-0-336" name="__codelineno-0-336"></a>        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;one_inference: response2df failed (</span><span class="si">%s</span><span class="s2">); returning raw frame.&quot;</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
-<a id="__codelineno-0-337" name="__codelineno-0-337"></a>        <span class="k">return</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span><span class="s2">&quot;responses&quot;</span><span class="p">:</span> <span class="p">[</span><span class="n">responses</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">responses</span><span class="p">],</span> <span class="s2">&quot;data&quot;</span><span class="p">:</span> <span class="p">[</span><span class="n">imgs</span><span class="p">]})</span>
+<span class="normal"><a href="#__codelineno-0-337">337</a></span>
+<span class="normal"><a href="#__codelineno-0-338">338</a></span>
+<span class="normal"><a href="#__codelineno-0-339">339</a></span>
+<span class="normal"><a href="#__codelineno-0-340">340</a></span>
+<span class="normal"><a href="#__codelineno-0-341">341</a></span>
+<span class="normal"><a href="#__codelineno-0-342">342</a></span>
+<span class="normal"><a href="#__codelineno-0-343">343</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-293" name="__codelineno-0-293"></a><span class="k">def</span><span class="w"> </span><span class="nf">one_inference</span><span class="p">(</span>
+<a id="__codelineno-0-294" name="__codelineno-0-294"></a>    <span class="bp">self</span><span class="p">,</span>
+<a id="__codelineno-0-295" name="__codelineno-0-295"></a>    <span class="n">system</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-296" name="__codelineno-0-296"></a>    <span class="n">prompt</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-297" name="__codelineno-0-297"></a>    <span class="n">image</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">list</span> <span class="o">|</span> <span class="nb">tuple</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-298" name="__codelineno-0-298"></a>    <span class="n">audio</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">list</span> <span class="o">|</span> <span class="nb">tuple</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-299" name="__codelineno-0-299"></a>    <span class="n">temp</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
+<a id="__codelineno-0-300" name="__codelineno-0-300"></a>    <span class="n">top_k</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">20</span><span class="p">,</span>
+<a id="__codelineno-0-301" name="__codelineno-0-301"></a>    <span class="n">top_p</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.8</span><span class="p">,</span>
+<a id="__codelineno-0-302" name="__codelineno-0-302"></a>    <span class="n">max_new_tokens</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">512</span><span class="p">,</span>
+<a id="__codelineno-0-303" name="__codelineno-0-303"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
+<a id="__codelineno-0-304" name="__codelineno-0-304"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Run inference on a single image (or list of images for one prompt).</span>
+<a id="__codelineno-0-305" name="__codelineno-0-305"></a>
+<a id="__codelineno-0-306" name="__codelineno-0-306"></a><span class="sd">    Returns a one-row DataFrame in the same shape as</span>
+<a id="__codelineno-0-307" name="__codelineno-0-307"></a><span class="sd">    :meth:`InferenceOllama.one_inference`.</span>
+<a id="__codelineno-0-308" name="__codelineno-0-308"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-309" name="__codelineno-0-309"></a>    <span class="k">if</span> <span class="n">audio</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-310" name="__codelineno-0-310"></a>        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span>
+<a id="__codelineno-0-311" name="__codelineno-0-311"></a>            <span class="s2">&quot;Unsloth VLMs do not currently support audio input.&quot;</span>
+<a id="__codelineno-0-312" name="__codelineno-0-312"></a>        <span class="p">)</span>
+<a id="__codelineno-0-313" name="__codelineno-0-313"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_ensure_loaded</span><span class="p">()</span>
+<a id="__codelineno-0-314" name="__codelineno-0-314"></a>
+<a id="__codelineno-0-315" name="__codelineno-0-315"></a>    <span class="n">img</span> <span class="o">=</span> <span class="n">image</span> <span class="k">if</span> <span class="n">image</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">img</span>
+<a id="__codelineno-0-316" name="__codelineno-0-316"></a>    <span class="k">if</span> <span class="n">img</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-317" name="__codelineno-0-317"></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;No image provided to one_inference().&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-318" name="__codelineno-0-318"></a>    <span class="n">imgs</span> <span class="o">=</span> <span class="p">[</span><span class="n">img</span><span class="p">]</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">img</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="k">else</span> <span class="nb">list</span><span class="p">(</span><span class="n">img</span><span class="p">)</span>
+<a id="__codelineno-0-319" name="__codelineno-0-319"></a>    <span class="c1"># If a list, validate it&#39;s flat str list</span>
+<a id="__codelineno-0-320" name="__codelineno-0-320"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">imgs</span><span class="p">):</span>
+<a id="__codelineno-0-321" name="__codelineno-0-321"></a>        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;`image` must be a path/url/base64 string or a flat list of those.&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-322" name="__codelineno-0-322"></a>
+<a id="__codelineno-0-323" name="__codelineno-0-323"></a>    <span class="n">schema</span> <span class="o">=</span> <span class="n">create_format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">schema</span><span class="p">)</span>
+<a id="__codelineno-0-324" name="__codelineno-0-324"></a>    <span class="c1"># Single-prompt call: one batch of one (or one batch of N images for</span>
+<a id="__codelineno-0-325" name="__codelineno-0-325"></a>    <span class="c1"># a multi-image-per-prompt scenario).</span>
+<a id="__codelineno-0-326" name="__codelineno-0-326"></a>    <span class="n">responses</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_generate_batch</span><span class="p">(</span>
+<a id="__codelineno-0-327" name="__codelineno-0-327"></a>        <span class="n">systems</span><span class="o">=</span><span class="p">[</span><span class="n">system</span><span class="p">],</span>
+<a id="__codelineno-0-328" name="__codelineno-0-328"></a>        <span class="n">prompts</span><span class="o">=</span><span class="p">[</span><span class="n">prompt</span><span class="p">],</span>
+<a id="__codelineno-0-329" name="__codelineno-0-329"></a>        <span class="n">images_per_prompt</span><span class="o">=</span><span class="p">[</span><span class="n">imgs</span><span class="p">],</span>
+<a id="__codelineno-0-330" name="__codelineno-0-330"></a>        <span class="n">schema</span><span class="o">=</span><span class="n">schema</span><span class="p">,</span>
+<a id="__codelineno-0-331" name="__codelineno-0-331"></a>        <span class="n">temp</span><span class="o">=</span><span class="n">temp</span><span class="p">,</span>
+<a id="__codelineno-0-332" name="__codelineno-0-332"></a>        <span class="n">top_k</span><span class="o">=</span><span class="n">top_k</span><span class="p">,</span>
+<a id="__codelineno-0-333" name="__codelineno-0-333"></a>        <span class="n">top_p</span><span class="o">=</span><span class="n">top_p</span><span class="p">,</span>
+<a id="__codelineno-0-334" name="__codelineno-0-334"></a>        <span class="n">max_new_tokens</span><span class="o">=</span><span class="n">max_new_tokens</span><span class="p">,</span>
+<a id="__codelineno-0-335" name="__codelineno-0-335"></a>    <span class="p">)</span>
+<a id="__codelineno-0-336" name="__codelineno-0-336"></a>    <span class="n">dic</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;responses&quot;</span><span class="p">:</span> <span class="p">[</span><span class="n">responses</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">responses</span><span class="p">],</span> <span class="s2">&quot;data&quot;</span><span class="p">:</span> <span class="p">[</span><span class="n">imgs</span><span class="p">]}</span>
+<a id="__codelineno-0-337" name="__codelineno-0-337"></a>    <span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-0-338" name="__codelineno-0-338"></a>        <span class="k">return</span> <span class="n">response2df</span><span class="p">(</span><span class="n">dic</span><span class="p">)</span>
+<a id="__codelineno-0-339" name="__codelineno-0-339"></a>    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+<a id="__codelineno-0-340" name="__codelineno-0-340"></a>        <span class="c1"># Empty/malformed responses (e.g. skip_errors path) — return a</span>
+<a id="__codelineno-0-341" name="__codelineno-0-341"></a>        <span class="c1"># minimally-shaped frame instead of crashing.</span>
+<a id="__codelineno-0-342" name="__codelineno-0-342"></a>        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;one_inference: response2df failed (</span><span class="si">%s</span><span class="s2">); returning raw frame.&quot;</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
+<a id="__codelineno-0-343" name="__codelineno-0-343"></a>        <span class="k">return</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span><span class="s2">&quot;responses&quot;</span><span class="p">:</span> <span class="p">[</span><span class="n">responses</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">responses</span><span class="p">],</span> <span class="s2">&quot;data&quot;</span><span class="p">:</span> <span class="p">[</span><span class="n">imgs</span><span class="p">]})</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -1779,13 +1781,7 @@ you rerun only the failures later.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>urbanworm/inference/unsloth.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-339">339</a></span>
-<span class="normal"><a href="#__codelineno-0-340">340</a></span>
-<span class="normal"><a href="#__codelineno-0-341">341</a></span>
-<span class="normal"><a href="#__codelineno-0-342">342</a></span>
-<span class="normal"><a href="#__codelineno-0-343">343</a></span>
-<span class="normal"><a href="#__codelineno-0-344">344</a></span>
-<span class="normal"><a href="#__codelineno-0-345">345</a></span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-345">345</a></span>
 <span class="normal"><a href="#__codelineno-0-346">346</a></span>
 <span class="normal"><a href="#__codelineno-0-347">347</a></span>
 <span class="normal"><a href="#__codelineno-0-348">348</a></span>
@@ -1915,143 +1911,159 @@ you rerun only the failures later.</p>
 <span class="normal"><a href="#__codelineno-0-472">472</a></span>
 <span class="normal"><a href="#__codelineno-0-473">473</a></span>
 <span class="normal"><a href="#__codelineno-0-474">474</a></span>
-<span class="normal"><a href="#__codelineno-0-475">475</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-339" name="__codelineno-0-339"></a><span class="k">def</span><span class="w"> </span><span class="nf">batch_inference</span><span class="p">(</span>
-<a id="__codelineno-0-340" name="__codelineno-0-340"></a>    <span class="bp">self</span><span class="p">,</span>
-<a id="__codelineno-0-341" name="__codelineno-0-341"></a>    <span class="n">system</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="p">,</span>
-<a id="__codelineno-0-342" name="__codelineno-0-342"></a>    <span class="n">prompt</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="p">,</span>
-<a id="__codelineno-0-343" name="__codelineno-0-343"></a>    <span class="n">temp</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
-<a id="__codelineno-0-344" name="__codelineno-0-344"></a>    <span class="n">top_k</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">20</span><span class="p">,</span>
-<a id="__codelineno-0-345" name="__codelineno-0-345"></a>    <span class="n">top_p</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.8</span><span class="p">,</span>
-<a id="__codelineno-0-346" name="__codelineno-0-346"></a>    <span class="n">max_new_tokens</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">512</span><span class="p">,</span>
-<a id="__codelineno-0-347" name="__codelineno-0-347"></a>    <span class="n">batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
-<a id="__codelineno-0-348" name="__codelineno-0-348"></a>    <span class="n">task_chunk_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-349" name="__codelineno-0-349"></a>    <span class="n">disableProgressBar</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-<a id="__codelineno-0-350" name="__codelineno-0-350"></a>    <span class="n">checkpoint_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-351" name="__codelineno-0-351"></a>    <span class="n">failed_log_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-352" name="__codelineno-0-352"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
-<a id="__codelineno-0-353" name="__codelineno-0-353"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Run inference over ``self.batch_images`` with optional GPU batching.</span>
-<a id="__codelineno-0-354" name="__codelineno-0-354"></a>
-<a id="__codelineno-0-355" name="__codelineno-0-355"></a><span class="sd">    Args:</span>
-<a id="__codelineno-0-356" name="__codelineno-0-356"></a><span class="sd">        batch_size: Number of items per ``model.generate`` call (the GPU</span>
-<a id="__codelineno-0-357" name="__codelineno-0-357"></a><span class="sd">            batch).  Larger values trade VRAM for throughput; sweet spot</span>
-<a id="__codelineno-0-358" name="__codelineno-0-358"></a><span class="sd">            for 7–8 B VLMs on a 24 GB GPU is ~4–8.</span>
-<a id="__codelineno-0-359" name="__codelineno-0-359"></a><span class="sd">        task_chunk_size: Logical job partition size, independent of</span>
-<a id="__codelineno-0-360" name="__codelineno-0-360"></a><span class="sd">            ``batch_size``.  When set, the dataset is split into segments</span>
-<a id="__codelineno-0-361" name="__codelineno-0-361"></a><span class="sd">            of this size and progress is reported at the task-chunk level,</span>
-<a id="__codelineno-0-362" name="__codelineno-0-362"></a><span class="sd">            making long runs (e.g. 144 k samples) easier to monitor.</span>
-<a id="__codelineno-0-363" name="__codelineno-0-363"></a><span class="sd">            ``None`` (default) disables task-level chunking.</span>
-<a id="__codelineno-0-364" name="__codelineno-0-364"></a><span class="sd">            Example: ``batch_size=4, task_chunk_size=1000`` → ~145 task</span>
-<a id="__codelineno-0-365" name="__codelineno-0-365"></a><span class="sd">            chunks, each processed internally in batches of 4.</span>
-<a id="__codelineno-0-366" name="__codelineno-0-366"></a><span class="sd">        checkpoint_path: Path to a JSONL file for resume-safe</span>
-<a id="__codelineno-0-367" name="__codelineno-0-367"></a><span class="sd">            checkpointing.  Already-completed items are skipped on the</span>
-<a id="__codelineno-0-368" name="__codelineno-0-368"></a><span class="sd">            next run.</span>
-<a id="__codelineno-0-369" name="__codelineno-0-369"></a><span class="sd">        failed_log_path: Optional path to a CSV file where permanently</span>
-<a id="__codelineno-0-370" name="__codelineno-0-370"></a><span class="sd">            failed sample indices and error messages are appended.  Lets</span>
-<a id="__codelineno-0-371" name="__codelineno-0-371"></a><span class="sd">            you rerun only the failures later.</span>
-<a id="__codelineno-0-372" name="__codelineno-0-372"></a>
-<a id="__codelineno-0-373" name="__codelineno-0-373"></a><span class="sd">    Returns:</span>
-<a id="__codelineno-0-374" name="__codelineno-0-374"></a><span class="sd">        DataFrame, same shape as :meth:`InferenceOllama.batch_inference`.</span>
-<a id="__codelineno-0-375" name="__codelineno-0-375"></a><span class="sd">    &quot;&quot;&quot;</span>
-<a id="__codelineno-0-376" name="__codelineno-0-376"></a>    <span class="kn">import</span><span class="w"> </span><span class="nn">csv</span>
-<a id="__codelineno-0-377" name="__codelineno-0-377"></a>
-<a id="__codelineno-0-378" name="__codelineno-0-378"></a>    <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
-<a id="__codelineno-0-379" name="__codelineno-0-379"></a>
-<a id="__codelineno-0-380" name="__codelineno-0-380"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_ensure_loaded</span><span class="p">()</span>
-<a id="__codelineno-0-381" name="__codelineno-0-381"></a>
-<a id="__codelineno-0-382" name="__codelineno-0-382"></a>    <span class="n">imgs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">batch_images</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">batch_images</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">imgs</span>
-<a id="__codelineno-0-383" name="__codelineno-0-383"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">imgs</span><span class="p">:</span>
-<a id="__codelineno-0-384" name="__codelineno-0-384"></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;No images to run inference on.&quot;</span><span class="p">)</span>
+<span class="normal"><a href="#__codelineno-0-475">475</a></span>
+<span class="normal"><a href="#__codelineno-0-476">476</a></span>
+<span class="normal"><a href="#__codelineno-0-477">477</a></span>
+<span class="normal"><a href="#__codelineno-0-478">478</a></span>
+<span class="normal"><a href="#__codelineno-0-479">479</a></span>
+<span class="normal"><a href="#__codelineno-0-480">480</a></span>
+<span class="normal"><a href="#__codelineno-0-481">481</a></span>
+<span class="normal"><a href="#__codelineno-0-482">482</a></span>
+<span class="normal"><a href="#__codelineno-0-483">483</a></span>
+<span class="normal"><a href="#__codelineno-0-484">484</a></span>
+<span class="normal"><a href="#__codelineno-0-485">485</a></span>
+<span class="normal"><a href="#__codelineno-0-486">486</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-345" name="__codelineno-0-345"></a><span class="k">def</span><span class="w"> </span><span class="nf">batch_inference</span><span class="p">(</span>
+<a id="__codelineno-0-346" name="__codelineno-0-346"></a>    <span class="bp">self</span><span class="p">,</span>
+<a id="__codelineno-0-347" name="__codelineno-0-347"></a>    <span class="n">system</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-348" name="__codelineno-0-348"></a>    <span class="n">prompt</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-349" name="__codelineno-0-349"></a>    <span class="n">temp</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
+<a id="__codelineno-0-350" name="__codelineno-0-350"></a>    <span class="n">top_k</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">20</span><span class="p">,</span>
+<a id="__codelineno-0-351" name="__codelineno-0-351"></a>    <span class="n">top_p</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.8</span><span class="p">,</span>
+<a id="__codelineno-0-352" name="__codelineno-0-352"></a>    <span class="n">max_new_tokens</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">512</span><span class="p">,</span>
+<a id="__codelineno-0-353" name="__codelineno-0-353"></a>    <span class="n">batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+<a id="__codelineno-0-354" name="__codelineno-0-354"></a>    <span class="n">task_chunk_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-355" name="__codelineno-0-355"></a>    <span class="n">disableProgressBar</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<a id="__codelineno-0-356" name="__codelineno-0-356"></a>    <span class="n">checkpoint_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-357" name="__codelineno-0-357"></a>    <span class="n">failed_log_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-358" name="__codelineno-0-358"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
+<a id="__codelineno-0-359" name="__codelineno-0-359"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Run inference over ``self.batch_images`` with optional GPU batching.</span>
+<a id="__codelineno-0-360" name="__codelineno-0-360"></a>
+<a id="__codelineno-0-361" name="__codelineno-0-361"></a><span class="sd">    Args:</span>
+<a id="__codelineno-0-362" name="__codelineno-0-362"></a><span class="sd">        batch_size: Number of items per ``model.generate`` call (the GPU</span>
+<a id="__codelineno-0-363" name="__codelineno-0-363"></a><span class="sd">            batch).  Larger values trade VRAM for throughput; sweet spot</span>
+<a id="__codelineno-0-364" name="__codelineno-0-364"></a><span class="sd">            for 7–8 B VLMs on a 24 GB GPU is ~4–8.</span>
+<a id="__codelineno-0-365" name="__codelineno-0-365"></a><span class="sd">        task_chunk_size: Logical job partition size, independent of</span>
+<a id="__codelineno-0-366" name="__codelineno-0-366"></a><span class="sd">            ``batch_size``.  When set, the dataset is split into segments</span>
+<a id="__codelineno-0-367" name="__codelineno-0-367"></a><span class="sd">            of this size and progress is reported at the task-chunk level,</span>
+<a id="__codelineno-0-368" name="__codelineno-0-368"></a><span class="sd">            making long runs (e.g. 144 k samples) easier to monitor.</span>
+<a id="__codelineno-0-369" name="__codelineno-0-369"></a><span class="sd">            ``None`` (default) disables task-level chunking.</span>
+<a id="__codelineno-0-370" name="__codelineno-0-370"></a><span class="sd">            Example: ``batch_size=4, task_chunk_size=1000`` → ~145 task</span>
+<a id="__codelineno-0-371" name="__codelineno-0-371"></a><span class="sd">            chunks, each processed internally in batches of 4.</span>
+<a id="__codelineno-0-372" name="__codelineno-0-372"></a><span class="sd">        checkpoint_path: Path to a JSONL file for resume-safe</span>
+<a id="__codelineno-0-373" name="__codelineno-0-373"></a><span class="sd">            checkpointing.  Already-completed items are skipped on the</span>
+<a id="__codelineno-0-374" name="__codelineno-0-374"></a><span class="sd">            next run.</span>
+<a id="__codelineno-0-375" name="__codelineno-0-375"></a><span class="sd">        failed_log_path: Optional path to a CSV file where permanently</span>
+<a id="__codelineno-0-376" name="__codelineno-0-376"></a><span class="sd">            failed sample indices and error messages are appended.  Lets</span>
+<a id="__codelineno-0-377" name="__codelineno-0-377"></a><span class="sd">            you rerun only the failures later.</span>
+<a id="__codelineno-0-378" name="__codelineno-0-378"></a>
+<a id="__codelineno-0-379" name="__codelineno-0-379"></a><span class="sd">    Returns:</span>
+<a id="__codelineno-0-380" name="__codelineno-0-380"></a><span class="sd">        DataFrame, same shape as :meth:`InferenceOllama.batch_inference`.</span>
+<a id="__codelineno-0-381" name="__codelineno-0-381"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-382" name="__codelineno-0-382"></a>    <span class="kn">import</span><span class="w"> </span><span class="nn">csv</span>
+<a id="__codelineno-0-383" name="__codelineno-0-383"></a>
+<a id="__codelineno-0-384" name="__codelineno-0-384"></a>    <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <a id="__codelineno-0-385" name="__codelineno-0-385"></a>
-<a id="__codelineno-0-386" name="__codelineno-0-386"></a>    <span class="n">items</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[</span>
-<a id="__codelineno-0-387" name="__codelineno-0-387"></a>        <span class="p">[</span><span class="n">it</span><span class="p">]</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">it</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="k">else</span> <span class="nb">list</span><span class="p">(</span><span class="n">it</span><span class="p">)</span> <span class="k">for</span> <span class="n">it</span> <span class="ow">in</span> <span class="n">imgs</span>
-<a id="__codelineno-0-388" name="__codelineno-0-388"></a>    <span class="p">]</span>
-<a id="__codelineno-0-389" name="__codelineno-0-389"></a>    <span class="n">schema</span> <span class="o">=</span> <span class="n">create_format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">schema</span><span class="p">)</span>
-<a id="__codelineno-0-390" name="__codelineno-0-390"></a>    <span class="n">bs</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">batch_size</span><span class="p">))</span>
-<a id="__codelineno-0-391" name="__codelineno-0-391"></a>    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">items</span><span class="p">)</span>
-<a id="__codelineno-0-392" name="__codelineno-0-392"></a>
-<a id="__codelineno-0-393" name="__codelineno-0-393"></a>    <span class="c1"># ── resume from checkpoint ───────────────────────────────────────</span>
-<a id="__codelineno-0-394" name="__codelineno-0-394"></a>    <span class="n">done_records</span> <span class="o">=</span> <span class="n">load_inference_checkpoint</span><span class="p">(</span><span class="n">checkpoint_path</span><span class="p">)</span> <span class="k">if</span> <span class="n">checkpoint_path</span> <span class="k">else</span> <span class="p">[]</span>
-<a id="__codelineno-0-395" name="__codelineno-0-395"></a>    <span class="n">start_idx</span> <span class="o">=</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">done_records</span><span class="p">)</span> <span class="o">//</span> <span class="n">bs</span><span class="p">)</span> <span class="o">*</span> <span class="n">bs</span>
-<a id="__codelineno-0-396" name="__codelineno-0-396"></a>    <span class="n">dic</span> <span class="o">=</span> <span class="n">restore_ollama_results</span><span class="p">(</span><span class="n">done_records</span><span class="p">[:</span><span class="n">start_idx</span><span class="p">])</span>
-<a id="__codelineno-0-397" name="__codelineno-0-397"></a>
-<a id="__codelineno-0-398" name="__codelineno-0-398"></a>    <span class="c1"># ── task-chunk boundaries for progress reporting ─────────────────</span>
-<a id="__codelineno-0-399" name="__codelineno-0-399"></a>    <span class="n">tcs</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">task_chunk_size</span><span class="p">)</span> <span class="k">if</span> <span class="n">task_chunk_size</span> <span class="ow">and</span> <span class="n">task_chunk_size</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="kc">None</span>
-<a id="__codelineno-0-400" name="__codelineno-0-400"></a>    <span class="n">n_task_chunks</span> <span class="o">=</span> <span class="p">((</span><span class="n">n</span> <span class="o">-</span> <span class="n">start_idx</span><span class="p">)</span> <span class="o">+</span> <span class="n">tcs</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">//</span> <span class="n">tcs</span> <span class="k">if</span> <span class="n">tcs</span> <span class="k">else</span> <span class="mi">1</span>
-<a id="__codelineno-0-401" name="__codelineno-0-401"></a>
-<a id="__codelineno-0-402" name="__codelineno-0-402"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">_save_checkpoint</span><span class="p">(</span><span class="n">img_idx</span><span class="p">,</span> <span class="n">responses</span><span class="p">):</span>
-<a id="__codelineno-0-403" name="__codelineno-0-403"></a>        <span class="k">if</span> <span class="ow">not</span> <span class="n">checkpoint_path</span><span class="p">:</span>
-<a id="__codelineno-0-404" name="__codelineno-0-404"></a>            <span class="k">return</span>
-<a id="__codelineno-0-405" name="__codelineno-0-405"></a>        <span class="k">try</span><span class="p">:</span>
-<a id="__codelineno-0-406" name="__codelineno-0-406"></a>            <span class="n">responses_dump</span> <span class="o">=</span> <span class="p">[</span><span class="n">r</span><span class="o">.</span><span class="n">model_dump</span><span class="p">()</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">responses</span><span class="p">]</span>
-<a id="__codelineno-0-407" name="__codelineno-0-407"></a>        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
-<a id="__codelineno-0-408" name="__codelineno-0-408"></a>            <span class="n">responses_dump</span> <span class="o">=</span> <span class="p">[</span><span class="nb">dict</span><span class="p">(</span><span class="n">r</span><span class="p">)</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">responses</span><span class="p">]</span> <span class="k">if</span> <span class="n">responses</span> <span class="k">else</span> <span class="p">[]</span>
-<a id="__codelineno-0-409" name="__codelineno-0-409"></a>        <span class="n">append_inference_checkpoint</span><span class="p">(</span><span class="n">checkpoint_path</span><span class="p">,</span> <span class="p">{</span>
-<a id="__codelineno-0-410" name="__codelineno-0-410"></a>            <span class="s2">&quot;idx&quot;</span><span class="p">:</span> <span class="n">img_idx</span><span class="p">,</span>
-<a id="__codelineno-0-411" name="__codelineno-0-411"></a>            <span class="s2">&quot;responses&quot;</span><span class="p">:</span> <span class="n">responses_dump</span><span class="p">,</span>
-<a id="__codelineno-0-412" name="__codelineno-0-412"></a>            <span class="s2">&quot;data&quot;</span><span class="p">:</span> <span class="n">imgs</span><span class="p">[</span><span class="n">img_idx</span><span class="p">]</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">imgs</span><span class="p">[</span><span class="n">img_idx</span><span class="p">],</span> <span class="nb">str</span><span class="p">)</span> <span class="k">else</span> <span class="nb">list</span><span class="p">(</span><span class="n">imgs</span><span class="p">[</span><span class="n">img_idx</span><span class="p">]),</span>
-<a id="__codelineno-0-413" name="__codelineno-0-413"></a>        <span class="p">})</span>
-<a id="__codelineno-0-414" name="__codelineno-0-414"></a>
-<a id="__codelineno-0-415" name="__codelineno-0-415"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">_log_failed</span><span class="p">(</span><span class="n">img_idx</span><span class="p">,</span> <span class="n">error_msg</span><span class="p">):</span>
-<a id="__codelineno-0-416" name="__codelineno-0-416"></a>        <span class="k">if</span> <span class="ow">not</span> <span class="n">failed_log_path</span><span class="p">:</span>
-<a id="__codelineno-0-417" name="__codelineno-0-417"></a>            <span class="k">return</span>
-<a id="__codelineno-0-418" name="__codelineno-0-418"></a>        <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
-<a id="__codelineno-0-419" name="__codelineno-0-419"></a>        <span class="n">write_header</span> <span class="o">=</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">failed_log_path</span><span class="p">)</span>
-<a id="__codelineno-0-420" name="__codelineno-0-420"></a>        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">failed_log_path</span><span class="p">,</span> <span class="s2">&quot;a&quot;</span><span class="p">,</span> <span class="n">newline</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fh</span><span class="p">:</span>
-<a id="__codelineno-0-421" name="__codelineno-0-421"></a>            <span class="n">w</span> <span class="o">=</span> <span class="n">csv</span><span class="o">.</span><span class="n">writer</span><span class="p">(</span><span class="n">fh</span><span class="p">)</span>
-<a id="__codelineno-0-422" name="__codelineno-0-422"></a>            <span class="k">if</span> <span class="n">write_header</span><span class="p">:</span>
-<a id="__codelineno-0-423" name="__codelineno-0-423"></a>                <span class="n">w</span><span class="o">.</span><span class="n">writerow</span><span class="p">([</span><span class="s2">&quot;idx&quot;</span><span class="p">,</span> <span class="s2">&quot;data&quot;</span><span class="p">,</span> <span class="s2">&quot;error&quot;</span><span class="p">])</span>
-<a id="__codelineno-0-424" name="__codelineno-0-424"></a>            <span class="n">w</span><span class="o">.</span><span class="n">writerow</span><span class="p">([</span><span class="n">img_idx</span><span class="p">,</span>
-<a id="__codelineno-0-425" name="__codelineno-0-425"></a>                         <span class="n">imgs</span><span class="p">[</span><span class="n">img_idx</span><span class="p">]</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">imgs</span><span class="p">[</span><span class="n">img_idx</span><span class="p">],</span> <span class="nb">str</span><span class="p">)</span> <span class="k">else</span> <span class="nb">str</span><span class="p">(</span><span class="n">imgs</span><span class="p">[</span><span class="n">img_idx</span><span class="p">]),</span>
-<a id="__codelineno-0-426" name="__codelineno-0-426"></a>                         <span class="n">error_msg</span><span class="p">[:</span><span class="mi">500</span><span class="p">]])</span>
-<a id="__codelineno-0-427" name="__codelineno-0-427"></a>
-<a id="__codelineno-0-428" name="__codelineno-0-428"></a>    <span class="n">task_chunk_idx</span> <span class="o">=</span> <span class="mi">0</span>
-<a id="__codelineno-0-429" name="__codelineno-0-429"></a>    <span class="k">with</span> <span class="n">tqdm</span><span class="p">(</span><span class="n">total</span><span class="o">=</span><span class="n">n</span> <span class="o">-</span> <span class="n">start_idx</span><span class="p">,</span> <span class="n">desc</span><span class="o">=</span><span class="s2">&quot;Processing&quot;</span><span class="p">,</span> <span class="n">ncols</span><span class="o">=</span><span class="mi">80</span><span class="p">,</span>
-<a id="__codelineno-0-430" name="__codelineno-0-430"></a>              <span class="n">disable</span><span class="o">=</span><span class="n">disableProgressBar</span><span class="p">)</span> <span class="k">as</span> <span class="n">pbar</span><span class="p">:</span>
-<a id="__codelineno-0-431" name="__codelineno-0-431"></a>        <span class="k">for</span> <span class="n">start</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">start_idx</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">bs</span><span class="p">):</span>
-<a id="__codelineno-0-432" name="__codelineno-0-432"></a>            <span class="c1"># ── task-chunk boundary logging ──────────────────────────</span>
-<a id="__codelineno-0-433" name="__codelineno-0-433"></a>            <span class="k">if</span> <span class="n">tcs</span><span class="p">:</span>
-<a id="__codelineno-0-434" name="__codelineno-0-434"></a>                <span class="n">rel</span> <span class="o">=</span> <span class="n">start</span> <span class="o">-</span> <span class="n">start_idx</span>
-<a id="__codelineno-0-435" name="__codelineno-0-435"></a>                <span class="k">if</span> <span class="n">rel</span> <span class="o">%</span> <span class="n">tcs</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-<a id="__codelineno-0-436" name="__codelineno-0-436"></a>                    <span class="n">task_chunk_idx</span> <span class="o">=</span> <span class="n">rel</span> <span class="o">//</span> <span class="n">tcs</span>
-<a id="__codelineno-0-437" name="__codelineno-0-437"></a>                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
-<a id="__codelineno-0-438" name="__codelineno-0-438"></a>                        <span class="s2">&quot;Task chunk </span><span class="si">%d</span><span class="s2">/</span><span class="si">%d</span><span class="s2">: rows [</span><span class="si">%d</span><span class="s2">, </span><span class="si">%d</span><span class="s2">)&quot;</span><span class="p">,</span>
-<a id="__codelineno-0-439" name="__codelineno-0-439"></a>                        <span class="n">task_chunk_idx</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">n_task_chunks</span><span class="p">,</span>
-<a id="__codelineno-0-440" name="__codelineno-0-440"></a>                        <span class="n">start</span><span class="p">,</span> <span class="nb">min</span><span class="p">(</span><span class="n">start</span> <span class="o">+</span> <span class="n">tcs</span><span class="p">,</span> <span class="n">n</span><span class="p">),</span>
-<a id="__codelineno-0-441" name="__codelineno-0-441"></a>                    <span class="p">)</span>
-<a id="__codelineno-0-442" name="__codelineno-0-442"></a>
-<a id="__codelineno-0-443" name="__codelineno-0-443"></a>            <span class="n">chunk</span> <span class="o">=</span> <span class="n">items</span><span class="p">[</span><span class="n">start</span><span class="p">:</span><span class="n">start</span> <span class="o">+</span> <span class="n">bs</span><span class="p">]</span>
-<a id="__codelineno-0-444" name="__codelineno-0-444"></a>            <span class="n">responses_list</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_run_chunk_with_retry</span><span class="p">(</span>
-<a id="__codelineno-0-445" name="__codelineno-0-445"></a>                <span class="n">chunk</span><span class="o">=</span><span class="n">chunk</span><span class="p">,</span>
-<a id="__codelineno-0-446" name="__codelineno-0-446"></a>                <span class="n">start</span><span class="o">=</span><span class="n">start</span><span class="p">,</span>
-<a id="__codelineno-0-447" name="__codelineno-0-447"></a>                <span class="n">system</span><span class="o">=</span><span class="n">system</span><span class="p">,</span>
-<a id="__codelineno-0-448" name="__codelineno-0-448"></a>                <span class="n">prompt</span><span class="o">=</span><span class="n">prompt</span><span class="p">,</span>
-<a id="__codelineno-0-449" name="__codelineno-0-449"></a>                <span class="n">schema</span><span class="o">=</span><span class="n">schema</span><span class="p">,</span>
-<a id="__codelineno-0-450" name="__codelineno-0-450"></a>                <span class="n">temp</span><span class="o">=</span><span class="n">temp</span><span class="p">,</span>
-<a id="__codelineno-0-451" name="__codelineno-0-451"></a>                <span class="n">top_k</span><span class="o">=</span><span class="n">top_k</span><span class="p">,</span>
-<a id="__codelineno-0-452" name="__codelineno-0-452"></a>                <span class="n">top_p</span><span class="o">=</span><span class="n">top_p</span><span class="p">,</span>
-<a id="__codelineno-0-453" name="__codelineno-0-453"></a>                <span class="n">max_new_tokens</span><span class="o">=</span><span class="n">max_new_tokens</span><span class="p">,</span>
-<a id="__codelineno-0-454" name="__codelineno-0-454"></a>            <span class="p">)</span>
-<a id="__codelineno-0-455" name="__codelineno-0-455"></a>
-<a id="__codelineno-0-456" name="__codelineno-0-456"></a>            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="p">(</span><span class="n">responses</span><span class="p">,</span> <span class="n">err</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">responses_list</span><span class="p">):</span>
-<a id="__codelineno-0-457" name="__codelineno-0-457"></a>                <span class="n">img_idx</span> <span class="o">=</span> <span class="n">start</span> <span class="o">+</span> <span class="n">k</span>
-<a id="__codelineno-0-458" name="__codelineno-0-458"></a>                <span class="n">dic</span><span class="p">[</span><span class="s2">&quot;responses&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">responses</span><span class="p">)</span>
-<a id="__codelineno-0-459" name="__codelineno-0-459"></a>                <span class="n">dic</span><span class="p">[</span><span class="s2">&quot;data&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">imgs</span><span class="p">[</span><span class="n">img_idx</span><span class="p">])</span>
-<a id="__codelineno-0-460" name="__codelineno-0-460"></a>                <span class="k">if</span> <span class="n">responses</span><span class="p">:</span>
-<a id="__codelineno-0-461" name="__codelineno-0-461"></a>                    <span class="n">_save_checkpoint</span><span class="p">(</span><span class="n">img_idx</span><span class="p">,</span> <span class="n">responses</span><span class="p">)</span>
-<a id="__codelineno-0-462" name="__codelineno-0-462"></a>                <span class="k">if</span> <span class="n">err</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-463" name="__codelineno-0-463"></a>                    <span class="n">_log_failed</span><span class="p">(</span><span class="n">img_idx</span><span class="p">,</span> <span class="n">err</span><span class="p">)</span>
-<a id="__codelineno-0-464" name="__codelineno-0-464"></a>
-<a id="__codelineno-0-465" name="__codelineno-0-465"></a>            <span class="c1"># Proactively free reserved-but-unused allocator pool.</span>
-<a id="__codelineno-0-466" name="__codelineno-0-466"></a>            <span class="k">try</span><span class="p">:</span>
-<a id="__codelineno-0-467" name="__codelineno-0-467"></a>                <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">is_available</span><span class="p">():</span>
-<a id="__codelineno-0-468" name="__codelineno-0-468"></a>                    <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">empty_cache</span><span class="p">()</span>
-<a id="__codelineno-0-469" name="__codelineno-0-469"></a>            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
-<a id="__codelineno-0-470" name="__codelineno-0-470"></a>                <span class="k">pass</span>
-<a id="__codelineno-0-471" name="__codelineno-0-471"></a>
-<a id="__codelineno-0-472" name="__codelineno-0-472"></a>            <span class="n">pbar</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">chunk</span><span class="p">))</span>
-<a id="__codelineno-0-473" name="__codelineno-0-473"></a>
-<a id="__codelineno-0-474" name="__codelineno-0-474"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">results</span> <span class="o">=</span> <span class="n">dic</span>
-<a id="__codelineno-0-475" name="__codelineno-0-475"></a>    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_df</span><span class="p">(</span><span class="n">output</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<a id="__codelineno-0-386" name="__codelineno-0-386"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_ensure_loaded</span><span class="p">()</span>
+<a id="__codelineno-0-387" name="__codelineno-0-387"></a>
+<a id="__codelineno-0-388" name="__codelineno-0-388"></a>    <span class="n">imgs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">batch_images</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">batch_images</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">imgs</span>
+<a id="__codelineno-0-389" name="__codelineno-0-389"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">imgs</span><span class="p">:</span>
+<a id="__codelineno-0-390" name="__codelineno-0-390"></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;No images to run inference on.&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-391" name="__codelineno-0-391"></a>
+<a id="__codelineno-0-392" name="__codelineno-0-392"></a>    <span class="n">items</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[</span>
+<a id="__codelineno-0-393" name="__codelineno-0-393"></a>        <span class="p">[</span><span class="n">it</span><span class="p">]</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">it</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="k">else</span> <span class="nb">list</span><span class="p">(</span><span class="n">it</span><span class="p">)</span> <span class="k">for</span> <span class="n">it</span> <span class="ow">in</span> <span class="n">imgs</span>
+<a id="__codelineno-0-394" name="__codelineno-0-394"></a>    <span class="p">]</span>
+<a id="__codelineno-0-395" name="__codelineno-0-395"></a>    <span class="n">schema</span> <span class="o">=</span> <span class="n">create_format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">schema</span><span class="p">)</span>
+<a id="__codelineno-0-396" name="__codelineno-0-396"></a>    <span class="n">bs</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">batch_size</span><span class="p">))</span>
+<a id="__codelineno-0-397" name="__codelineno-0-397"></a>    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">items</span><span class="p">)</span>
+<a id="__codelineno-0-398" name="__codelineno-0-398"></a>
+<a id="__codelineno-0-399" name="__codelineno-0-399"></a>    <span class="c1"># ── resume from checkpoint ───────────────────────────────────────</span>
+<a id="__codelineno-0-400" name="__codelineno-0-400"></a>    <span class="n">done_records</span> <span class="o">=</span> <span class="n">load_inference_checkpoint</span><span class="p">(</span><span class="n">checkpoint_path</span><span class="p">)</span> <span class="k">if</span> <span class="n">checkpoint_path</span> <span class="k">else</span> <span class="p">[]</span>
+<a id="__codelineno-0-401" name="__codelineno-0-401"></a>    <span class="c1"># Resume from exactly where we left off.  The old formula</span>
+<a id="__codelineno-0-402" name="__codelineno-0-402"></a>    <span class="c1"># ``(len // bs) * bs`` rounded down to the nearest batch boundary,</span>
+<a id="__codelineno-0-403" name="__codelineno-0-403"></a>    <span class="c1"># which caused the trailing partial batch to be re-processed on every</span>
+<a id="__codelineno-0-404" name="__codelineno-0-404"></a>    <span class="c1"># restart.  Since checkpoints are written per-item (not per-batch),</span>
+<a id="__codelineno-0-405" name="__codelineno-0-405"></a>    <span class="c1"># len(done_records) is always the exact number of completed items.</span>
+<a id="__codelineno-0-406" name="__codelineno-0-406"></a>    <span class="n">start_idx</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">done_records</span><span class="p">)</span>
+<a id="__codelineno-0-407" name="__codelineno-0-407"></a>    <span class="n">dic</span> <span class="o">=</span> <span class="n">restore_ollama_results</span><span class="p">(</span><span class="n">done_records</span><span class="p">)</span>
+<a id="__codelineno-0-408" name="__codelineno-0-408"></a>
+<a id="__codelineno-0-409" name="__codelineno-0-409"></a>    <span class="c1"># ── task-chunk boundaries for progress reporting ─────────────────</span>
+<a id="__codelineno-0-410" name="__codelineno-0-410"></a>    <span class="n">tcs</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">task_chunk_size</span><span class="p">)</span> <span class="k">if</span> <span class="n">task_chunk_size</span> <span class="ow">and</span> <span class="n">task_chunk_size</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="kc">None</span>
+<a id="__codelineno-0-411" name="__codelineno-0-411"></a>    <span class="n">n_task_chunks</span> <span class="o">=</span> <span class="p">((</span><span class="n">n</span> <span class="o">-</span> <span class="n">start_idx</span><span class="p">)</span> <span class="o">+</span> <span class="n">tcs</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">//</span> <span class="n">tcs</span> <span class="k">if</span> <span class="n">tcs</span> <span class="k">else</span> <span class="mi">1</span>
+<a id="__codelineno-0-412" name="__codelineno-0-412"></a>
+<a id="__codelineno-0-413" name="__codelineno-0-413"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">_save_checkpoint</span><span class="p">(</span><span class="n">img_idx</span><span class="p">,</span> <span class="n">responses</span><span class="p">):</span>
+<a id="__codelineno-0-414" name="__codelineno-0-414"></a>        <span class="k">if</span> <span class="ow">not</span> <span class="n">checkpoint_path</span><span class="p">:</span>
+<a id="__codelineno-0-415" name="__codelineno-0-415"></a>            <span class="k">return</span>
+<a id="__codelineno-0-416" name="__codelineno-0-416"></a>        <span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-0-417" name="__codelineno-0-417"></a>            <span class="n">responses_dump</span> <span class="o">=</span> <span class="p">[</span><span class="n">r</span><span class="o">.</span><span class="n">model_dump</span><span class="p">()</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">responses</span><span class="p">]</span>
+<a id="__codelineno-0-418" name="__codelineno-0-418"></a>        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+<a id="__codelineno-0-419" name="__codelineno-0-419"></a>            <span class="n">responses_dump</span> <span class="o">=</span> <span class="p">[</span><span class="nb">dict</span><span class="p">(</span><span class="n">r</span><span class="p">)</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">responses</span><span class="p">]</span> <span class="k">if</span> <span class="n">responses</span> <span class="k">else</span> <span class="p">[]</span>
+<a id="__codelineno-0-420" name="__codelineno-0-420"></a>        <span class="n">append_inference_checkpoint</span><span class="p">(</span><span class="n">checkpoint_path</span><span class="p">,</span> <span class="p">{</span>
+<a id="__codelineno-0-421" name="__codelineno-0-421"></a>            <span class="s2">&quot;idx&quot;</span><span class="p">:</span> <span class="n">img_idx</span><span class="p">,</span>
+<a id="__codelineno-0-422" name="__codelineno-0-422"></a>            <span class="s2">&quot;responses&quot;</span><span class="p">:</span> <span class="n">responses_dump</span><span class="p">,</span>
+<a id="__codelineno-0-423" name="__codelineno-0-423"></a>            <span class="s2">&quot;data&quot;</span><span class="p">:</span> <span class="n">imgs</span><span class="p">[</span><span class="n">img_idx</span><span class="p">]</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">imgs</span><span class="p">[</span><span class="n">img_idx</span><span class="p">],</span> <span class="nb">str</span><span class="p">)</span> <span class="k">else</span> <span class="nb">list</span><span class="p">(</span><span class="n">imgs</span><span class="p">[</span><span class="n">img_idx</span><span class="p">]),</span>
+<a id="__codelineno-0-424" name="__codelineno-0-424"></a>        <span class="p">})</span>
+<a id="__codelineno-0-425" name="__codelineno-0-425"></a>
+<a id="__codelineno-0-426" name="__codelineno-0-426"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">_log_failed</span><span class="p">(</span><span class="n">img_idx</span><span class="p">,</span> <span class="n">error_msg</span><span class="p">):</span>
+<a id="__codelineno-0-427" name="__codelineno-0-427"></a>        <span class="k">if</span> <span class="ow">not</span> <span class="n">failed_log_path</span><span class="p">:</span>
+<a id="__codelineno-0-428" name="__codelineno-0-428"></a>            <span class="k">return</span>
+<a id="__codelineno-0-429" name="__codelineno-0-429"></a>        <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<a id="__codelineno-0-430" name="__codelineno-0-430"></a>        <span class="n">write_header</span> <span class="o">=</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">failed_log_path</span><span class="p">)</span>
+<a id="__codelineno-0-431" name="__codelineno-0-431"></a>        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">failed_log_path</span><span class="p">,</span> <span class="s2">&quot;a&quot;</span><span class="p">,</span> <span class="n">newline</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fh</span><span class="p">:</span>
+<a id="__codelineno-0-432" name="__codelineno-0-432"></a>            <span class="n">w</span> <span class="o">=</span> <span class="n">csv</span><span class="o">.</span><span class="n">writer</span><span class="p">(</span><span class="n">fh</span><span class="p">)</span>
+<a id="__codelineno-0-433" name="__codelineno-0-433"></a>            <span class="k">if</span> <span class="n">write_header</span><span class="p">:</span>
+<a id="__codelineno-0-434" name="__codelineno-0-434"></a>                <span class="n">w</span><span class="o">.</span><span class="n">writerow</span><span class="p">([</span><span class="s2">&quot;idx&quot;</span><span class="p">,</span> <span class="s2">&quot;data&quot;</span><span class="p">,</span> <span class="s2">&quot;error&quot;</span><span class="p">])</span>
+<a id="__codelineno-0-435" name="__codelineno-0-435"></a>            <span class="n">w</span><span class="o">.</span><span class="n">writerow</span><span class="p">([</span><span class="n">img_idx</span><span class="p">,</span>
+<a id="__codelineno-0-436" name="__codelineno-0-436"></a>                         <span class="n">imgs</span><span class="p">[</span><span class="n">img_idx</span><span class="p">]</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">imgs</span><span class="p">[</span><span class="n">img_idx</span><span class="p">],</span> <span class="nb">str</span><span class="p">)</span> <span class="k">else</span> <span class="nb">str</span><span class="p">(</span><span class="n">imgs</span><span class="p">[</span><span class="n">img_idx</span><span class="p">]),</span>
+<a id="__codelineno-0-437" name="__codelineno-0-437"></a>                         <span class="n">error_msg</span><span class="p">[:</span><span class="mi">500</span><span class="p">]])</span>
+<a id="__codelineno-0-438" name="__codelineno-0-438"></a>
+<a id="__codelineno-0-439" name="__codelineno-0-439"></a>    <span class="n">task_chunk_idx</span> <span class="o">=</span> <span class="mi">0</span>
+<a id="__codelineno-0-440" name="__codelineno-0-440"></a>    <span class="k">with</span> <span class="n">tqdm</span><span class="p">(</span><span class="n">total</span><span class="o">=</span><span class="n">n</span> <span class="o">-</span> <span class="n">start_idx</span><span class="p">,</span> <span class="n">desc</span><span class="o">=</span><span class="s2">&quot;Processing&quot;</span><span class="p">,</span> <span class="n">ncols</span><span class="o">=</span><span class="mi">80</span><span class="p">,</span>
+<a id="__codelineno-0-441" name="__codelineno-0-441"></a>              <span class="n">disable</span><span class="o">=</span><span class="n">disableProgressBar</span><span class="p">)</span> <span class="k">as</span> <span class="n">pbar</span><span class="p">:</span>
+<a id="__codelineno-0-442" name="__codelineno-0-442"></a>        <span class="k">for</span> <span class="n">start</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">start_idx</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">bs</span><span class="p">):</span>
+<a id="__codelineno-0-443" name="__codelineno-0-443"></a>            <span class="c1"># ── task-chunk boundary logging ──────────────────────────</span>
+<a id="__codelineno-0-444" name="__codelineno-0-444"></a>            <span class="k">if</span> <span class="n">tcs</span><span class="p">:</span>
+<a id="__codelineno-0-445" name="__codelineno-0-445"></a>                <span class="n">rel</span> <span class="o">=</span> <span class="n">start</span> <span class="o">-</span> <span class="n">start_idx</span>
+<a id="__codelineno-0-446" name="__codelineno-0-446"></a>                <span class="k">if</span> <span class="n">rel</span> <span class="o">%</span> <span class="n">tcs</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+<a id="__codelineno-0-447" name="__codelineno-0-447"></a>                    <span class="n">task_chunk_idx</span> <span class="o">=</span> <span class="n">rel</span> <span class="o">//</span> <span class="n">tcs</span>
+<a id="__codelineno-0-448" name="__codelineno-0-448"></a>                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+<a id="__codelineno-0-449" name="__codelineno-0-449"></a>                        <span class="s2">&quot;Task chunk </span><span class="si">%d</span><span class="s2">/</span><span class="si">%d</span><span class="s2">: rows [</span><span class="si">%d</span><span class="s2">, </span><span class="si">%d</span><span class="s2">)&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-450" name="__codelineno-0-450"></a>                        <span class="n">task_chunk_idx</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">n_task_chunks</span><span class="p">,</span>
+<a id="__codelineno-0-451" name="__codelineno-0-451"></a>                        <span class="n">start</span><span class="p">,</span> <span class="nb">min</span><span class="p">(</span><span class="n">start</span> <span class="o">+</span> <span class="n">tcs</span><span class="p">,</span> <span class="n">n</span><span class="p">),</span>
+<a id="__codelineno-0-452" name="__codelineno-0-452"></a>                    <span class="p">)</span>
+<a id="__codelineno-0-453" name="__codelineno-0-453"></a>
+<a id="__codelineno-0-454" name="__codelineno-0-454"></a>            <span class="n">chunk</span> <span class="o">=</span> <span class="n">items</span><span class="p">[</span><span class="n">start</span><span class="p">:</span><span class="n">start</span> <span class="o">+</span> <span class="n">bs</span><span class="p">]</span>
+<a id="__codelineno-0-455" name="__codelineno-0-455"></a>            <span class="n">responses_list</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_run_chunk_with_retry</span><span class="p">(</span>
+<a id="__codelineno-0-456" name="__codelineno-0-456"></a>                <span class="n">chunk</span><span class="o">=</span><span class="n">chunk</span><span class="p">,</span>
+<a id="__codelineno-0-457" name="__codelineno-0-457"></a>                <span class="n">start</span><span class="o">=</span><span class="n">start</span><span class="p">,</span>
+<a id="__codelineno-0-458" name="__codelineno-0-458"></a>                <span class="n">system</span><span class="o">=</span><span class="n">system</span><span class="p">,</span>
+<a id="__codelineno-0-459" name="__codelineno-0-459"></a>                <span class="n">prompt</span><span class="o">=</span><span class="n">prompt</span><span class="p">,</span>
+<a id="__codelineno-0-460" name="__codelineno-0-460"></a>                <span class="n">schema</span><span class="o">=</span><span class="n">schema</span><span class="p">,</span>
+<a id="__codelineno-0-461" name="__codelineno-0-461"></a>                <span class="n">temp</span><span class="o">=</span><span class="n">temp</span><span class="p">,</span>
+<a id="__codelineno-0-462" name="__codelineno-0-462"></a>                <span class="n">top_k</span><span class="o">=</span><span class="n">top_k</span><span class="p">,</span>
+<a id="__codelineno-0-463" name="__codelineno-0-463"></a>                <span class="n">top_p</span><span class="o">=</span><span class="n">top_p</span><span class="p">,</span>
+<a id="__codelineno-0-464" name="__codelineno-0-464"></a>                <span class="n">max_new_tokens</span><span class="o">=</span><span class="n">max_new_tokens</span><span class="p">,</span>
+<a id="__codelineno-0-465" name="__codelineno-0-465"></a>            <span class="p">)</span>
+<a id="__codelineno-0-466" name="__codelineno-0-466"></a>
+<a id="__codelineno-0-467" name="__codelineno-0-467"></a>            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="p">(</span><span class="n">responses</span><span class="p">,</span> <span class="n">err</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">responses_list</span><span class="p">):</span>
+<a id="__codelineno-0-468" name="__codelineno-0-468"></a>                <span class="n">img_idx</span> <span class="o">=</span> <span class="n">start</span> <span class="o">+</span> <span class="n">k</span>
+<a id="__codelineno-0-469" name="__codelineno-0-469"></a>                <span class="n">dic</span><span class="p">[</span><span class="s2">&quot;responses&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">responses</span><span class="p">)</span>
+<a id="__codelineno-0-470" name="__codelineno-0-470"></a>                <span class="n">dic</span><span class="p">[</span><span class="s2">&quot;data&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">imgs</span><span class="p">[</span><span class="n">img_idx</span><span class="p">])</span>
+<a id="__codelineno-0-471" name="__codelineno-0-471"></a>                <span class="k">if</span> <span class="n">responses</span><span class="p">:</span>
+<a id="__codelineno-0-472" name="__codelineno-0-472"></a>                    <span class="n">_save_checkpoint</span><span class="p">(</span><span class="n">img_idx</span><span class="p">,</span> <span class="n">responses</span><span class="p">)</span>
+<a id="__codelineno-0-473" name="__codelineno-0-473"></a>                <span class="k">if</span> <span class="n">err</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-474" name="__codelineno-0-474"></a>                    <span class="n">_log_failed</span><span class="p">(</span><span class="n">img_idx</span><span class="p">,</span> <span class="n">err</span><span class="p">)</span>
+<a id="__codelineno-0-475" name="__codelineno-0-475"></a>
+<a id="__codelineno-0-476" name="__codelineno-0-476"></a>            <span class="c1"># Proactively free reserved-but-unused allocator pool.</span>
+<a id="__codelineno-0-477" name="__codelineno-0-477"></a>            <span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-0-478" name="__codelineno-0-478"></a>                <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">is_available</span><span class="p">():</span>
+<a id="__codelineno-0-479" name="__codelineno-0-479"></a>                    <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">empty_cache</span><span class="p">()</span>
+<a id="__codelineno-0-480" name="__codelineno-0-480"></a>            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+<a id="__codelineno-0-481" name="__codelineno-0-481"></a>                <span class="k">pass</span>
+<a id="__codelineno-0-482" name="__codelineno-0-482"></a>
+<a id="__codelineno-0-483" name="__codelineno-0-483"></a>            <span class="n">pbar</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">chunk</span><span class="p">))</span>
+<a id="__codelineno-0-484" name="__codelineno-0-484"></a>
+<a id="__codelineno-0-485" name="__codelineno-0-485"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">results</span> <span class="o">=</span> <span class="n">dic</span>
+<a id="__codelineno-0-486" name="__codelineno-0-486"></a>    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_df</span><span class="p">(</span><span class="n">output</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -2074,25 +2086,25 @@ you rerun only the failures later.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>urbanworm/inference/unsloth.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-558">558</a></span>
-<span class="normal"><a href="#__codelineno-0-559">559</a></span>
-<span class="normal"><a href="#__codelineno-0-560">560</a></span>
-<span class="normal"><a href="#__codelineno-0-561">561</a></span>
-<span class="normal"><a href="#__codelineno-0-562">562</a></span>
-<span class="normal"><a href="#__codelineno-0-563">563</a></span>
-<span class="normal"><a href="#__codelineno-0-564">564</a></span>
-<span class="normal"><a href="#__codelineno-0-565">565</a></span>
-<span class="normal"><a href="#__codelineno-0-566">566</a></span>
-<span class="normal"><a href="#__codelineno-0-567">567</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-558" name="__codelineno-0-558"></a><span class="k">def</span><span class="w"> </span><span class="nf">to_df</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">output</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-559" name="__codelineno-0-559"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Convert ``self.results`` into a DataFrame. Mirrors InferenceOllama.&quot;&quot;&quot;</span>
-<a id="__codelineno-0-560" name="__codelineno-0-560"></a>    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">results</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-561" name="__codelineno-0-561"></a>        <span class="k">return</span> <span class="kc">None</span>
-<a id="__codelineno-0-562" name="__codelineno-0-562"></a>    <span class="k">try</span><span class="p">:</span>
-<a id="__codelineno-0-563" name="__codelineno-0-563"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">df</span> <span class="o">=</span> <span class="n">response2df</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">results</span><span class="p">)</span>
-<a id="__codelineno-0-564" name="__codelineno-0-564"></a>    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-<a id="__codelineno-0-565" name="__codelineno-0-565"></a>        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;to_df: response2df failed (</span><span class="si">%s</span><span class="s2">); returning raw dict.&quot;</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
-<a id="__codelineno-0-566" name="__codelineno-0-566"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">results</span><span class="p">)</span>
-<a id="__codelineno-0-567" name="__codelineno-0-567"></a>    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">df</span> <span class="k">if</span> <span class="n">output</span> <span class="k">else</span> <span class="kc">None</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-580">580</a></span>
+<span class="normal"><a href="#__codelineno-0-581">581</a></span>
+<span class="normal"><a href="#__codelineno-0-582">582</a></span>
+<span class="normal"><a href="#__codelineno-0-583">583</a></span>
+<span class="normal"><a href="#__codelineno-0-584">584</a></span>
+<span class="normal"><a href="#__codelineno-0-585">585</a></span>
+<span class="normal"><a href="#__codelineno-0-586">586</a></span>
+<span class="normal"><a href="#__codelineno-0-587">587</a></span>
+<span class="normal"><a href="#__codelineno-0-588">588</a></span>
+<span class="normal"><a href="#__codelineno-0-589">589</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-580" name="__codelineno-0-580"></a><span class="k">def</span><span class="w"> </span><span class="nf">to_df</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">output</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-581" name="__codelineno-0-581"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Convert ``self.results`` into a DataFrame. Mirrors InferenceOllama.&quot;&quot;&quot;</span>
+<a id="__codelineno-0-582" name="__codelineno-0-582"></a>    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">results</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-583" name="__codelineno-0-583"></a>        <span class="k">return</span> <span class="kc">None</span>
+<a id="__codelineno-0-584" name="__codelineno-0-584"></a>    <span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-0-585" name="__codelineno-0-585"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">df</span> <span class="o">=</span> <span class="n">response2df</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">results</span><span class="p">)</span>
+<a id="__codelineno-0-586" name="__codelineno-0-586"></a>    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+<a id="__codelineno-0-587" name="__codelineno-0-587"></a>        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;to_df: response2df failed (</span><span class="si">%s</span><span class="s2">); returning raw dict.&quot;</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
+<a id="__codelineno-0-588" name="__codelineno-0-588"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">results</span><span class="p">)</span>
+<a id="__codelineno-0-589" name="__codelineno-0-589"></a>    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">df</span> <span class="k">if</span> <span class="n">output</span> <span class="k">else</span> <span class="kc">None</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
