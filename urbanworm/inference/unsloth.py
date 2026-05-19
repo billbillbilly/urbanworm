@@ -827,8 +827,41 @@ class InferenceUnsloth(Inference):
             raise ValueError("Empty image reference.")
         return ref
 
+    @staticmethod
+    def _close_truncated_json(text: str) -> str:
+        """Close any unclosed JSON braces/brackets caused by max_new_tokens cutoff.
+
+        Walks the text character-by-character, tracking open structures on a
+        stack while skipping string contents (including escaped quotes).  Any
+        unclosed ``{`` / ``[`` are closed in reverse order at the end.
+
+        Example::
+
+            '{"responses":[{"is_outdoor":true'
+            → '{"responses":[{"is_outdoor":true}]}'
+        """
+        stack: list[str] = []
+        in_string = False
+        escape = False
+        for ch in text:
+            if escape:
+                escape = False
+                continue
+            if ch == "\\" and in_string:
+                escape = True
+                continue
+            if ch == '"':
+                in_string = not in_string
+                continue
+            if not in_string:
+                if ch in "{[":
+                    stack.append("}" if ch == "{" else "]")
+                elif ch in "}]" and stack and stack[-1] == ch:
+                    stack.pop()
+        return text + "".join(reversed(stack))
+
     def _parse_to_schema(self, raw_text: str, schema):
-        """Three-stage validation: direct → sanitized → balanced-extracted.
+        """Four-stage validation: direct → sanitized → extracted → bracket-closed.
 
         On exhaustion, behavior depends on ``self.skip_errors``.
         """
@@ -846,6 +879,15 @@ class InferenceUnsloth(Inference):
         extracted = extract_json_from_text(repaired) or repaired
         try:
             return schema.model_validate_json(extracted)
+        except Exception as e:
+            logger.debug("validation after extract failed: %s", e)
+
+        # Stage 4: the output may have been cut off by max_new_tokens before
+        # the closing braces/brackets were generated.  Close any open structures
+        # and retry once more.
+        closed = self._close_truncated_json(extracted)
+        try:
+            return schema.model_validate_json(closed)
         except Exception:
             if self.skip_errors:
                 logger.warning(

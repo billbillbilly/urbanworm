@@ -14,10 +14,38 @@ GPU-specific PyTorch must be installed **before** the `unsloth` extra, otherwise
 
 === "CUDA"
 
+    First, find your CUDA version:
+
     ```sh
-    pip install torch --index-url https://download.pytorch.org/whl/cu124
-    pip install "urban-worm[unsloth]"
+    nvidia-smi   # look for "CUDA Version: X.Y" in the top-right corner
     ```
+
+    Map the reported version to the matching PyTorch wheel tag:
+
+    | CUDA version | Wheel tag |
+    |---|---|
+    | 11.8 | `cu118` |
+    | 12.1 | `cu121` |
+    | 12.4 | `cu124` |
+    | 12.6 | `cu126` |
+    | 12.8 | `cu128` |
+
+    !!! warning "Pin the torch version that unsloth requires"
+        Unsloth requires a **specific** torch version and will not work correctly with an
+        arbitrary latest release.  Before installing, check the
+        [Unsloth installation guide](https://docs.unsloth.ai/get-started/installing-+-updating-unsloth)
+        to find the torch version it currently requires (e.g. `2.6.0`), then pin that version
+        explicitly in the first command.
+
+    Substitute your CUDA tag and the torch version unsloth requires
+    (example below uses `cu126` and `torch==2.6.0`):
+
+    ```sh
+    pip install "torch==2.6.0" --index-url https://download.pytorch.org/whl/cu126
+    pip install "urban-worm[unsloth]" --extra-index-url https://download.pytorch.org/whl/cu126
+    ```
+
+    Not sure which CUDA tag to use? The [PyTorch install selector](https://pytorch.org/get-started/locally/) generates the exact command for your system.
 
 === "macOS (Apple Silicon)"
 
@@ -119,8 +147,18 @@ pip install "urban-worm[all,audio]"
 ```
 
 !!! warning "GPU torch + `[all]`"
-    Pre-install the CUDA torch wheel **before** running `pip install "urban-worm[all]"`.
-    See the Unsloth tab above for the one-liner.
+    Pre-install the CUDA torch wheel **and** pass `--extra-index-url` with your CUDA tag
+    when running `pip install "urban-worm[all]"`, otherwise pip will replace the CUDA build with a
+    CPU-only torch pulled from PyPI.  Replace `cu126` with the tag that matches your driver
+    (run `nvidia-smi` to check; see the CUDA version table in the Unsloth section above), and
+    pin the torch version that unsloth currently requires — check the
+    [Unsloth installation guide](https://docs.unsloth.ai/get-started/installing-+-updating-unsloth)
+    before running these commands.
+
+    ```sh
+    pip install "torch==2.6.0" --index-url https://download.pytorch.org/whl/cu126
+    pip install "urban-worm[all]" --extra-index-url https://download.pytorch.org/whl/cu126
+    ```
 
 ---
 

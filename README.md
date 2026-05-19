@@ -56,30 +56,53 @@ pip install urban-worm
 
 Unsloth is the **recommended** backend for local inference (GPU-accelerated, fastest).
 
-#### Unsloth — recommended (GPU required)
+#### 1 Unsloth — recommended (GPU required)
 
 GPU-specific torch must be installed **before** the `unsloth` extra, otherwise pip falls back to
 a slow CPU-only build:
 
-```sh
-# CUDA (most modern NVIDIA GPUs):
-pip install torch --index-url https://download.pytorch.org/whl/cu124
+**macOS Apple Silicon (MPS):**
 
-# macOS Apple Silicon (MPS):
+```sh
 pip install torch          # MPS is enabled by default on macOS
-```
-
-Then install the extra:
-
-```sh
 pip install "urban-worm[unsloth]"
 ```
 
+**CUDA (NVIDIA GPU):**
+
+First check your CUDA version — run `nvidia-smi` and look for `CUDA Version: X.Y` in the
+top-right corner, then map it to the matching PyTorch wheel tag:
+
+| CUDA version | Wheel tag |
+|---|---|
+| 11.8 | `cu118` |
+| 12.1 | `cu121` |
+| 12.4 | `cu124` |
+| 12.6 | `cu126` |
+| 12.8 | `cu128` |
+
+Unsloth requires a **specific torch version** and will not work correctly with an arbitrary
+latest release.  Before installing, check the
+[Unsloth dependencies](https://github.com/unslothai/unsloth/blob/main/pyproject.toml)
+for the torch version it currently requires (e.g. `2.6.0`), then pin that version explicitly.
+
+Substitute your CUDA tag and the required torch version in both commands (example below uses
+`cu126` and `torch==2.6.0`).  Passing `--extra-index-url` on the second command is required —
+without it pip will overwrite the CUDA torch with a CPU-only build pulled from PyPI:
+
+```sh
+pip install "torch==2.6.0" --index-url https://download.pytorch.org/whl/cu126
+pip install "urban-worm[unsloth]" --extra-index-url https://download.pytorch.org/whl/cu126
+```
+
+Not sure which CUDA tag to use? The [PyTorch install selector](https://pytorch.org/get-started/locally/)
+generates the exact command for your system.
+
 Tested checkpoints: `unsloth/Qwen3-VL-3B-Instruct`, `unsloth/Qwen3-VL-8B-Instruct`,
-`unsloth/gemma-3-4b-it`, `unsloth/Qwen2-VL-2B-Instruct`, `unsloth/Qwen2.5-VL-7B-Instruct-bnb-4bit`.
+`unsloth/gemma-3-4b-it`, `unsloth/Qwen2.5-VL-7B-Instruct-bnb-4bit`.
 Any vision model that `unsloth.FastVisionModel` can load should work.
 
-#### Ollama — lightweight local inference (no GPU required)
+#### 2.1 Ollama — lightweight local inference (no GPU required)
 
 Install the [Ollama application](https://ollama.com/) first:
 
@@ -99,7 +122,7 @@ Then install the Python client:
 pip install "urban-worm[ollama]"
 ```
 
-#### llama.cpp — CLI-based local inference
+#### 2.2 llama.cpp — CLI-based local inference
 
 The `llama-mtmd-cli` binary must be installed separately:
 
@@ -127,7 +150,7 @@ CMAKE_ARGS="-DGGML_CUDA=on" pip install "urban-worm[llamacpp]"
 CMAKE_ARGS="-DGGML_METAL=on" pip install "urban-worm[llamacpp]"
 ```
 
-#### Cloud APIs (Claude / GPT-4o / Gemini)
+#### 3 Cloud APIs (Claude / GPT-4o / Gemini)
 
 ```sh
 pip install "urban-worm[api]"
@@ -143,12 +166,21 @@ pip install "urban-worm[audio]"
 
 ### All extras at once
 
-> **Note:** GPU torch must still be pre-installed before running `pip install "urban-worm[all]"`.
-> See the Unsloth section above.
+CPU / macOS:
 
 ```sh
 pip install "urban-worm[all]"          # all backends + API providers (no audio)
 pip install "urban-worm[all,audio]"    # + audio slicing
+```
+
+CUDA — replace `cu126` with the tag that matches your driver (see the table in the Unsloth
+section above; run `nvidia-smi` to check), and pin the torch version unsloth currently
+requires (check the [Unsloth installation guide](https://docs.unsloth.ai/get-started/installing-+-updating-unsloth)):
+
+```sh
+pip install "torch==2.6.0" --index-url https://download.pytorch.org/whl/cu126
+pip install "urban-worm[all]" --extra-index-url https://download.pytorch.org/whl/cu126
+pip install "urban-worm[all,audio]" --extra-index-url https://download.pytorch.org/whl/cu126
 ```
 
 ### Dev install from source
@@ -187,7 +219,7 @@ from urbanworm import InferenceUnsloth
 from typing import Literal
 
 schema = {
-    "occupancy": (Literal["occupied", "unoccupied", "uncertain"], ...),
+    "occupancy": (Literal["occupied", "unoccupied"], ...),
     "visual_evidence": (str, ...),
 }
 
