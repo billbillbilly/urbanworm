@@ -59,23 +59,22 @@ audio = ["pydub>=0.25"]
 llamacpp = ["llama-cpp-python>=0.3"]
 
 # ── unsloth (GPU-accelerated local VLM) ───────────────────────────────────
-# IMPORTANT — install the right torch BEFORE this extra, otherwise pip
-# will fall back to a CPU-only wheel:
+# torch is intentionally NOT listed here. unsloth declares its own pinned
+# torch requirement; letting pip resolve torch through unsloth's metadata
+# guarantees a compatible version is selected.
 #
-#   # CUDA 12.4 (most common on modern NVIDIA GPUs):
-#   pip install torch --index-url https://download.pytorch.org/whl/cu124
-#   # CUDA 12.1:
-#   pip install torch --index-url https://download.pytorch.org/whl/cu121
-#   # macOS MPS (Apple Silicon):
-#   pip install torch          # MPS is the default on macOS
+# IMPORTANT — install the CUDA torch wheel BEFORE this extra, otherwise pip
+# will pull a CPU-only build from PyPI. Pin the exact torch version that
+# unsloth currently requires (check https://docs.unsloth.ai/get-started/installing-+-updating-unsloth),
+# then substitute your CUDA tag (run `nvidia-smi` to find it):
 #
-# Then install this extra:
+#   pip install "torch==<version>" --index-url https://download.pytorch.org/whl/<cu-tag>
+#   pip install "urban-worm[unsloth]" --extra-index-url https://download.pytorch.org/whl/<cu-tag>
+#
+# macOS Apple Silicon (MPS is the default on macOS):
+#   pip install torch
 #   pip install "urban-worm[unsloth]"
-#
-# If you skip the step above, a CPU-only torch is installed automatically
-# and inference will be very slow.
 unsloth = [
-    "torch>=2.1",              # CPU wheel installed by default; override with CUDA wheel first (see above)
     "bitsandbytes>=0.43",      # 4-bit / 8-bit quantisation (required for load_in_4bit=True)
     "transformers>=4.45",
     "accelerate>=0.34",
@@ -113,7 +112,7 @@ all = [
     # inference backends
     "ollama>=0.3",
     "llama-cpp-python>=0.3",
-    "torch>=2.1",
+    # torch is omitted — unsloth declares its own pinned requirement; see [unsloth] above.
     "bitsandbytes>=0.43",
     "transformers>=4.45",
     "accelerate>=0.34",
