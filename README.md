@@ -49,6 +49,8 @@ Note: models can make mistakes and results still need to be reviewed and used ca
 ### Step 1 — Core package
 
 ```sh
+conda create -n urbanworm python=3.10 -y
+conda activate urbanworm
 pip install urban-worm
 ```
 
@@ -69,30 +71,22 @@ pip install "urban-worm[unsloth]"
 ```
 
 **CUDA (NVIDIA GPU):**
-
-First check your CUDA version — run `nvidia-smi` and look for `CUDA Version: X.Y` in the
-top-right corner, then map it to the matching PyTorch wheel tag:
-
-| CUDA version | Wheel tag |
-|---|---|
-| 11.8 | `cu118` |
-| 12.1 | `cu121` |
-| 12.4 | `cu124` |
-| 12.6 | `cu126` |
-| 12.8 | `cu128` |
-
 Unsloth requires a **specific torch version** and will not work correctly with an arbitrary
 latest release.  Before installing, check the
 [Unsloth dependencies](https://github.com/unslothai/unsloth/blob/main/pyproject.toml)
-for the torch version it currently requires (e.g. `2.6.0`), then pin that version explicitly.
+for the torch version it currently requires (e.g. <=`2.10.0`), then pin that version explicitly.
 
 Substitute your CUDA tag and the required torch version in both commands (example below uses
-`cu126` and `torch==2.6.0`).  Passing `--extra-index-url` on the second command is required —
+`cu128` and `torch==2.10.0`). In addition, xformers works with specific versions of CUDA. Passing `--extra-index-url` on the second command is required —
 without it pip will overwrite the CUDA torch with a CPU-only build pulled from PyPI:
 
 ```sh
-pip install "torch==2.6.0" --index-url https://download.pytorch.org/whl/cu126
-pip install "urban-worm[unsloth]" --extra-index-url https://download.pytorch.org/whl/cu126
+pip install torch==2.10.0 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+pip install xformers==0.0.35 --index-url https://download.pytorch.org/whl/cu128
+pip install triton-windows # if you are using windows os otherwise please skip
+pip install pandas==2.2.3 pyarrow==17.0.0 datasets==3.6.0
+pip install torchao==0.13.0 --no-deps
+pip install "urban-worm[unsloth]" --extra-index-url https://download.pytorch.org/whl/cu128
 ```
 
 Not sure which CUDA tag to use? The [PyTorch install selector](https://pytorch.org/get-started/locally/)
